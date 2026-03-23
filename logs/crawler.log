@@ -1,0 +1,246 @@
+2026-03-23 15:55:10,732 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 15:55:16,601 - genshin_wiki - INFO - Crawler finished
+2026-03-23 15:56:06,553 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 15:56:06,553 - genshin_wiki - INFO - Starting to crawl category: 五星角色
+2026-03-23 15:56:08,588 - genshin_wiki - INFO - Finished crawling 五星角色: 0 pages
+2026-03-23 15:56:08,588 - genshin_wiki - INFO - Crawled 0 pages from category 五星角色
+2026-03-23 15:56:08,588 - genshin_wiki - INFO - Crawler finished
+2026-03-23 15:58:50,429 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 15:59:49,085 - genshin_wiki - ERROR - Failed to crawl 甘雨: HTTP error: 567 Server Error: Unknown Status for url: https://wiki.biligame.com/ys/api.php?action=query&format=json&titles=%E7%94%98%E9%9B%A8&prop=info%7Ccategories%7Clinks%7Ctemplates%7Crevisions&plcontinue=5123%7C0%7C%E5%85%83%E7%B4%A0%E8%83%BD%E9%87%8F%E5%AD%A6%2F%E8%A7%92%E8%89%B2%E6%95%B0%E6%8D%AE&tlcontinue=5123%7C10%7C%E8%A7%92%E8%89%B2%E8%AE%A1%E7%AE%97%E5%99%A8&continue=%7C%7Cinfo%7Ccategories%7Crevisions
+2026-03-23 15:59:49,098 - genshin_wiki - ERROR - Failed to crawl page: 甘雨
+2026-03-23 15:59:49,098 - genshin_wiki - INFO - Crawler finished
+2026-03-23 16:00:31,761 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 16:01:11,048 - genshin_wiki - ERROR - Failed to crawl 甘雨: HTTP error: 567 Server Error: Unknown Status for url: https://wiki.biligame.com/ys/api.php?action=query&format=json&titles=%E7%94%98%E9%9B%A8&prop=info%7Ccategories%7Clinks%7Ctemplates%7Crevisions
+2026-03-23 16:01:11,052 - genshin_wiki - ERROR - Failed to crawl page: 甘雨
+2026-03-23 16:01:11,052 - genshin_wiki - INFO - Crawler finished
+2026-03-23 16:01:43,349 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 16:02:21,858 - genshin_wiki - ERROR - Failed to crawl 甘雨: HTTP error: 567 Server Error: Unknown Status for url: https://wiki.biligame.com/ys/api.php?action=query&format=json&titles=%E7%94%98%E9%9B%A8&prop=info%7Ccategories%7Clinks%7Ctemplates%7Crevisions&rvprop=ids%7Ctimestamp%7Cuser%7Ccomment%7Ccontent
+2026-03-23 16:02:21,861 - genshin_wiki - ERROR - Failed to crawl page: 甘雨
+2026-03-23 16:02:21,861 - genshin_wiki - INFO - Crawler finished
+2026-03-23 16:02:36,088 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 16:02:43,144 - genshin_wiki - ERROR - Failed to crawl 原神: File not opened
+2026-03-23 16:02:43,144 - genshin_wiki - ERROR - Failed to crawl page: 原神
+2026-03-23 16:02:43,144 - genshin_wiki - INFO - Crawler finished
+2026-03-23 16:03:42,170 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 16:04:21,156 - genshin_wiki - ERROR - Failed to crawl 原神: HTTP error: 567 Server Error: Unknown Status for url: https://wiki.biligame.com/ys/api.php?action=query&format=json&titles=%E5%8E%9F%E7%A5%9E&prop=info%7Ccategories%7Clinks%7Ctemplates%7Crevisions&rvprop=ids%7Ctimestamp%7Cuser%7Ccomment%7Ccontent
+2026-03-23 16:04:21,157 - genshin_wiki - ERROR - Failed to crawl page: 原神
+2026-03-23 16:04:21,159 - genshin_wiki - INFO - Crawler finished
+2026-03-23 16:05:32,228 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 16:05:34,626 - genshin_wiki - ERROR - Failed to crawl 原神: 'Revision' object has no attribute 'to_dict'
+2026-03-23 16:05:34,626 - genshin_wiki - ERROR - Failed to crawl page: 原神
+2026-03-23 16:05:34,626 - genshin_wiki - INFO - Crawler finished
+2026-03-23 16:05:54,609 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 16:05:57,715 - genshin_wiki - INFO - Crawled: 原神
+2026-03-23 16:05:57,715 - genshin_wiki - INFO - Successfully crawled page: 原神
+2026-03-23 16:05:57,717 - genshin_wiki - INFO - Crawler finished
+2026-03-23 16:14:04,826 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 16:14:04,826 - genshin_wiki - INFO - Starting to crawl books from category: 书籍
+2026-03-23 16:14:11,090 - genshin_wiki - INFO - Crawled book: 「东王」史辩 (1 books)
+2026-03-23 16:14:15,860 - genshin_wiki - INFO - Crawled book: 《交涉的艺术》 (2 books)
+2026-03-23 16:14:20,913 - genshin_wiki - INFO - Crawled book: 《旧都梦夜奇谭》 (3 books)
+2026-03-23 16:14:26,164 - genshin_wiki - INFO - Crawled book: 《召唤王》 (4 books)
+2026-03-23 16:14:31,046 - genshin_wiki - INFO - Crawled book: 阿赫玛尔的故事 (5 books)
+2026-03-23 16:14:31,056 - genshin_wiki - INFO - Finished crawling books: 5 books saved to data/book
+2026-03-23 16:14:31,056 - genshin_wiki - INFO - Crawled 5 books
+2026-03-23 16:14:31,056 - genshin_wiki - INFO - Crawler finished
+2026-03-23 16:15:39,472 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 16:15:39,473 - genshin_wiki - INFO - Starting to crawl books from category: 书籍
+2026-03-23 16:15:45,625 - genshin_wiki - INFO - Crawled book: 「东王」史辩 (1 books)
+2026-03-23 16:15:50,697 - genshin_wiki - INFO - Crawled book: 《交涉的艺术》 (2 books)
+2026-03-23 16:15:55,094 - genshin_wiki - INFO - Crawled book: 《旧都梦夜奇谭》 (3 books)
+2026-03-23 16:16:00,577 - genshin_wiki - INFO - Crawled book: 《召唤王》 (4 books)
+2026-03-23 16:16:05,183 - genshin_wiki - INFO - Crawled book: 阿赫玛尔的故事 (5 books)
+2026-03-23 16:16:10,373 - genshin_wiki - INFO - Crawled book: 拜托了我的狐仙宫司 (6 books)
+2026-03-23 16:16:20,069 - genshin_wiki - INFO - Crawled book: 白夜国馆藏 (7 books)
+2026-03-23 16:16:20,070 - genshin_wiki - INFO - Crawled book: 白夜国馆藏 (8 books)
+2026-03-23 16:16:25,116 - genshin_wiki - INFO - Crawled book: 白之公主与六侏儒 (9 books)
+2026-03-23 16:16:30,343 - genshin_wiki - INFO - Crawled book: 北境秘史 (10 books)
+2026-03-23 16:16:35,341 - genshin_wiki - INFO - Crawled book: 边乡夜语 (11 books)
+2026-03-23 16:16:40,340 - genshin_wiki - INFO - Crawled book: 苍星妖灵史略 (12 books)
+2026-03-23 16:16:45,600 - genshin_wiki - INFO - Crawled book: 沉秋拾剑录 (13 books)
+2026-03-23 16:16:50,069 - genshin_wiki - INFO - Crawled book: 出发吧！嘟嘟可 (14 books)
+2026-03-23 16:16:55,337 - genshin_wiki - INFO - Crawled book: 大盗雷德·米勒传奇 (15 books)
+2026-03-23 16:17:00,095 - genshin_wiki - INFO - Crawled book: 稻妻秘见录 (16 books)
+2026-03-23 16:17:05,819 - genshin_wiki - INFO - Crawled book: 帝君尘游记 (17 books)
+2026-03-23 16:17:10,095 - genshin_wiki - INFO - Crawled book: 嘟嘟可轰轰奇遇记 (18 books)
+2026-03-23 16:17:21,251 - genshin_wiki - INFO - Crawled book: 菲谢尔皇女夜谭 (19 books)
+2026-03-23 16:17:25,660 - genshin_wiki - INFO - Crawled book: 飞行指南 (20 books)
+2026-03-23 16:17:30,968 - genshin_wiki - INFO - Crawled book: 枫丹动物寓言集 (21 books)
+2026-03-23 16:17:35,927 - genshin_wiki - INFO - Crawled book: 浮浪记 (22 books)
+2026-03-23 16:17:40,739 - genshin_wiki - INFO - Crawled book: 浮槃歌卷 (23 books)
+2026-03-23 16:17:45,677 - genshin_wiki - INFO - Crawled book: 古恩希尔德小传 (24 books)
+2026-03-23 16:17:50,717 - genshin_wiki - INFO - Crawled book: 古老的考察日志 (25 books)
+2026-03-23 16:17:55,896 - genshin_wiki - INFO - Crawled book: 怪盗与名侦探：虹彩胸针之谜 (26 books)
+2026-03-23 16:18:01,229 - genshin_wiki - INFO - Crawled book: 鬼武道 (27 books)
+2026-03-23 16:18:05,673 - genshin_wiki - INFO - Crawled book: 哈玛瓦兰战记 (28 books)
+2026-03-23 16:18:10,947 - genshin_wiki - INFO - Crawled book: 哈南帕查记事 (29 books)
+2026-03-23 16:18:15,971 - genshin_wiki - INFO - Crawled book: 海螺的回响 (30 books)
+2026-03-23 16:18:20,696 - genshin_wiki - INFO - Crawled book: 护法仙众夜叉录 (31 books)
+2026-03-23 16:18:26,213 - genshin_wiki - INFO - Crawled book: 鹮巷物语 (32 books)
+2026-03-23 16:18:30,920 - genshin_wiki - INFO - Crawled book: 荒山孤剑录 (33 books)
+2026-03-23 16:18:35,895 - genshin_wiki - INFO - Crawled book: 火山大王与缝影针 (34 books)
+2026-03-23 16:18:40,696 - genshin_wiki - INFO - Crawled book: 玑衡经 (35 books)
+2026-03-23 16:18:45,625 - genshin_wiki - INFO - Crawled book: 狡诈的康波雷 (36 books)
+2026-03-23 16:18:50,897 - genshin_wiki - INFO - Crawled book: 绝云记闻 (37 books)
+2026-03-23 16:18:56,165 - genshin_wiki - INFO - Crawled book: 奎伊露和乌库库的故事 (38 books)
+2026-03-23 16:19:00,869 - genshin_wiki - INFO - Crawled book: 昆图尔的故事 (39 books)
+2026-03-23 16:19:05,913 - genshin_wiki - INFO - Crawled book: 兰吉努伊之底 (40 books)
+2026-03-23 16:19:10,848 - genshin_wiki - INFO - Crawled book: 雷穆利亚衰亡史 (41 books)
+2026-03-23 16:19:15,890 - genshin_wiki - INFO - Crawled book: 璃月风土志 (42 books)
+2026-03-23 16:19:21,176 - genshin_wiki - INFO - Crawled book: 连心珠 (43 books)
+2026-03-23 16:19:25,864 - genshin_wiki - INFO - Crawled book: 两个铳枪手 (44 books)
+2026-03-23 16:19:30,891 - genshin_wiki - INFO - Crawled book: 列王与宗室史 (45 books)
+2026-03-23 16:19:35,959 - genshin_wiki - INFO - Crawled book: 林间风 (46 books)
+2026-03-23 16:19:40,668 - genshin_wiki - INFO - Crawled book: 霖铃精选诗集 (47 books)
+2026-03-23 16:19:45,644 - genshin_wiki - INFO - Crawled book: 灵光颂 (48 books)
+2026-03-23 16:19:50,776 - genshin_wiki - INFO - Crawled book: 灵濛山夜话 (49 books)
+2026-03-23 16:19:55,665 - genshin_wiki - INFO - Crawled book: 旅时者 (50 books)
+2026-03-23 16:20:00,945 - genshin_wiki - INFO - Crawled book: 玛阿威与幻写灵 (51 books)
+2026-03-23 16:20:11,191 - genshin_wiki - INFO - Crawled book: 猫咪事务所 (52 books)
+2026-03-23 16:20:15,950 - genshin_wiki - INFO - Crawled book: 冒险家罗尔德的日志 (53 books)
+2026-03-23 16:20:20,643 - genshin_wiki - INFO - Crawled book: 蒙德高塔 (54 books)
+2026-03-23 16:20:26,228 - genshin_wiki - INFO - Crawled book: 牧童与魔瓶的故事 (55 books)
+2026-03-23 16:20:30,914 - genshin_wiki - INFO - Crawled book: 裴伦埃里 (56 books)
+2026-03-23 16:20:36,469 - genshin_wiki - INFO - Crawled book: 蒲公英海的狐狸 (57 books)
+2026-03-23 16:20:40,937 - genshin_wiki - INFO - Crawled book: 骑士团指导手册·第五版 (58 books)
+2026-03-23 16:20:46,192 - genshin_wiki - INFO - Crawled book: 千年孤独 (59 books)
+2026-03-23 16:20:51,195 - genshin_wiki - INFO - Crawled book: 千夜故事集 (60 books)
+2026-03-23 16:20:56,047 - genshin_wiki - INFO - Crawled book: 清泉之心 (61 books)
+2026-03-23 16:21:01,040 - genshin_wiki - INFO - Crawled book: 秋暮之火 (62 books)
+2026-03-23 16:21:06,193 - genshin_wiki - INFO - Crawled book: 丘丘人诗歌选 (63 books)
+2026-03-23 16:21:10,664 - genshin_wiki - INFO - Crawled book: 丘丘人习俗考察 (64 books)
+2026-03-23 16:21:15,810 - genshin_wiki - INFO - Crawled book: 丘丘语诗歌试作 (65 books)
+2026-03-23 16:21:20,664 - genshin_wiki - INFO - Crawled book: 丘丘语速查手册 (66 books)
+2026-03-23 16:21:26,231 - genshin_wiki - INFO - Crawled book: 犬又二分之一 (67 books)
+2026-03-23 16:21:30,697 - genshin_wiki - INFO - Crawled book: 珊瑚宫记 (68 books)
+2026-03-23 16:21:35,935 - genshin_wiki - INFO - Crawled book: 珊瑚宫民间信仰初勘 (69 books)
+2026-03-23 16:21:40,983 - genshin_wiki - INFO - Crawled book: 山与海之书 (70 books)
+2026-03-23 16:21:46,695 - genshin_wiki - INFO - Crawled book: 少女薇拉的忧郁 (71 books)
+2026-03-23 16:21:51,438 - genshin_wiki - INFO - Crawled book: 神霄折戟录 (72 books)
+2026-03-23 16:21:56,248 - genshin_wiki - INFO - Crawled book: 神樱大祓要略 (73 books)
+2026-03-23 16:22:01,448 - genshin_wiki - INFO - Crawled book: 侍从骑士之歌 (74 books)
+2026-03-23 16:22:04,790 - genshin_wiki - INFO - Interrupted by user
+2026-03-23 16:22:04,790 - genshin_wiki - INFO - Crawler finished
+2026-03-23 16:27:27,331 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 16:27:27,331 - genshin_wiki - INFO - Starting to crawl books from category: 书籍
+2026-03-23 16:27:32,479 - genshin_wiki - INFO - Crawled book: 「东王」史辩 (1 books)
+2026-03-23 16:27:37,448 - genshin_wiki - INFO - Crawled book: 《交涉的艺术》 (2 books)
+2026-03-23 16:27:42,448 - genshin_wiki - INFO - Crawled book: 《旧都梦夜奇谭》 (3 books)
+2026-03-23 16:27:47,477 - genshin_wiki - INFO - Crawled book: 《召唤王》 (4 books)
+2026-03-23 16:27:52,464 - genshin_wiki - INFO - Crawled book: 阿赫玛尔的故事 (5 books)
+2026-03-23 16:27:57,450 - genshin_wiki - INFO - Crawled book: 拜托了我的狐仙宫司 (6 books)
+2026-03-23 16:28:07,491 - genshin_wiki - INFO - Crawled book: 白夜国馆藏 (7 books)
+2026-03-23 16:28:07,491 - genshin_wiki - INFO - Crawled book: 白夜国馆藏 (8 books)
+2026-03-23 16:28:12,449 - genshin_wiki - INFO - Crawled book: 白之公主与六侏儒 (9 books)
+2026-03-23 16:28:17,468 - genshin_wiki - INFO - Crawled book: 北境秘史 (10 books)
+2026-03-23 16:28:17,469 - genshin_wiki - INFO - Finished crawling books: 10 books saved, 0 failed to data/book
+2026-03-23 16:28:17,469 - genshin_wiki - INFO - Crawled 10 books
+2026-03-23 16:28:17,469 - genshin_wiki - INFO - Crawler finished
+2026-03-23 16:29:48,351 - genshin_wiki - INFO - Starting Genshin Wiki Crawler
+2026-03-23 16:29:48,351 - genshin_wiki - INFO - Starting to crawl books from category: 书籍
+2026-03-23 16:29:53,468 - genshin_wiki - INFO - Crawled book: 「东王」史辩 (1 books)
+2026-03-23 16:29:58,487 - genshin_wiki - INFO - Crawled book: 《交涉的艺术》 (2 books)
+2026-03-23 16:30:04,334 - genshin_wiki - INFO - Crawled book: 《旧都梦夜奇谭》 (3 books)
+2026-03-23 16:30:08,472 - genshin_wiki - INFO - Crawled book: 《召唤王》 (4 books)
+2026-03-23 16:30:13,542 - genshin_wiki - INFO - Crawled book: 阿赫玛尔的故事 (5 books)
+2026-03-23 16:30:18,471 - genshin_wiki - INFO - Crawled book: 拜托了我的狐仙宫司 (6 books)
+2026-03-23 16:30:28,485 - genshin_wiki - INFO - Crawled book: 白夜国馆藏 (7 books)
+2026-03-23 16:30:28,485 - genshin_wiki - INFO - Crawled book: 白夜国馆藏 (8 books)
+2026-03-23 16:30:33,496 - genshin_wiki - INFO - Crawled book: 白之公主与六侏儒 (9 books)
+2026-03-23 16:30:38,476 - genshin_wiki - INFO - Crawled book: 北境秘史 (10 books)
+2026-03-23 16:30:43,507 - genshin_wiki - INFO - Crawled book: 边乡夜语 (11 books)
+2026-03-23 16:30:48,485 - genshin_wiki - INFO - Crawled book: 苍星妖灵史略 (12 books)
+2026-03-23 16:30:53,491 - genshin_wiki - INFO - Crawled book: 沉秋拾剑录 (13 books)
+2026-03-23 16:30:58,484 - genshin_wiki - INFO - Crawled book: 出发吧！嘟嘟可 (14 books)
+2026-03-23 16:31:03,483 - genshin_wiki - INFO - Crawled book: 大盗雷德·米勒传奇 (15 books)
+2026-03-23 16:31:08,513 - genshin_wiki - INFO - Crawled book: 稻妻秘见录 (16 books)
+2026-03-23 16:31:13,509 - genshin_wiki - INFO - Crawled book: 帝君尘游记 (17 books)
+2026-03-23 16:31:18,484 - genshin_wiki - INFO - Crawled book: 嘟嘟可轰轰奇遇记 (18 books)
+2026-03-23 16:31:23,489 - genshin_wiki - INFO - Crawled book: 菲谢尔皇女夜谭 (19 books)
+2026-03-23 16:31:28,482 - genshin_wiki - INFO - Crawled book: 飞行指南 (20 books)
+2026-03-23 16:31:33,486 - genshin_wiki - INFO - Crawled book: 枫丹动物寓言集 (21 books)
+2026-03-23 16:31:38,506 - genshin_wiki - INFO - Crawled book: 浮浪记 (22 books)
+2026-03-23 16:31:43,484 - genshin_wiki - INFO - Crawled book: 浮槃歌卷 (23 books)
+2026-03-23 16:31:48,512 - genshin_wiki - INFO - Crawled book: 古恩希尔德小传 (24 books)
+2026-03-23 16:31:53,490 - genshin_wiki - INFO - Crawled book: 古老的考察日志 (25 books)
+2026-03-23 16:31:58,509 - genshin_wiki - INFO - Crawled book: 怪盗与名侦探：虹彩胸针之谜 (26 books)
+2026-03-23 16:32:03,501 - genshin_wiki - INFO - Crawled book: 鬼武道 (27 books)
+2026-03-23 16:32:08,535 - genshin_wiki - INFO - Crawled book: 哈玛瓦兰战记 (28 books)
+2026-03-23 16:32:13,500 - genshin_wiki - INFO - Crawled book: 哈南帕查记事 (29 books)
+2026-03-23 16:32:18,506 - genshin_wiki - INFO - Crawled book: 海螺的回响 (30 books)
+2026-03-23 16:32:23,485 - genshin_wiki - INFO - Crawled book: 护法仙众夜叉录 (31 books)
+2026-03-23 16:32:28,510 - genshin_wiki - INFO - Crawled book: 鹮巷物语 (32 books)
+2026-03-23 16:32:33,503 - genshin_wiki - INFO - Crawled book: 荒山孤剑录 (33 books)
+2026-03-23 16:32:38,516 - genshin_wiki - INFO - Crawled book: 火山大王与缝影针 (34 books)
+2026-03-23 16:32:43,527 - genshin_wiki - INFO - Crawled book: 玑衡经 (35 books)
+2026-03-23 16:32:48,514 - genshin_wiki - INFO - Crawled book: 狡诈的康波雷 (36 books)
+2026-03-23 16:32:53,551 - genshin_wiki - INFO - Crawled book: 绝云记闻 (37 books)
+2026-03-23 16:32:58,501 - genshin_wiki - INFO - Crawled book: 奎伊露和乌库库的故事 (38 books)
+2026-03-23 16:33:03,821 - genshin_wiki - INFO - Crawled book: 昆图尔的故事 (39 books)
+2026-03-23 16:33:08,535 - genshin_wiki - INFO - Crawled book: 兰吉努伊之底 (40 books)
+2026-03-23 16:33:13,523 - genshin_wiki - INFO - Crawled book: 雷穆利亚衰亡史 (41 books)
+2026-03-23 16:33:18,522 - genshin_wiki - INFO - Crawled book: 璃月风土志 (42 books)
+2026-03-23 16:33:23,529 - genshin_wiki - INFO - Crawled book: 连心珠 (43 books)
+2026-03-23 16:33:28,513 - genshin_wiki - INFO - Crawled book: 两个铳枪手 (44 books)
+2026-03-23 16:33:33,511 - genshin_wiki - INFO - Crawled book: 列王与宗室史 (45 books)
+2026-03-23 16:33:38,503 - genshin_wiki - INFO - Crawled book: 林间风 (46 books)
+2026-03-23 16:33:43,520 - genshin_wiki - INFO - Crawled book: 霖铃精选诗集 (47 books)
+2026-03-23 16:33:48,536 - genshin_wiki - INFO - Crawled book: 灵光颂 (48 books)
+2026-03-23 16:33:53,503 - genshin_wiki - INFO - Crawled book: 灵濛山夜话 (49 books)
+2026-03-23 16:33:58,523 - genshin_wiki - INFO - Crawled book: 旅时者 (50 books)
+2026-03-23 16:34:03,518 - genshin_wiki - INFO - Crawled book: 玛阿威与幻写灵 (51 books)
+2026-03-23 16:34:13,558 - genshin_wiki - INFO - Crawled book: 猫咪事务所 (52 books)
+2026-03-23 16:34:18,522 - genshin_wiki - INFO - Crawled book: 冒险家罗尔德的日志 (53 books)
+2026-03-23 16:34:23,521 - genshin_wiki - INFO - Crawled book: 蒙德高塔 (54 books)
+2026-03-23 16:34:28,530 - genshin_wiki - INFO - Crawled book: 牧童与魔瓶的故事 (55 books)
+2026-03-23 16:34:33,556 - genshin_wiki - INFO - Crawled book: 裴伦埃里 (56 books)
+2026-03-23 16:34:38,522 - genshin_wiki - INFO - Crawled book: 蒲公英海的狐狸 (57 books)
+2026-03-23 16:34:43,590 - genshin_wiki - INFO - Crawled book: 骑士团指导手册·第五版 (58 books)
+2026-03-23 16:34:48,542 - genshin_wiki - INFO - Crawled book: 千年孤独 (59 books)
+2026-03-23 16:34:53,559 - genshin_wiki - INFO - Crawled book: 千夜故事集 (60 books)
+2026-03-23 16:34:58,560 - genshin_wiki - INFO - Crawled book: 清泉之心 (61 books)
+2026-03-23 16:35:03,522 - genshin_wiki - INFO - Crawled book: 秋暮之火 (62 books)
+2026-03-23 16:35:08,522 - genshin_wiki - INFO - Crawled book: 丘丘人诗歌选 (63 books)
+2026-03-23 16:35:13,521 - genshin_wiki - INFO - Crawled book: 丘丘人习俗考察 (64 books)
+2026-03-23 16:35:18,523 - genshin_wiki - INFO - Crawled book: 丘丘语诗歌试作 (65 books)
+2026-03-23 16:35:23,526 - genshin_wiki - INFO - Crawled book: 丘丘语速查手册 (66 books)
+2026-03-23 16:35:28,545 - genshin_wiki - INFO - Crawled book: 犬又二分之一 (67 books)
+2026-03-23 16:35:33,615 - genshin_wiki - INFO - Crawled book: 珊瑚宫记 (68 books)
+2026-03-23 16:35:38,581 - genshin_wiki - INFO - Crawled book: 珊瑚宫民间信仰初勘 (69 books)
+2026-03-23 16:35:43,539 - genshin_wiki - INFO - Crawled book: 山与海之书 (70 books)
+2026-03-23 16:35:48,551 - genshin_wiki - INFO - Crawled book: 少女薇拉的忧郁 (71 books)
+2026-03-23 16:35:53,541 - genshin_wiki - INFO - Crawled book: 神霄折戟录 (72 books)
+2026-03-23 16:35:58,528 - genshin_wiki - INFO - Crawled book: 神樱大祓要略 (73 books)
+2026-03-23 16:36:03,540 - genshin_wiki - INFO - Crawled book: 侍从骑士之歌 (74 books)
+2026-03-23 16:36:08,548 - genshin_wiki - INFO - Crawled book: 石书辑录 (75 books)
+2026-03-23 16:36:13,686 - genshin_wiki - INFO - Crawled book: 石素人 (76 books)
+2026-03-23 16:36:18,553 - genshin_wiki - INFO - Crawled book: 谁人的日志 (77 books)
+2026-03-23 16:36:23,532 - genshin_wiki - INFO - Crawled book: 朔风集 (78 books)
+2026-03-23 16:36:28,546 - genshin_wiki - INFO - Crawled book: 松伽塔的初阵 (79 books)
+2026-03-23 16:36:33,565 - genshin_wiki - INFO - Crawled book: 碎梦奇珍 (80 books)
+2026-03-23 16:36:38,557 - genshin_wiki - INFO - Crawled book: 提瓦特游览指南 (81 books)
+2026-03-23 16:36:43,537 - genshin_wiki - INFO - Crawled book: 天衡绝倒集 (82 books)
+2026-03-23 16:36:48,551 - genshin_wiki - INFO - Crawled book: 褪色古堡的崩塌 (83 books)
+2026-03-23 16:36:53,553 - genshin_wiki - INFO - Crawled book: 亡国的美奈姬 (84 books)
+2026-03-23 16:36:58,565 - genshin_wiki - INFO - Crawled book: 温妮莎传奇 (85 books)
+2026-03-23 16:37:04,080 - genshin_wiki - INFO - Crawled book: 巫女曚云小传 (86 books)
+2026-03-23 16:37:08,560 - genshin_wiki - INFO - Crawled book: 无头的科奎塔奥 (87 books)
+2026-03-23 16:37:13,545 - genshin_wiki - INFO - Crawled book: 希鲁伊与希琳的故事 (88 books)
+2026-03-23 16:37:18,559 - genshin_wiki - INFO - Crawled book: 侠客记 (89 books)
+2026-03-23 16:37:23,544 - genshin_wiki - INFO - Crawled book: 遐叶论经 (90 books)
+2026-03-23 16:37:28,564 - genshin_wiki - INFO - Crawled book: 小魔女与不熄灭的火 (91 books)
+2026-03-23 16:37:33,594 - genshin_wiki - INFO - Crawled book: 新六狐传 (92 books)
+2026-03-23 16:37:38,565 - genshin_wiki - INFO - Crawled book: 雪翅雁童话集 (93 books)
+2026-03-23 16:37:43,574 - genshin_wiki - INFO - Crawled book: 野猪公主 (94 books)
+2026-03-23 16:37:48,554 - genshin_wiki - INFO - Crawled book: 伊黎耶之歌 (95 books)
+2026-03-23 16:37:53,659 - genshin_wiki - INFO - Crawled book: 隐玉之泉 (96 books)
+2026-03-23 16:37:58,577 - genshin_wiki - INFO - Crawled book: 与神性同行 (97 books)
+2026-03-23 16:38:03,570 - genshin_wiki - INFO - Crawled book: 珍说澄研真影打 (98 books)
+2026-03-23 16:38:08,565 - genshin_wiki - INFO - Crawled book: 终北祷歌集 (99 books)
+2026-03-23 16:38:13,555 - genshin_wiki - INFO - Crawled book: 珠玑宝矿 (100 books)
+2026-03-23 16:38:18,598 - genshin_wiki - INFO - Crawled book: 竹林月夜 (101 books)
+2026-03-23 16:38:28,564 - genshin_wiki - INFO - Crawled book: 转生成为雷电将军，然后天下无敌 (102 books)
+2026-03-23 16:38:33,568 - genshin_wiki - INFO - Crawled book: 醉客轶事 (103 books)
+2026-03-23 16:38:33,577 - genshin_wiki - INFO - Finished crawling books: 103 books saved, 0 failed to data/book
+2026-03-23 16:38:33,577 - genshin_wiki - INFO - Crawled 103 books
+2026-03-23 16:38:33,577 - genshin_wiki - INFO - Crawler finished

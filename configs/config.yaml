@@ -1,0 +1,56 @@
+# MediaWiki API Configuration
+mediawiki:
+  # B站原神wiki API endpoint
+  api_url: "https://wiki.biligame.com/ys/api.php"
+  # 页面基础URL
+  base_url: "https://wiki.biligame.com/ys/"
+  # 请求间隔（秒），遵守5s等待原则
+  request_interval: 5
+  # 超时时间（秒）
+  timeout: 30
+  # 重试次数
+  max_retries: 3
+  # User-Agent
+  user_agent: "get_wiki_genshin/0.1.0 (MediaWiki Crawler; +https://github.com/example/get_genshin_wiki)"
+
+# Crawler Settings
+crawler:
+  # 默认命名空间
+  default_namespaces: [0, 14]  # 主页面、分类
+  # 每页请求数量
+  limit_per_request: 50
+  # 是否启用增量更新
+  incremental_update: false
+
+# Storage Settings
+storage:
+  # 输出目录
+  output_dir: "data"
+  # 原始数据格式
+  raw_format: "jsonl"
+  # 清洗后数据格式
+  clean_format: "jsonl"
+  # SQLite数据库路径
+  db_path: "data/wiki.db"
+
+# Logging Settings
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/crawler.log"
+
+# Data Fields to Extract
+data_fields:
+  - id
+  - title
+  - url
+  - namespace
+  - source
+  - fetched_at
+  - content_raw
+  - content_clean
+  - categories
+  - links
+  - templates
+  - infobox
+  - revision

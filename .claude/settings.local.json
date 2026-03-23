@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.get_wiki/Scripts/python.exe main.py --list-categories)",
+      "Bash(.get_wiki/Scripts/python.exe main.py --page \"甘雨\")",
+      "Bash(.get_wiki/Scripts/python.exe main.py --page \"原神\")",
+      "Bash(.get_wiki/Scripts/python.exe main.py --book-list --limit 5)",
+      "Bash(.get_wiki/Scripts/python.exe main.py --book-list --limit 10)"
+    ]
+  }
+}
