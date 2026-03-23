@@ -198,3 +198,59 @@ class TextCleaner:
             if link and not link.startswith(':'):
                 normalized.append(link)
         return self.remove_duplicates(normalized)
+
+    def clean_character_content(self, text: str) -> str:
+        """
+        Clean character-specific unwanted content.
+
+        Removes:
+        - '{{角色/属性数据' - character stat data
+        - '{{角色/突破' - ascension data
+        - '{{角色立绘}}' - character portrait
+        - CV fields (中文CV, 日文CV, 韩文CV, 英文CV)
+        - '==天赋==' section
+        - '{{天赋技能' - talent skills
+        - '==角色搭配推荐==' - character team recommendations
+        - '===官方贺图===' - official birthday art
+        - '===角色宣传视频===' - character promotional videos
+
+        Args:
+            text: Raw wikitext content
+
+        Returns:
+            Cleaned content
+        """
+        if not text:
+            return ""
+
+        # Remove {{角色/属性数据}} template and content
+        text = re.sub(r'\{\{角色/属性数据[\s\S]*?\}\}', '', text)
+
+        # Remove {{角色/突破...}} template
+        text = re.sub(r'\{\{角色/突破[\s\S]*?\}\}', '', text)
+
+        # Remove {{角色立绘}}
+        text = re.sub(r'\{\{角色立绘\}\}', '', text)
+
+        # Remove CV fields from templates (中文CV, 日文CV, 韩文CV, 英文CV)
+        text = re.sub(r'\|(中文|日文|韩文|英文)CV[^\n]*', '', text)
+
+        # Remove ==天赋== section and all content until next == section
+        text = re.sub(r'==天赋==[\s\S]*?(?====)', '', text)
+
+        # Remove {{天赋技能}} templates
+        text = re.sub(r'\{\{天赋技能[\s\S]*?\}\}', '', text)
+
+        # Remove ==角色搭配推荐== section
+        text = re.sub(r'==角色搭配推荐==[\s\S]*?(?====)', '', text)
+
+        # Remove ===官方贺图=== section
+        text = re.sub(r'===官方贺图===[\s\S]*?(?====|$)', '', text)
+
+        # Remove ===角色宣传视频=== section
+        text = re.sub(r'===角色宣传视频===[\s\S]*?(?====|$)', '', text)
+
+        # Clean up multiple newlines created by removals
+        text = self._multiple_newlines.sub('\n', text)
+
+        return text.strip()

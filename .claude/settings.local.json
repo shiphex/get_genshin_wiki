@@ -5,7 +5,11 @@
       "Bash(.get_wiki/Scripts/python.exe main.py --page \"甘雨\")",
       "Bash(.get_wiki/Scripts/python.exe main.py --page \"原神\")",
       "Bash(.get_wiki/Scripts/python.exe main.py --book-list --limit 5)",
-      "Bash(.get_wiki/Scripts/python.exe main.py --book-list --limit 10)"
+      "Bash(.get_wiki/Scripts/python.exe main.py --book-list --limit 10)",
+      "Bash(.get_wiki/Scripts/python.exe main.py --character-list --limit 3)",
+      "Bash(.get_wiki/Scripts/python.exe main.py --character-list --limit 2)",
+      "Bash(.get_wiki/Scripts/python.exe debug_crawler.py)",
+      "Bash(.get_wiki/Scripts/python.exe debug_client.py)"
     ]
   }
 }

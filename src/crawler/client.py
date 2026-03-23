@@ -183,11 +183,18 @@ class MediaWikiClient:
                     logger.warning(f"Page not found: {page_data.get('title', pageids)}")
                     continue
 
+                # Only yield pages that have revision content
+                # Continuation responses for links/templates don't have revision content
+                if revisions and "revisions" not in page_data:
+                    continue
+
                 yield self._parse_page_info(page_data)
 
-            # Handle continuation
+            # Handle continuation - but only for non-revision requests
+            # When fetching revisions, the first response contains all the content we need
+            # The continue param is for paginated links/templates, not revisions
             continue_param = data.get("continue")
-            if continue_param:
+            if continue_param and not revisions:
                 self._continue_params = continue_param
                 params.update(continue_param)
             else:
