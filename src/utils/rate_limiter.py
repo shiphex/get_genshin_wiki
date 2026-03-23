@@ -1,4 +1,4 @@
-"""Rate limiter for controlling request frequency."""
+"""速率限制器，用于控制请求频率。"""
 
 import time
 import threading
@@ -6,21 +6,21 @@ from typing import Optional
 
 
 class RateLimiter:
-    """Thread-safe rate limiter for API requests."""
+    """线程安全的API请求速率限制器。"""
 
     def __init__(self, interval: float = 5.0):
         """
-        Initialize rate limiter.
+        初始化速率限制器。
 
-        Args:
-            interval: Minimum time between requests in seconds
+        参数:
+            interval: 请求之间的最小时间间隔（秒）
         """
         self.interval = interval
         self.last_request_time: Optional[float] = None
         self.lock = threading.Lock()
 
     def wait(self) -> None:
-        """Wait until enough time has passed since the last request."""
+        """等待直到距离上次请求已经过了足够的时间。"""
         with self.lock:
             now = time.time()
             if self.last_request_time is not None:
@@ -31,18 +31,18 @@ class RateLimiter:
             self.last_request_time = time.time()
 
     def reset(self) -> None:
-        """Reset the rate limiter."""
+        """重置速率限制器。"""
         with self.lock:
             self.last_request_time = None
 
     @property
     def interval(self) -> float:
-        """Get current interval."""
+        """获取当前间隔时间。"""
         return self._interval
 
     @interval.setter
     def interval(self, value: float) -> None:
-        """Set interval."""
+        """设置间隔时间。"""
         if value <= 0:
-            raise ValueError("Interval must be positive")
+            raise ValueError("间隔时间必须为正数")
         self._interval = value
