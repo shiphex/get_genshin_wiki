@@ -1,0 +1,18 @@
+# MediaWiki API Configuration
+mediawiki:
+  api_url: "https://wiki.biligame.com/ys/api.php"
+  base_url: "https://wiki.biligame.com/ys/"
+  request_interval: 5
+  timeout: 30
+  max_retries: 3
+  user_agent: "get_wiki_genshin/0.1.0 (MediaWiki Crawler; +https://github.com/example/get_genshin_wiki)"
+
+# Storage Settings
+storage:
+  output_dir: "storage"
+  book_dir: "storage/book"
+
+# Logging Settings
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

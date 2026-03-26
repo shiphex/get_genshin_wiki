@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.get_wiki/Scripts/pytest tests/test_book_parser.py -v)",
+      "Bash(.get_wiki/Scripts/python scripts/test_single_book.py)",
+      "Bash(.get_wiki/Scripts/python scripts/save_book_html.py)",
+      "Bash(.get_wiki/Scripts/python scripts/test_single_book_save.py)",
+      "Bash(.get_wiki/Scripts/python scripts/test_book_list.py)",
+      "Bash(.get_wiki/Scripts/python scripts/save_book_list.py)",
+      "Bash(.get_wiki/Scripts/python scripts/crawl_books.py)",
+      "Bash(.get_wiki/Scripts/python -c \":*)"
+    ]
+  }
+}

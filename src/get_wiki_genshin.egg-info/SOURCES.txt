@@ -1,0 +1,17 @@
+pyproject.toml
+src/__init__.py
+src/crawler/__init__.py
+src/crawler/client.py
+src/get_wiki_genshin.egg-info/PKG-INFO
+src/get_wiki_genshin.egg-info/SOURCES.txt
+src/get_wiki_genshin.egg-info/dependency_links.txt
+src/get_wiki_genshin.egg-info/requires.txt
+src/get_wiki_genshin.egg-info/top_level.txt
+src/parser/__init__.py
+src/parser/book_parser.py
+src/storage/__init__.py
+src/storage/writer.py
+src/utils/__init__.py
+src/utils/config.py
+src/utils/logger.py
+tests/test_book_parser.py
