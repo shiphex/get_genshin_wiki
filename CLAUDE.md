@@ -8,105 +8,37 @@
 
 **本项目使用 venv 虚拟环境开发，虚拟环境位于 `.get_wiki/` 目录。**
 
-## 常用命令
+## 现阶段开发计划
 
-```bash
-# 进入虚拟环境
-source .get_wiki/Scripts/activate  # Linux/Mac
-# 或
-.get_wiki\Scripts\activate  # Windows
+现阶段开发计划 @doc\PLAN.md ，将告诉你当前需要完成的开发计划。
 
-# 安装依赖
-uv pip install -e ".[dev]"
+## 需要爬取的内容
 
-# 运行测试
-pytest
-
-# 运行单个测试文件
-pytest tests/test_book_parser.py
-```
+需要爬取的内容 @doc\TARGETS.md ，包括书籍、角色、任务、剧情等。
 
 ## 项目架构
 
-```
-src/                          # 可复用模块（库）
-├── crawler/                  # MediaWiki API 客户端
-│   └── client.py             # MediaWikiClient
-├── parser/                   # HTML 解析器（按数据类型分）
-│   └── book_parser.py        # 书籍解析器
-├── storage/                  # 数据写入模块（Python 包）
-│   └── writer.py             # BookStorage
-├── utils/                    # 通用工具（配置、日志）
-│   ├── config.py
-│   └── logger.py
-└── old_file/                 # 旧版文件，已废弃
+项目架构 @doc\ARCHITECTURE.md ，包括目录结构、模块职责、文件组织等。  
 
-scripts/                      # 入口脚本（供人工执行）
-├── crawl_books.py            # 爬取书籍入口
-└── debug/                    # 调试脚本（不常使用）
-    ├── test_book_list.py
-    ├── test_single_book.py
-    └── ...
-
-tests/                        # pytest 测试（自动化）
-├── test_book_parser.py       # 书籍解析器测试
-└── output/                   # 测试临时文件
-
-storage/                      # 爬取数据存储（根目录）
-└── book/
-    ├── books.jsonl
-    ├── failed_books.txt
-    └── cleaned/
-
-configs/                      # 配置文件
-doc/
-├── plan/                     # 开发方案文档
-└── operation_guide/          # 操作指南
+计划的架构迭代储存在 `doc\plan` 文件夹下，当前已经迭代到 v1 版本:
+``` text
+doc\plan\2026-03-27_项目结构整理方案.md
 ```
 
-### 路径职责说明
+## 常用命令
 
-| 路径 | 内容 | 说明 |
-|------|------|------|
-| `src/` | 可复用模块 | crawler、parser、storage、utils |
-| `scripts/` | 人工执行入口 | `crawl_*.py` 入口脚本 |
-| `scripts/debug/` | 调试脚本 | test_/save_ 脚本，不常使用 |
-| `tests/` | pytest 测试 | `test_*_parser.py`，仅自动化测试 |
-| `storage/` | 数据目录 | 爬取输出的数据文件 |
+常用命令 @doc\COMMON_COMMANDS.md ，包括进入虚拟环境、安装依赖、运行测试等。
 
-**注意**：`src/storage/` 是 Python 包（代码），`storage/` 是数据目录（文件），两者同名但处于不同命名空间，不冲突。
 
 ## 测试要求
 
-### 临时文件管理
-
-测试过程中生成的临时文件（如 HTML 页面、JSON 数据等）必须保存到 `tests/output/` 目录，不得留在项目根目录。
-
-### 测试用例要求
-
-- **解析器测试**：每类数据（书籍/角色/任务/剧情等）必须有对应的解析器测试文件，命名格式 `tests/test_*_parser.py`
-- **测试覆盖**：单元测试覆盖 HTML 解析、数据模型转换、字段提取
-- **回归测试**：修改解析逻辑后运行 `pytest` 确保不破坏已有功能
-
-### 数据完整性验证
-
-- 爬取后检查 JSONL 条目数量是否符合预期
-- 验证必填字段（`title`、`url`、`fetched_at`、`content`）非空
-- 检查重复条目并去重
-
-### 运行测试命令
-
-```bash
-pytest                              # 运行所有测试
-pytest tests/test_book_parser.py    # 运行书籍解析器测试
-pytest tests/test_*parser*.py        # 运行所有解析器测试
-```
+测试要求 @doc\TEST_REQUIREMENTS.md ，包括测试用例要求、数据完整性验证、运行测试命令等。
 
 ## 方案管理
 
-每次进入 Plan Mode 制定的方案，必须保存到 `doc/plan/` 目录下，文件名需包含日期和主题，例如：`YYYY-MM-DD_主题.md`。
+每次进入 Plan Mode 制定的方案，必须保存到 `doc\plan\` 目录下，文件名需包含日期和主题，例如：`YYYY-MM-DD_主题.md`。
 
-操作指南保存到 `doc/operation_guide/` 目录下。
+操作指南保存到 `doc\operation_guide\` 目录下。
 
 ## 技术栈
 
@@ -135,35 +67,3 @@ pytest tests/test_*parser*.py        # 运行所有解析器测试
 5. 设置正确的 User-Agent 请求头
 6. 遵守 robots.txt 和 API 使用政策
 
-## 需要爬取的内容
-
-### 游戏内书籍及内容
-
-- 书籍列表所在网页[书籍一览](https://wiki.biligame.com/ys/%E4%B9%A6%E7%B1%8D%E4%B8%80%E8%A7%88)
-- 每本书的详情页，如[终北祷歌集](https://wiki.biligame.com/ys/%E7%BB%88%E5%8C%97%E7%A5%B7%E6%AD%8C%E9%9B%86)，该网页链接在'书籍一览'中可以找到
-- 获取书籍内容（包括每卷的标题，每卷的文本）：
-  - 每卷的标题都存在于网页代码如`<span class="mw-headline" id="终北祷歌集">终北祷歌集</span></h2>`
-  - 每卷的文本都存在于每卷的标题的网页代码的后面的段落中，可能有好几段
-  - **保留换行格式**：HTML 中的 `<br />` 标签代表诗歌的换行，`<p>` 标签代表段落。解析时应将 `<br />` 转换为 `\n`，将段落用 `\n\n` 分隔
-- 获取书籍的相关信息：
-  - 名称
-  - 卷数
-  - 稀有度
-  - 体裁
-  - 国家
-  - 实装版本
-  - 图鉴
-  - 相关角色
-  - 获取方式（请抓取全部卷的获取方式）
-    - **获取方式解析方法**：从书籍详情页的 Infobox（`<table class="wikitable boxright">`）中提取，每卷的获取方式在卷名标题后的 `<td>` 单元格中
-    - 各卷获取方式汇总格式：`"卷名1: 获取方式1; 卷名2: 获取方式2; ..."`
-
-获取到的书籍内容保存到 `storage/book/` 文件夹下
-
-### 待扩展内容（规划中）
-
-- **角色**：角色一览、角色详情页（含立绘、语音、故事等）
-- **任务**：任务一览、任务详情页（含任务流程、奖励等）
-- **剧情**：剧情文本、对白内容
-
-扩展时请参考 `doc/plan/` 下的对应方案文档和 `doc/operation_guide/` 下的操作指南。
