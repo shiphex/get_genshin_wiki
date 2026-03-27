@@ -8,7 +8,9 @@
       "Bash(.get_wiki/Scripts/python scripts/test_book_list.py)",
       "Bash(.get_wiki/Scripts/python scripts/save_book_list.py)",
       "Bash(.get_wiki/Scripts/python scripts/crawl_books.py)",
-      "Bash(.get_wiki/Scripts/python -c \":*)"
+      "Bash(.get_wiki/Scripts/python -c \":*)",
+      "Bash(.get_wiki/Scripts/activate)",
+      "Bash(python scripts/crawl_books.py)"
     ]
   }
 }
