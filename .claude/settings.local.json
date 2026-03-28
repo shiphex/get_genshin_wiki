@@ -10,7 +10,8 @@
       "Bash(.get_wiki/Scripts/python scripts/crawl_books.py)",
       "Bash(.get_wiki/Scripts/python -c \":*)",
       "Bash(.get_wiki/Scripts/activate)",
-      "Bash(python scripts/crawl_books.py)"
+      "Bash(python scripts/crawl_books.py)",
+      "WebFetch(domain:wiki.biligame.com)"
     ]
   }
 }
