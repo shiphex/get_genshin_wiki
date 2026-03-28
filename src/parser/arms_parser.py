@@ -293,7 +293,10 @@ class ArmsParser:
             ...
         </div>
 
-        每个 <br/> 都是一个换行符，连续的两个如 <br/><br/> 使用两个如 \n\n 代替
+        每个 <br/> 都是一个换行符：
+        - 不连续单个 <br/> 使用一个换行符 \n 代替
+        - 连续的两个如 <br/><br/> 使用两个如 \n\n 代替
+        - 依次类推
         """
         # 查找故事内容的 div
         story_div = soup.find("div", id="mc_collapse-1")
@@ -303,15 +306,19 @@ class ArmsParser:
         # 获取内部内容（不包含外层 div 标签）
         html_content = story_div.decode_contents()
 
+        # 重要：原始 HTML 中 <br/> 后面可能有换行符，需要先去除
+        # 这样可以准确计算连续的 br 数量
+        html_content = html_content.replace('\n', '')
+
         import re
-        # 关键：两个连续的 <br/><br/> 应该变成 \n\n（段落分隔）
-        # 单个 <br/> 应该变成 \n（行内换行）
-        html_content = html_content.replace('<br/><br/>', '\n\n')
-        html_content = html_content.replace('<br/><br />', '\n\n')
-        html_content = html_content.replace('<br /><br/>', '\n\n')
-        html_content = html_content.replace('<br /><br />', '\n\n')
-        # 处理剩余的单个 <br/>
-        html_content = re.sub(r'<br\s*/?>', '\n', html_content)
+        # 处理连续 br 的替换：
+        # n 个连续的 <br/> 替换为 n 个 \n
+        def replace_consecutive_brs(match):
+            count = len(re.findall(r'<br\s*/?>', match.group(0)))
+            return '\n' * count
+
+        # 匹配一个或多个连续的 <br/>
+        html_content = re.sub(r'(<br\s*/?>)+', replace_consecutive_brs, html_content)
 
         # 移除 <p> 和 </p> 标签
         html_content = re.sub(r'</?p[^>]*>', '', html_content)
@@ -319,16 +326,16 @@ class ArmsParser:
         # 移除所有剩余的 HTML 标签
         html_content = re.sub(r"<[^>]+>", "", html_content)
 
-        # 分割成段落（按双换行分隔）
-        raw_paragraphs = html_content.split('\n\n')
+        # 清理：按 \n\n 分割成段落
+        paragraphs = html_content.split('\n\n')
 
         # 清理每个段落
         cleaned_paragraphs = []
-        for p in raw_paragraphs:
+        for p in paragraphs:
             # 分割成行，清理每行
             lines = [line.strip() for line in p.split('\n') if line.strip()]
             if lines:
-                # 每行用换行符连接（保持每行独立）
+                # 同一段落内的行用换行符连接
                 cleaned_paragraphs.append('\n'.join(lines))
 
         # 用双换行符连接段落
