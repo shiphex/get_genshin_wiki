@@ -9,9 +9,11 @@ src/                          # 可复用模块（库）
 ├── crawler/                  # MediaWiki API 客户端
 │   └── client.py             # MediaWikiClient
 ├── parser/                   # HTML 解析器（按数据类型分）
-│   └── book_parser.py        # 书籍解析器
+│   ├── book_parser.py        # 书籍解析器
+│   └── arms_parser.py        # 武器解析器
 ├── storage/                  # 数据写入模块（Python 包）
-│   └── writer.py             # BookStorage
+│   ├── writer.py             # BookStorage
+│   └── arms_writer.py        # ArmStorage
 ├── utils/                    # 通用工具（配置、日志）
 │   ├── config.py
 │   └── logger.py
@@ -19,20 +21,29 @@ src/                          # 可复用模块（库）
 
 scripts/                      # 入口脚本（供人工执行）
 ├── crawl_books.py            # 爬取书籍入口
+├── crawl_arms.py             # 爬取武器入口
 └── debug/                    # 调试脚本（不常使用）
     ├── test_book_list.py
     ├── test_single_book.py
+    ├── test_arms_list.py
+    ├── test_single_arm.py
+    ├── test_single_arm_save.py
     └── ...
 
 tests/                        # pytest 测试（自动化）
 ├── test_book_parser.py       # 书籍解析器测试
+├── test_arms_parser.py       # 武器解析器测试
 └── output/                   # 测试临时文件
 
 storage/                      # 爬取数据存储（根目录）
-└── book/
-    ├── books.jsonl
-    ├── failed_books.txt
-    └── cleaned/
+├── book/
+│   ├── books.jsonl
+│   ├── failed_books.txt
+│   └── cleaned/
+└── arm/
+    ├── arms.jsonl
+    ├── arms.json
+    └── failed_arms.txt
 
 configs/                      # 配置文件
 doc/
