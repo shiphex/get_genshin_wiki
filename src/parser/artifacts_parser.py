@@ -302,7 +302,8 @@ class ArtifactsParser:
     def _parse_dungeon_content(self, item: 获取途径项, content: str) -> None:
         """解析副本内容
 
-        格式：（4星）：祝圣秘境：月童的库藏 Ⅰ至Ⅳ概率掉落。
+        格式1（有星级）：（4星）：祝圣秘境：月童的库藏 Ⅰ至Ⅳ概率掉落。
+        格式2（无星级）：华池岩岫：祝圣秘境：岩牢Ⅰ至Ⅲ概率掉落
         """
         # 匹配星级：（4星）：或（5星）：包括后面的冒号
         star_match = re.search(r"^（(\d+)星）：", content)
@@ -310,25 +311,38 @@ class ArtifactsParser:
             item.星级 = f"{star_match.group(1)}星"
             content = content[star_match.end():].strip()
 
-        # 分割副本类型和副本名称
-        # 格式：祝圣秘境：月童的库藏 Ⅰ至Ⅳ概率掉落。
-        parts = content.split("：", 1)
-        if len(parts) >= 2:
-            item.副本类型 = parts[0].strip()
-            remaining = parts[1].strip()
+        # 判断是否有祝圣秘境作为中间标签
+        # 格式1：有祝圣秘境在前面，后面跟着副本名称（如：祝圣秘境：月童的库藏）
+        # 格式2：有祝圣秘境在中间，前后是副本名称的组成部分（如：华池岩岫：祝圣秘境：岩牢）
+        if "：祝圣秘境：" in content:
+            # 格式2：华池岩岫：祝圣秘境：岩牢Ⅰ至Ⅲ概率掉落
+            # 副本类型固定为"祝圣秘境"
+            # 副本名称 = "华池岩岫：岩牢"（前部分 + ： + 后部分）
+            parts = content.split("：祝圣秘境：", 1)
+            if len(parts) >= 2:
+                item.副本类型 = "祝圣秘境"
+                remaining = parts[0].strip() + "：" + parts[1].strip()
+            else:
+                remaining = content
         else:
-            remaining = content
+            # 格式1：祝圣秘境：月童的库藏 Ⅰ至Ⅳ概率掉落。或直接是副本名称
+            parts = content.split("：", 1)
+            if len(parts) >= 2:
+                item.副本类型 = parts[0].strip()
+                remaining = parts[1].strip()
+            else:
+                remaining = content
 
         # 解析副本名称和等级
-        # 格式：月童的库藏 Ⅰ至Ⅳ概率掉落。
+        # 格式：月童的库藏 Ⅰ至Ⅳ概率掉落。或  岩牢Ⅰ至Ⅲ
         # 使用正则匹配等级（罗马数字+至+罗马数字 或 单独罗马数字）
         level_match = re.search(r"([ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+至[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+|[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+)", remaining)
         if level_match:
             level_text = level_match.group(1)
             if "至" in level_text:
-                # Ⅰ至Ⅳ 转换为 Ⅰ、Ⅳ
-                parts = level_text.split("至")
-                item.副本等级 = f"{parts[0]}、{parts[1]}"
+                # Ⅰ至Ⅳ 转换为 Ⅰ~Ⅳ
+                level_parts = level_text.split("至")
+                item.副本等级 = f"{level_parts[0]}~{level_parts[1]}"
             else:
                 item.副本等级 = level_text
             # 副本名称是等级前面的部分
