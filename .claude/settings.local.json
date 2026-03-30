@@ -11,7 +11,8 @@
       "Bash(.get_wiki/Scripts/python -c \":*)",
       "Bash(.get_wiki/Scripts/activate)",
       "Bash(python scripts/crawl_books.py)",
-      "WebFetch(domain:wiki.biligame.com)"
+      "WebFetch(domain:wiki.biligame.com)",
+      "Bash(python -m pytest tests/test_artifacts_parser.py -v)"
     ]
   }
 }

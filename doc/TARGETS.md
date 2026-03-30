@@ -2,6 +2,11 @@
 
 本文件列出了本爬虫项目的目标，包括规划中的目标。
 
+## 圣遗物爬取目标（当前计划）
+
+爬取圣遗物信息的有关目标和要求在 @doc\target\crawl_artifacts.md 中。  
+可参考 `doc/plan/` 下的对应方案文档和 `doc/operation_guide/` 下的操作指南，设计圣遗物爬取代码。
+
 ## 武器爬取目标（已经完成）
 
 爬取武器信息的有关目标和要求在 @doc\target\crawl_arms.md 中。  
