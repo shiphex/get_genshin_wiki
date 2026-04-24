@@ -10,11 +10,12 @@
 
 ## 现阶段开发计划
 
-现阶段开发计划 @doc\PLAN.md ，将告诉你当前需要完成的开发计划。  
+现阶段开发计划 @doc\PLAN.md ，将告诉你当前需要完成的开发计划。
 
-要求：
-- 每次完成 @doc\PLAN.md 中的计划后，将计划从 `doc\plan\` 目录下删除，并移动到 @doc\plan_history.md 中。
-- 并为该移动到 @doc\plan_history.md 中的计划添加一个标题，标题为 `YYYY-MM-DD_主题_<num>.md`，其中 `<num>` 为该`主题`的第num次任务。
+当计划完成后：
+1. 将 @doc\PLAN.md 中 `## 当前要执行的计划` 的**完整内容原封不动地**移动到 @doc\plan_history.md 的最前面
+2. 在 @doc\plan_history.md 中为该计划添加标题，标题格式为 `YYYY-MM-DD_主题_<num>.md`，其中 `<num>` 为该主题的第 num 次任务
+3. 将 @doc\PLAN.md 中 `## 当前要执行的计划` 的内容**删除**，只保留 `(暂无)` 或类似占位符
 
 ## 方案管理
 
