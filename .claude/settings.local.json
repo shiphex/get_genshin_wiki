@@ -12,7 +12,10 @@
       "Bash(.get_wiki/Scripts/activate)",
       "Bash(python scripts/crawl_books.py)",
       "WebFetch(domain:wiki.biligame.com)",
-      "Bash(python -m pytest tests/test_artifacts_parser.py -v)"
+      "Bash(python -m pytest tests/test_artifacts_parser.py -v)",
+      "Bash(python scripts/check_links.py --type artifacts --check-only)",
+      "Bash(python -m pytest tests/test_link_checker.py -v)",
+      "Bash(python -m pytest tests/ -v)"
     ]
   }
 }
