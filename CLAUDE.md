@@ -10,7 +10,17 @@
 
 ## 现阶段开发计划
 
-现阶段开发计划 @doc\PLAN.md ，将告诉你当前需要完成的开发计划。
+现阶段开发计划 @doc\PLAN.md ，将告诉你当前需要完成的开发计划。  
+
+要求：
+- 每次完成 @doc\PLAN.md 中的计划后，将计划从 `doc\plan\` 目录下删除，并移动到 @doc\plan_history.md 中。
+- 并为该移动到 @doc\plan_history.md 中的计划添加一个标题，标题为 `YYYY-MM-DD_主题_<num>.md`，其中 `<num>` 为该`主题`的第num次任务。
+
+## 方案管理
+
+每次进入 Plan Mode 制定的方案，必须保存到 `doc\plan\` 目录下，文件名需包含日期和主题，例如：`YYYY-MM-DD_主题.md`。
+
+操作指南保存到 `doc\operation_guide\` 目录下。
 
 ## 需要爬取的内容
 
@@ -34,11 +44,6 @@ doc\plan\2026-03-27_项目结构整理方案.md
 
 测试要求 @doc\TEST_REQUIREMENTS.md ，包括测试用例要求、数据完整性验证、运行测试命令等。
 
-## 方案管理
-
-每次进入 Plan Mode 制定的方案，必须保存到 `doc\plan\` 目录下，文件名需包含日期和主题，例如：`YYYY-MM-DD_主题.md`。
-
-操作指南保存到 `doc\operation_guide\` 目录下。
 
 ## 技术栈
 
