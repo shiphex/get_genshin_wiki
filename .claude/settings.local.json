@@ -18,7 +18,20 @@
       "Bash(python -m pytest tests/ -v)",
       "Bash(node:*)",
       "Bash(type not:*)",
-      "Bash(./.get_wiki/Scripts/python:*)"
+      "Bash(./.get_wiki/Scripts/python:*)",
+      "Bash(.get_wiki/Scripts/python -m pytest tests/ -v --tb=short)",
+      "Bash(.get_wiki/Scripts/python scripts/crawl_arms.py)",
+      "Bash(.get_wiki/Scripts/python scripts/crawl_artifacts.py)",
+      "Bash(.get_wiki/Scripts/python scripts/debug/test_book_list.py)",
+      "Bash(.get_wiki/Scripts/python -c ' *)",
+      "Bash(rm -f storage/book/books.jsonl storage/book/books_cleaned.json)",
+      "Bash(rm -rf storage/books/structured/* storage/books/cleaned/* storage/books/manifests/* storage/books/alerts/*)",
+      "Bash(rm -f storage/arm/arms.jsonl storage/arm/arms.json)",
+      "Bash(rm -rf storage/arms/structured/* storage/arms/manifests/* storage/arms/alerts/*)",
+      "Bash(rm -f storage/artifacts/artifacts.jsonl storage/artifacts/artifacts.json)",
+      "Bash(rm -rf storage/artifacts/structured/* storage/artifacts/manifests/* storage/artifacts/alerts/*)",
+      "Bash(.get_wiki/Scripts/python -m pytest tests/test_artifacts_parser.py -v)",
+      "Bash(git:*)"
     ]
   }
 }
