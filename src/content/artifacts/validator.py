@@ -19,6 +19,10 @@ class ArtifactsValidator:
         ]
         if missing:
             alerts.append(missing_required_fields(self.namespace, record.title, missing))
-        if len(getattr(record.info, "部件列表", [])) < 5:
-            alerts.append(invalid_artifact_piece_count(record.title, len(record.info.部件列表)))
+        piece_count = len(getattr(record.info, "部件列表", []))
+        if piece_count == 0:
+            alerts.append(invalid_artifact_piece_count(record.title, piece_count))
+        elif piece_count > 0 and piece_count < 5:
+            # Single-piece artifacts (like 祭火之人) are valid, but flag as warning
+            alerts.append(missing_required_fields(self.namespace, record.title, [f"部件数不足5，仅有{piece_count}个部件"]))
         return alerts

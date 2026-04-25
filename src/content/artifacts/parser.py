@@ -140,31 +140,45 @@ class ArtifactsParser:
     def _parse_pieces(self, soup: BeautifulSoup, artifact: Artifact) -> None:
         piece_types = ["生之花", "死之羽", "时之沙", "空之杯", "理之冠"]
 
+        def extract_icon_info(icon_div):
+            # Handle both direct up/down and nested main/up/down structure
+            up_div = icon_div.find("div", class_="up") or icon_div.find("div", class_="main")
+            down_div = icon_div.find("div", class_="down")
+            if up_div:
+                # If up is the main div, look for nested up/down
+                if up_div.get("class") == ["main"]:
+                    up_text = up_div.find("div", class_="up").get_text(strip=True) if up_div.find("div", class_="up") else ""
+                    down_text = up_div.find("div", class_="down").get_text(strip=True) if up_div.find("div", class_="down") else ""
+                else:
+                    up_text = up_div.get_text(strip=True)
+                    down_text = down_div.get_text(strip=True) if down_div else ""
+            else:
+                up_text = ""
+                down_text = ""
+            return up_text, down_text
+
         resp_tabs_list = soup.find("div", class_="resp-tabs-list")
         if resp_tabs_list:
             for icon_div in resp_tabs_list.find_all("div", class_="icon"):
-                up_div = icon_div.find("div", class_="up")
-                down_div = icon_div.find("div", class_="down")
-                if up_div and down_div and down_div.get_text(strip=True) in piece_types:
+                up_text, down_text = extract_icon_info(icon_div)
+                if up_text and down_text and down_text in piece_types:
                     artifact.info.部件列表.append(
                         ArtifactPiece(
-                            名称=up_div.get_text(strip=True),
-                            类型=down_div.get_text(strip=True),
+                            名称=up_text,
+                            类型=down_text,
                         )
                     )
 
-        if len(artifact.info.部件列表) < 5:
-            artifact.info.部件列表 = []
+        if len(artifact.info.部件列表) == 0:
             left_section = soup.find("div", class_=["col-md-6", "left"])
             if left_section:
                 for icon_div in left_section.find_all("div", class_="icon"):
-                    up_div = icon_div.find("div", class_="up")
-                    down_div = icon_div.find("div", class_="down")
-                    if up_div and down_div and down_div.get_text(strip=True) in piece_types:
+                    up_text, down_text = extract_icon_info(icon_div)
+                    if up_text and down_text and down_text in piece_types:
                         artifact.info.部件列表.append(
                             ArtifactPiece(
-                                名称=up_div.get_text(strip=True),
-                                类型=down_div.get_text(strip=True),
+                                名称=up_text,
+                                类型=down_text,
                             )
                         )
 
