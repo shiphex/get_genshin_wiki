@@ -75,6 +75,7 @@ def collect_cleanup_targets(
         for namespace in NAMESPACE_PROJECTS:
             layout = build_storage_layout(storage_config, namespace, create_dirs=False)
             targets.append(layout.cleaned_file)
+            targets.append(layout.cleaned_backup_file)
 
     if "final-jsonl" in selected_projects and ".jsonl" in selected_suffixes:
         for namespace in NAMESPACE_PROJECTS:

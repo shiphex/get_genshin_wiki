@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .atomic_write import atomic_write_text
+
 
 class ManifestStore:
     """Persist per-run manifests."""
@@ -15,6 +17,10 @@ class ManifestStore:
 
     def save(self, manifest: dict, run_id: str) -> Path:
         output_path = self.output_dir / f"manifest_{run_id}.json"
-        with output_path.open("w", encoding="utf-8") as file:
-            json.dump(manifest, file, ensure_ascii=False, indent=2)
+        atomic_write_text(
+            output_path,
+            json.dumps(manifest, ensure_ascii=False, indent=2),
+            temp_file_path=output_path.with_suffix(f"{output_path.suffix}.tmp"),
+            backup_file_path=output_path.with_suffix(f"{output_path.suffix}.bak"),
+        )
         return output_path

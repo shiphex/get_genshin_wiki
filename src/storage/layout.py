@@ -28,6 +28,8 @@ class StorageLayout:
     raw_dir: Path
     cleaned_dir: Path
     cleaned_file: Path
+    cleaned_temp_file: Path
+    cleaned_backup_file: Path
     structured_dir: Path
     alerts_dir: Path
     manifests_dir: Path
@@ -104,6 +106,8 @@ def build_storage_layout(
         raw_dir=raw_dir,
         cleaned_dir=cleaned_dir,
         cleaned_file=cleaned_dir / f"{namespace}.json",
+        cleaned_temp_file=cleaned_dir / f".{namespace}.json.tmp",
+        cleaned_backup_file=cleaned_dir / f"{namespace}.json.bak",
         structured_dir=structured_dir,
         alerts_dir=alerts_dir,
         manifests_dir=manifests_dir,
