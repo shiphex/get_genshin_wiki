@@ -9,6 +9,7 @@ from pathlib import Path
 # 添加 src 目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from src.content.registry import CONTENT_SPECS
 from src.crawler.client import MediaWikiClient
 from src.linkchecker import LinkChecker
 from src.utils.config import load_config
@@ -16,12 +17,7 @@ from src.utils.logger import setup_logging
 
 logger = logging.getLogger(__name__)
 
-# 内容类型对应的爬虫脚本
-CRAWL_SCRIPTS = {
-    "arms": "scripts/crawl_arms.py",
-    "books": "scripts/crawl_books.py",
-    "artifacts": "scripts/crawl_artifacts.py",
-}
+CRAWL_SCRIPTS = {namespace: spec.crawl_script for namespace, spec in CONTENT_SPECS.items()}
 
 
 def print_comparison_result(result, content_type: str, as_json: bool = False) -> None:

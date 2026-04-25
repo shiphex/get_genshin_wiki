@@ -38,14 +38,20 @@ def get_default_config() -> dict[str, Any]:
         "mediawiki": {
             "api_url": "https://wiki.biligame.com/ys/api.php",
             "base_url": "https://wiki.biligame.com/ys/",
-            "request_interval": 5,
+            "request_interval": 3,
             "timeout": 30,
             "max_retries": 3,
             "user_agent": "get_wiki_genshin/0.1.0 (MediaWiki Crawler)",
         },
         "storage": {
             "output_dir": "storage",
+            "books_dir": "storage/books",
+            "arms_dir": "storage/arms",
+            "artifacts_dir": "storage/artifacts",
+            "links_dir": "storage/links",
             "book_dir": "storage/book",
+            "arm_dir": "storage/arm",
+            "artifact_dir": "storage/artifacts",
         },
         "logging": {
             "level": "INFO",

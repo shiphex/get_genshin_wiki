@@ -1,37 +1,22 @@
 """链接更新检查器核心类"""
+
 import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, Union
+from typing import Literal
 
+from src.content.registry import get_content_spec
 from src.crawler.client import MediaWikiClient
-from src.parser.arms_parser import ArmsParser
-from src.parser.book_parser import BookParser
-from src.parser.artifacts_parser import ArtifactsParser
 
-from .models import LinkItem, LinkList, ComparisonResult
 from .comparator import compare_link_lists, merge_links
+from .models import ComparisonResult, LinkItem, LinkList
 
 logger = logging.getLogger(__name__)
 
 
 class LinkChecker:
     """Wiki 内容链接更新检查器"""
-
-    # Wiki 页面映射
-    PAGE_TITLES = {
-        "arms": "武器图鉴",
-        "books": "书籍一览",
-        "artifacts": "圣遗物图鉴",
-    }
-
-    # 解析器类映射
-    PARSER_MAP = {
-        "arms": ArmsParser,
-        "books": BookParser,
-        "artifacts": ArtifactsParser,
-    }
 
     def __init__(
         self,
@@ -46,22 +31,17 @@ class LinkChecker:
             links_dir: 链接存储目录
             client: MediaWiki 客户端
         """
-        if content_type not in self.PAGE_TITLES:
-            raise ValueError(f"Invalid content_type: {content_type}")
-
         self.content_type = content_type
         self.links_dir = Path(links_dir)
         self.client = client
-
-        # 创建解析器
-        parser_class = self.PARSER_MAP[content_type]
-        self.parser = parser_class(base_url=client.base_url)
+        self.spec = get_content_spec(content_type)
+        self.parser = self.spec.create_parser(client.base_url)
 
         # 链接文件路径
         self.link_file = self.links_dir / f"{content_type}.json"
 
         # 页面标题
-        self.page_title = self.PAGE_TITLES[content_type]
+        self.page_title = self.spec.page_title
 
     def fetch_current_links(self) -> LinkList:
         """从 Wiki 页面获取最新链接
@@ -72,15 +52,7 @@ class LinkChecker:
         logger.info(f"从 Wiki 获取 {self.content_type} 链接...")
         html = self.client.get_page_html(self.page_title)
 
-        # 使用对应解析器提取链接
-        if self.content_type == "arms":
-            raw_links = self.parser.extract_arm_links(html)
-        elif self.content_type == "books":
-            raw_links = self.parser.extract_book_links(html)
-        elif self.content_type == "artifacts":
-            raw_links = self.parser.extract_artifact_links(html)
-        else:
-            raise ValueError(f"Unknown content_type: {self.content_type}")
+        raw_links = self.spec.extract_links(self.parser, html)
 
         # 转换为 LinkItem 列表
         links = [LinkItem(title=link["title"], url=link["url"]) for link in raw_links]

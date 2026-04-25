@@ -1,5 +1,5 @@
 """圣遗物解析器测试"""
-import pytest
+from pathlib import Path
 
 from src.parser.artifacts_parser import ArtifactsParser, Artifact, ArtifactInfo, ArtifactPiece, 获取途径项
 
@@ -57,31 +57,14 @@ class TestArtifactsParser:
         assert result["info"]["部件列表"][0]["描述"] == "生命值+4781"
 
     def test_extract_artifact_links_basic(self):
-        """测试从圣遗物图鉴页面提取链接（基于 visible-xs 模式）"""
-        html = """
-        <html>
-        <body>
-            <div class="visible-xs">
-                <a href="/ys/如雷的盛怒">如雷的盛怒</a>
-            </div>
-            <div class="visible-xs">
-                <a href="/ys/晨星与月的晓歌">晨星与月的晓歌</a>
-            </div>
-            <div class="visible-xs">
-                <a href="/ys/如雷的盛怒">如雷的盛怒（重复）</a>
-            </div>
-            <a href="/ys/文件:test.png">test.png</a>
-        </body>
-        </html>
-        """
+        """测试从真实列表样本提取链接。"""
+        html = Path("tests/fixtures/html/artifacts/list_real.html").read_text(encoding="utf-8")
         links = self.parser.extract_artifact_links(html)
 
-        # 应该去重且过滤文件页面
         titles = [link["title"] for link in links]
-        assert "如雷的盛怒" in titles
         assert "晨星与月的晓歌" in titles
-        assert titles.count("如雷的盛怒") == 1  # 不重复
-        assert "test.png" not in titles  # 过滤文件页面
+        assert "风起之日" in titles
+        assert len(links) == 2
 
     def test_skip_navigation_links(self):
         """测试跳过导航类链接"""
@@ -125,3 +108,23 @@ class TestArtifactsParser:
         assert "曾经有一个时代" in result
         assert "牵引着原初天球的银轮" in result
         assert "\n" in result  # 应该有换行
+
+    def test_parse_realistic_artifact_detail_samples(self):
+        """测试解析两个详情样本，覆盖两种部件区域结构。"""
+        sample_a = Path("tests/fixtures/html/artifacts/晨星与月的晓歌.html").read_text(encoding="utf-8")
+        artifact_a = self.parser.parse_artifact_page(sample_a, "晨星与月的晓歌", "https://wiki.biligame.com/ys/晨星与月的晓歌")
+        assert artifact_a.info.套装名称 == "晨星与月的晓歌"
+        assert artifact_a.info.稀有度 == "4-5星"
+        assert len(artifact_a.info.部件列表) == 5
+        assert artifact_a.info.获取途径[0].副本类型 == "祝圣秘境"
+        assert artifact_a.info.获取途径[0].副本名称 == "月童的库藏"
+        assert artifact_a.info.部件列表[0].故事 == "第一段\n\n第二段"
+
+        sample_b = Path("tests/fixtures/html/artifacts/如雷的盛怒.html").read_text(encoding="utf-8")
+        artifact_b = self.parser.parse_artifact_page(sample_b, "如雷的盛怒", "https://wiki.biligame.com/ys/如雷的盛怒")
+        assert artifact_b.info.套装名称 == "如雷的盛怒"
+        assert len(artifact_b.info.部件列表) == 5
+        assert artifact_b.info.获取途径[0].副本类型 == "祝圣秘境"
+        assert artifact_b.info.获取途径[0].副本名称 == "仲夏庭园：净化之炎"
+        assert artifact_b.info.获取途径[0].副本等级 == "Ⅰ~Ⅳ"
+        assert artifact_b.info.获取途径[1].类型 == "精英怪物"

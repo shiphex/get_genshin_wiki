@@ -10,7 +10,13 @@ mediawiki:
 # Storage Settings
 storage:
   output_dir: "storage"
+  books_dir: "storage/books"
+  arms_dir: "storage/arms"
+  artifacts_dir: "storage/artifacts"
+  links_dir: "storage/links"
   book_dir: "storage/book"
+  arm_dir: "storage/arm"
+  artifact_dir: "storage/artifacts"
 
 # Logging Settings
 logging:

@@ -54,7 +54,24 @@ class TestBookParser:
         assert len(book.volumes) == 2
         assert book.volumes[0].title == "第一卷"
         assert "第一卷的第一段" in book.volumes[0].content
+        assert book.volumes[0].content == "这是第一卷的第一段。\n\n这是第一卷的第二段。"
         assert book.volumes[1].title == "第二卷"
+
+    def test_parse_volumes_preserve_paragraph_boundaries(self):
+        """测试段落之间使用双换行分隔。"""
+        html = """
+        <html>
+        <body>
+            <h2><span class="mw-headline" id="第一卷">第一卷</span></h2>
+            <p>第一段第一行<br />第一段第二行</p>
+            <p>第二段</p>
+        </body>
+        </html>
+        """
+        book = Book(title="测试书籍")
+        self.parser._parse_volumes(__import__("bs4").BeautifulSoup(html, "html.parser"), book)
+
+        assert book.volumes[0].content == "第一段第一行\n第一段第二行\n\n第二段"
 
     def test_book_to_dict(self):
         """测试 Book.to_dict() 方法"""
