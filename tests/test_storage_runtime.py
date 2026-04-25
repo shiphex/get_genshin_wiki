@@ -61,6 +61,9 @@ def test_namespace_writers_create_unified_layout():
     assert (OUTPUT_ROOT / "books/structured/books.jsonl").exists()
     assert (OUTPUT_ROOT / "arms/structured/arms.jsonl").exists()
     assert (OUTPUT_ROOT / "artifacts/structured/artifacts.jsonl").exists()
+    assert (OUTPUT_ROOT / "books/cleaned/books.json").exists()
+    assert (OUTPUT_ROOT / "arms/cleaned/arms.json").exists()
+    assert (OUTPUT_ROOT / "artifacts/cleaned/artifacts.json").exists()
 
 
 def test_run_crawl_generates_manifest_and_alerts():
@@ -103,7 +106,9 @@ def test_run_crawl_generates_manifest_and_alerts():
     assert result.manifest["saved_count"] == 1
     assert result.manifest_path.exists()
     assert result.alerts_path.exists()
-    assert (OUTPUT_ROOT / "books/cleaned/测试书籍.txt").exists()
+    cleaned_records = json.loads((OUTPUT_ROOT / "books/cleaned/books.json").read_text(encoding="utf-8"))
+    assert [record["title"] for record in cleaned_records] == ["测试书籍"]
+    assert "第一段" in cleaned_records[0]["content_clean"]
 
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["warning_count"] == 0

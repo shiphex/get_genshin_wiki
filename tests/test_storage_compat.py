@@ -32,6 +32,11 @@ def _read_failed_titles(path: Path) -> list[str]:
         return [line.split("\t", 1)[0] for line in file if line.strip()]
 
 
+def _read_cleaned(path: Path) -> list[dict]:
+    with path.open("r", encoding="utf-8") as file:
+        return json.load(file)
+
+
 def _build_book(title: str) -> Book:
     book = Book(title=title, url=f"https://example.test/{title}", fetched_at="2026-04-25T00:00:00")
     book.info = BookInfo(name=title)
@@ -107,13 +112,31 @@ def test_writes_only_touch_current_layout_and_leave_legacy_data_unchanged(tmp_pa
 
     assert _read_jsonl_titles(output_root / "books" / "structured" / "books.jsonl") == ["new-book"]
     assert (output_root / "books" / "raw" / "new-book.html").exists()
-    assert (output_root / "books" / "cleaned" / "new-book.txt").exists()
+    cleaned_records = _read_cleaned(output_root / "books" / "cleaned" / "books.json")
+    assert [record["title"] for record in cleaned_records] == ["new-book"]
+    assert cleaned_records[0]["content_clean"].startswith("# new-book")
 
     assert _read_jsonl_titles(output_root / "book" / "books.jsonl") == ["legacy-saved"]
     assert _read_failed_titles(output_root / "book" / "failed_books.txt") == ["legacy-failed"]
     assert not (output_root / "book" / "structured").exists()
     assert not (output_root / "book" / "raw").exists()
     assert not (output_root / "book" / "cleaned").exists()
+
+
+def test_cleaned_records_are_aggregated_and_updated_by_title(tmp_path: Path):
+    output_root = tmp_path / "storage"
+    storage = BookStorage(storage_config={"output_dir": str(output_root)})
+
+    storage.save_book(_build_book("shared-book"), raw_html="<html>first</html>")
+    updated = _build_book("shared-book")
+    updated.volumes = [BookVolume(title="Volume 2", content="Updated paragraph")]
+    storage.save_book(updated, raw_html="<html>second</html>")
+    storage.save_book(_build_book("second-book"), raw_html="<html>third</html>")
+
+    cleaned_records = _read_cleaned(output_root / "books" / "cleaned" / "books.json")
+
+    assert [record["title"] for record in cleaned_records] == ["shared-book", "second-book"]
+    assert "Updated paragraph" in cleaned_records[0]["content_clean"]
 
 
 def test_saved_and_failed_titles_are_deduplicated_across_compatible_paths(tmp_path: Path):
