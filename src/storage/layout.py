@@ -27,6 +27,7 @@ class StorageLayout:
     base_dir: Path
     raw_dir: Path
     cleaned_dir: Path
+    cleaned_file: Path
     structured_dir: Path
     alerts_dir: Path
     manifests_dir: Path
@@ -79,7 +80,12 @@ def resolve_legacy_namespace_dirs(
     return [path for path in _candidate_namespace_dirs(storage_config, namespace, base_dir=base_dir) if path != primary_dir]
 
 
-def build_storage_layout(storage_config: dict[str, Any], namespace: str, base_dir: str | None = None) -> StorageLayout:
+def build_storage_layout(
+    storage_config: dict[str, Any],
+    namespace: str,
+    base_dir: str | None = None,
+    create_dirs: bool = True,
+) -> StorageLayout:
     root = resolve_namespace_dir(storage_config, namespace, base_dir=base_dir)
     raw_dir = root / "raw"
     cleaned_dir = root / "cleaned"
@@ -88,14 +94,16 @@ def build_storage_layout(storage_config: dict[str, Any], namespace: str, base_di
     manifests_dir = root / "manifests"
     failed_dir = root / "failed"
 
-    for directory in [root, raw_dir, cleaned_dir, structured_dir, alerts_dir, manifests_dir, failed_dir]:
-        directory.mkdir(parents=True, exist_ok=True)
+    if create_dirs:
+        for directory in [root, raw_dir, cleaned_dir, structured_dir, alerts_dir, manifests_dir, failed_dir]:
+            directory.mkdir(parents=True, exist_ok=True)
 
     return StorageLayout(
         namespace=namespace,
         base_dir=root,
         raw_dir=raw_dir,
         cleaned_dir=cleaned_dir,
+        cleaned_file=cleaned_dir / f"{namespace}.json",
         structured_dir=structured_dir,
         alerts_dir=alerts_dir,
         manifests_dir=manifests_dir,

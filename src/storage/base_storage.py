@@ -34,7 +34,7 @@ class BaseNamespaceStorage:
         legacy_failed_paths = [root / f"failed_{self.namespace}.txt" for root in legacy_roots]
         legacy_failed_paths.extend(root / "failed" / f"failed_{self.namespace}.txt" for root in legacy_roots[1:])
         self.raw_store = RawStore(self.layout.raw_dir)
-        self.cleaned_store = CleanedStore(self.layout.cleaned_dir)
+        self.cleaned_store = CleanedStore(self.layout.cleaned_file)
         self.record_store = RecordStore(self.layout.structured_file, legacy_paths=legacy_structured_paths)
         self.failure_store = FailureStore(self.layout.failed_file, legacy_paths=legacy_failed_paths)
         self.manifest_store = ManifestStore(self.layout.manifests_dir)
@@ -46,7 +46,7 @@ class BaseNamespaceStorage:
         self.record_store.append(structured)
         if raw_html:
             self.raw_store.save(record.title, raw_html, suffix=".html")
-        self.cleaned_store.save(record.title, self.build_clean_text(record))
+        self.cleaned_store.save(record.title, self.build_clean_text(record), metadata=structured)
         logger.info("已保存 %s: %s", self.namespace, record.title)
 
     def save_failed(self, title: str, reason: str) -> None:
