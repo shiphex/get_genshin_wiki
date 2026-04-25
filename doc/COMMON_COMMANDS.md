@@ -18,6 +18,10 @@ pytest
 
 # 运行单个测试文件
 pytest tests/test_book_parser.py
+
+# 清理测试输出、缓存或指定类型文件
+python scripts/cleanup_storage.py --dry-run --project tests --type json
+python scripts/cleanup_storage.py --project books --type html --yes
 ```
 
 ## 书籍爬取命令

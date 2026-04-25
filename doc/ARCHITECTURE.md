@@ -89,10 +89,11 @@ storage/
 
 - `layout.py` 统一规划 `raw/cleaned/structured/failed/manifests/alerts` 目录。
 - `record_store.py` 负责 JSONL 结构化记录。
-- `raw_store.py` 和 `cleaned_store.py` 分别保存原始 HTML 与清洗文本。
+- `raw_store.py` 保存原始 HTML，`cleaned_store.py` 将清洗文本按 namespace 聚合到单个 JSON 文件。
 - `failure_store.py` 保存失败记录。
 - `manifest_store.py` 保存每次运行摘要。
 - `base_storage.py` 组装上述存储组件，并兼容旧目录中的 `*.jsonl` / `failed_*.txt` 读取。
+- `cleanup.py` 提供按项目、文件类型、缓存、日志过滤的清理能力，供 `scripts/cleanup_storage.py` 调用。
 
 ### `src/alerts/`
 
@@ -117,7 +118,7 @@ storage/
 5. 过滤已保存和已失败条目。
 6. 逐条抓取详情页，解析后写入：
    - `raw/` 原始 HTML
-   - `cleaned/` 清洗后的文本
+   - `cleaned/<namespace>.json` 聚合后的清洗文本
    - `structured/<namespace>.jsonl` 结构化记录
 7. 运行结束后写入：
    - `manifests/manifest_<run_id>.json`
@@ -131,6 +132,7 @@ storage/
 storage/<namespace>/
 ├── raw/
 ├── cleaned/
+│   └── <namespace>.json
 ├── structured/
 │   └── <namespace>.jsonl
 ├── failed/
@@ -160,4 +162,5 @@ storage/<namespace>/
 - 解析器测试继续使用 `tests/test_*_parser.py`。
 - `tests/fixtures/html/` 保存 HTML 样本。
 - `tests/test_storage_runtime.py` 覆盖统一写盘布局、manifest 和 alerts 产物。
+- `tests/test_cleanup_storage.py` 覆盖清理目标筛选和实际删除逻辑。
 - 测试生成文件统一落到 `tests/output/`。
