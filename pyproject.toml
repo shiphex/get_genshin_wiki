@@ -1,10 +1,13 @@
 [project]
 name = "get-genshin-wiki"
 version = "0.1.0"
-description = "Add your description here"
+description = "Crawl and parse Genshin Impact wiki data for downstream training pipelines."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "mwparserfromhell>=0.7.2",
     "requests>=2.33.1",
 ]
+
+[project.scripts]
+get-genshin-wiki = "get_genshin_wiki.cli:main"
