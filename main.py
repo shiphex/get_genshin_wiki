@@ -1,6 +1,5 @@
-def main():
-    print("Hello from get-genshin-wiki!")
+from get_genshin_wiki.cli import main
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
