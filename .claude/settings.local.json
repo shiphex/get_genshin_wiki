@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C e:/Workplace/Learn_project/get_genshin_wiki log --oneline -10)",
+      "Bash(git -C e:/Workplace/Learn_project/get_genshin_wiki branch -a)"
+    ]
+  }
+}
