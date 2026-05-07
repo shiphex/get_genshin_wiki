@@ -59,6 +59,7 @@ CliHandler = Callable[[argparse.Namespace, "CliRuntime"], int]
 _DEFAULT_PARSE_NAMESPACES = {
     "page": "parsed/pages",
     "character": "parsed/characters",
+    "monster": "parsed/monsters",
 }
 
 
@@ -171,6 +172,14 @@ def build_parser() -> argparse.ArgumentParser:
     parse_character.add_argument("--output-namespace", default=None)
     parse_character.add_argument("--no-persist", action="store_true")
     parse_character.set_defaults(handler=handle_parse_character)
+
+    # parse monster：解析怪物页面
+    parse_monster = parse_commands.add_parser("monster", help="Parse a stored monster page.")
+    parse_monster.add_argument("title", help="Monster name")
+    parse_monster.add_argument("--source-namespace", default="pages")
+    parse_monster.add_argument("--output-namespace", default=None)
+    parse_monster.add_argument("--no-persist", action="store_true")
+    parse_monster.set_defaults(handler=handle_parse_monster)
 
     # ========== store 子命令 ==========
     store_parser = subparsers.add_parser("store", help="Operate on locally stored JSON data.")
@@ -372,6 +381,17 @@ def handle_parse_character(args: argparse.Namespace, runtime: CliRuntime) -> int
     result = runtime.parser.parse_character_page(payload).to_dict()
     if not args.no_persist:
         namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["character"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_monster(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse monster 命令：解析怪物页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    result = runtime.parser.parse_monster_page(payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["monster"]
         runtime.store.write(namespace, args.title, result)
     _print_json(result)
     return 0
