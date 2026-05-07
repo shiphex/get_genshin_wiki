@@ -19,6 +19,7 @@
 2. parse - 解析已存储的页面数据
    - page           : 解析通用页面
    - character      : 解析角色页面
+   - book           : 解析书籍页面
 
 3. store - 操作本地存储的 JSON 数据
    - put/query/update/add/delete/exists/list
@@ -59,6 +60,7 @@ CliHandler = Callable[[argparse.Namespace, "CliRuntime"], int]
 _DEFAULT_PARSE_NAMESPACES = {
     "page": "parsed/pages",
     "character": "parsed/characters",
+    "book": "parsed/books",
 }
 
 
@@ -171,6 +173,14 @@ def build_parser() -> argparse.ArgumentParser:
     parse_character.add_argument("--output-namespace", default=None)
     parse_character.add_argument("--no-persist", action="store_true")
     parse_character.set_defaults(handler=handle_parse_character)
+
+    # parse book：解析书籍页面
+    parse_book = parse_commands.add_parser("book", help="Parse a stored book page.")
+    parse_book.add_argument("title", help="Book name")
+    parse_book.add_argument("--source-namespace", default="pages")
+    parse_book.add_argument("--output-namespace", default=None)
+    parse_book.add_argument("--no-persist", action="store_true")
+    parse_book.set_defaults(handler=handle_parse_book)
 
     # ========== store 子命令 ==========
     store_parser = subparsers.add_parser("store", help="Operate on locally stored JSON data.")
@@ -372,6 +382,17 @@ def handle_parse_character(args: argparse.Namespace, runtime: CliRuntime) -> int
     result = runtime.parser.parse_character_page(payload).to_dict()
     if not args.no_persist:
         namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["character"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_book(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse book 命令：解析书籍页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    result = runtime.parser.parse_book_page(payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["book"]
         runtime.store.write(namespace, args.title, result)
     _print_json(result)
     return 0
