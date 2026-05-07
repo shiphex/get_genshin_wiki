@@ -203,3 +203,48 @@ class CharacterRecord:
             "sections": [section.to_dict() for section in self.sections],
             "templates": self.templates,
         }
+
+
+# 怪物页面专用解析结果
+@dataclass
+class MonsterRecord:
+    """
+    原神怪物页面的结构化解析结果。
+
+    属性（仅包含 git-worktree-spec.md 中要求的核心字段）：
+    ----
+    title : str
+        怪物名称
+    monster_class : str
+        怪物类别（如：周刷BOSS、精英等）
+    monster_category : str
+        怪物分类（如：值得铭记的强敌、自律机关等）
+    monster_type : str
+        怪物类型（如：其他、战争机械等）
+    location : str
+        出现地点
+    drop_materials : list[str]
+        掉落素材列表
+    description : str
+        怪物介绍
+    """
+
+    title: str
+    monster_class: str
+    monster_category: str
+    monster_type: str
+    location: str
+    drop_materials: list[str] = field(default_factory=list)
+    description: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """将怪物记录转换为字典格式，便于 JSON 序列化。"""
+        return {
+            "title": self.title,
+            "monster_class": self.monster_class,
+            "monster_category": self.monster_category,
+            "monster_type": self.monster_type,
+            "location": self.location,
+            "drop_materials": self.drop_materials,
+            "description": self.description,
+        }
