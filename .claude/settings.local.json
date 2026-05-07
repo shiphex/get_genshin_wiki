@@ -6,7 +6,9 @@
       "Bash(node:*)",
       "Bash(python:*)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Read(//e/Workplace/Learn_project/get_genshin_wiki-characters/**)",
+      "Bash(uv sync)"
     ]
   }
 }
