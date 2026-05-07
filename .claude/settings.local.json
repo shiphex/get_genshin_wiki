@@ -6,7 +6,11 @@
       "Bash(node:*)",
       "Bash(python:*)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(chcp 65001:*)",
+      "Bash(PYTHONIOENCODING=utf-8 python:*)",
+      "Bash(do:*)",
+      "Bash(rm:*)"
     ]
   }
 }
