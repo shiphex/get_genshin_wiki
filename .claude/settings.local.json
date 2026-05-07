@@ -10,7 +10,8 @@
       "Bash(chcp 65001:*)",
       "Bash(PYTHONIOENCODING=utf-8 python:*)",
       "Bash(do:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(mkdir:*)"
     ]
   }
 }
