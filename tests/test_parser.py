@@ -80,6 +80,52 @@ class WikiTextParserTests(unittest.TestCase):
         self.assertEqual(1, len(result.constellations))
         self.assertEqual("白羽之冕", result.constellations[0]["名称"])
 
+    def test_parse_monster_page_extracts_monster_specific_fields(self) -> None:
+        """
+        测试 parse_monster_page 正确提取怪物特有字段。
+        """
+        monster_wikitext = """{{怪物信息|怪物类别=周刷BOSS|怪物分类=值得铭记的强敌|怪物类型=其他|出现地点=蒙德·风起地|掉落素材=BOSS|BOSS素材=升扬样本·骑士,升扬样本·战车,升扬样本·王族}}
+集魔女会诸家技艺而制成的集团军。
+
+== 介绍 ==
+这是怪物的介绍内容。
+
+[[Category:怪物]]
+[[分类:BOSS]]
+"""
+        payload = build_page_payload("门扉前的弈局", monster_wikitext, page_id=10)
+        result = self.parser.parse_monster_page(payload)
+
+        self.assertEqual("门扉前的弈局", result.title)
+        self.assertEqual("周刷BOSS", result.monster_class)
+        self.assertEqual("值得铭记的强敌", result.monster_category)
+        self.assertEqual("其他", result.monster_type)
+        self.assertEqual("蒙德·风起地", result.location)
+        self.assertIn("升扬样本·骑士", result.drop_materials)
+        self.assertIn("升扬样本·战车", result.drop_materials)
+        self.assertIn("升扬样本·王族", result.drop_materials)
+
+    def test_parse_monster_page_with_elite_monster(self) -> None:
+        """
+        测试 parse_monster_page 解析精英怪物（掉落素材不是 BOSS 类型）。
+        """
+        elite_wikitext = """{{怪物属性|怪物类别=精英|怪物分类=自律机关|怪物类型=战争机械|出现地点=稻妻|掉落素材=混沌机关,混沌枢纽,混沌真眼}}
+为了适应特殊的目标，有着定制化外形与机能的异形机械。
+
+[[Category:怪物]]
+"""
+        payload = build_page_payload("遗迹防卫者", elite_wikitext, page_id=11)
+        result = self.parser.parse_monster_page(payload)
+
+        self.assertEqual("遗迹防卫者", result.title)
+        self.assertEqual("精英", result.monster_class)
+        self.assertEqual("自律机关", result.monster_category)
+        self.assertEqual("战争机械", result.monster_type)
+        self.assertEqual("稻妻", result.location)
+        self.assertIn("混沌机关", result.drop_materials)
+        self.assertIn("混沌枢纽", result.drop_materials)
+        self.assertIn("混沌真眼", result.drop_materials)
+
     def test_extract_page_metadata_raises_for_invalid_payload(self) -> None:
         """
         测试 extract_page_metadata 对无效 payload 抛出 ParsingError。
