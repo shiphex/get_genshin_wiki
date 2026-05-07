@@ -147,37 +147,100 @@ class ParsedPage:
         }
 
 
+@dataclass
+class CharacterStoryRecord:
+    """角色故事类内容记录。"""
+
+    title: str
+    content: str
+    group: str = ""
+
+    def to_dict(self) -> dict[str, str]:
+        """将故事记录转换为字典。"""
+        return {
+            "title": self.title,
+            "content": self.content,
+            "group": self.group,
+        }
+
+
+@dataclass
+class CharacterVoiceRecord:
+    """角色语音记录。"""
+
+    title: str
+    content: str
+
+    def to_dict(self) -> dict[str, str]:
+        """将语音记录转换为字典。"""
+        return {
+            "title": self.title,
+            "content": self.content,
+        }
+
+
+@dataclass
+class AdventureNotesRecord:
+    """冒险笔记记录。"""
+
+    title: str
+    content: str
+
+    def to_dict(self) -> dict[str, str]:
+        """将冒险笔记转换为字典。"""
+        return {
+            "title": self.title,
+            "content": self.content,
+        }
+
+
+@dataclass
+class ConstellationRecord:
+    """增强版命座记录。"""
+
+    name: str
+    effect: str = ""
+    description: str = ""
+    raw: dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """将命座记录转换为字典。"""
+        return {
+            "name": self.name,
+            "effect": self.effect,
+            "description": self.description,
+            "raw": self.raw,
+        }
+
+
+@dataclass
+class TalentRecord:
+    """增强版天赋记录。"""
+
+    name: str
+    description: str = ""
+    category: str = ""
+    element: str = ""
+    raw: dict[str, str] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """将天赋记录转换为字典。"""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "category": self.category,
+            "element": self.element,
+            "raw": self.raw,
+        }
+
+
 # 角色页面专用解析结果
 @dataclass
 class CharacterRecord:
     """
     原神角色页面的结构化解析结果。
 
-    继承通用页面属性，并额外包含角色特有的：
-    - attributes : 角色基础属性（元素、武器等）
-    - talents    : 天赋/技能列表
-    - constellations : 命座/星座列表
-
-    属性
-    ----
-    title : str
-        角色名称
-    summary : str
-        角色简介/摘要
-    attributes : dict[str, str]
-        角色基础属性字典，如 {"元素": "冰", "武器": "法器"}
-    talents : list[dict[str, str]]
-        天赋技能列表，每个天赋包含名称、描述等
-    constellations : list[dict[str, str]]
-        命座列表，每个命座包含名称、效果等
-    categories : list[str]
-        页面所属分类
-    sections : list[ParsedSection]
-        页面章节列表
-    templates : dict[str, list[dict[str, str]]]
-        页面使用的模板
-    page_id : int | str | None
-        页面 ID
+    兼容旧版基础字段，并提供角色信息、故事、语音等更完整的结构化内容。
     """
 
     title: str
@@ -185,6 +248,32 @@ class CharacterRecord:
     attributes: dict[str, str]
     talents: list[dict[str, str]] = field(default_factory=list)
     constellations: list[dict[str, str]] = field(default_factory=list)
+    titles: list[str] = field(default_factory=list)
+    full_name: str = ""
+    homeland: str = ""
+    origin: str = ""
+    affiliation: list[str] = field(default_factory=list)
+    race: str = ""
+    introduction: str = ""
+    god_eye_description: str = ""
+    god_eye_story: str = ""
+    element: str = ""
+    weapon_type: str = ""
+    constellation: str = ""
+    special_dish: str = ""
+    gender: str = ""
+    bond_attribute: str = ""
+    nicknames: list[str] = field(default_factory=list)
+    outfits: list[str] = field(default_factory=list)
+    profession: str = ""
+    talent_records: list[TalentRecord] = field(default_factory=list)
+    constellation_records: list[ConstellationRecord] = field(default_factory=list)
+    story_records: list[CharacterStoryRecord] = field(default_factory=list)
+    voice_records: list[CharacterVoiceRecord] = field(default_factory=list)
+    adventure_notes: list[AdventureNotesRecord] = field(default_factory=list)
+    character_introductions: list[CharacterStoryRecord] = field(default_factory=list)
+    story_sections: list[CharacterStoryRecord] = field(default_factory=list)
+    power_record: CharacterStoryRecord | None = None
     categories: list[str] = field(default_factory=list)
     sections: list[ParsedSection] = field(default_factory=list)
     templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
@@ -199,6 +288,32 @@ class CharacterRecord:
             "attributes": self.attributes,
             "talents": self.talents,
             "constellations": self.constellations,
+            "titles": self.titles,
+            "full_name": self.full_name,
+            "homeland": self.homeland,
+            "origin": self.origin,
+            "affiliation": self.affiliation,
+            "race": self.race,
+            "introduction": self.introduction,
+            "god_eye_description": self.god_eye_description,
+            "god_eye_story": self.god_eye_story,
+            "element": self.element,
+            "weapon_type": self.weapon_type,
+            "constellation": self.constellation,
+            "special_dish": self.special_dish,
+            "gender": self.gender,
+            "bond_attribute": self.bond_attribute,
+            "nicknames": self.nicknames,
+            "outfits": self.outfits,
+            "profession": self.profession,
+            "talent_records": [record.to_dict() for record in self.talent_records],
+            "constellation_records": [record.to_dict() for record in self.constellation_records],
+            "story_records": [record.to_dict() for record in self.story_records],
+            "voice_records": [record.to_dict() for record in self.voice_records],
+            "adventure_notes": [record.to_dict() for record in self.adventure_notes],
+            "character_introductions": [record.to_dict() for record in self.character_introductions],
+            "story_sections": [record.to_dict() for record in self.story_sections],
+            "power_record": None if self.power_record is None else self.power_record.to_dict(),
             "categories": self.categories,
             "sections": [section.to_dict() for section in self.sections],
             "templates": self.templates,
