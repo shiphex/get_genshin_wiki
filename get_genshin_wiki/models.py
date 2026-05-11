@@ -25,6 +25,22 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+def _serialize_record_metadata(
+    *,
+    page_id: int | str | None,
+    categories: list[str],
+    sections: list["ParsedSection"],
+    templates: dict[str, list[dict[str, str]]],
+) -> dict[str, Any]:
+    """Build shared metadata for specialized record classes."""
+    return {
+        "page_id": page_id,
+        "categories": categories,
+        "sections": [section.to_dict() for section in sections],
+        "templates": templates,
+    }
+
+
 # HTTP 请求策略配置（不可变对象）
 @dataclass(frozen=True)
 class RequestPolicy:
@@ -194,12 +210,203 @@ class CharacterRecord:
         """将角色记录转换为字典格式，便于 JSON 序列化。"""
         return {
             "title": self.title,
-            "page_id": self.page_id,
             "summary": self.summary,
             "attributes": self.attributes,
             "talents": self.talents,
             "constellations": self.constellations,
-            "categories": self.categories,
-            "sections": [section.to_dict() for section in self.sections],
-            "templates": self.templates,
+            **_serialize_record_metadata(
+                page_id=self.page_id,
+                categories=self.categories,
+                sections=self.sections,
+                templates=self.templates,
+            ),
+        }
+
+
+@dataclass
+class FoodRecord:
+    """Structured record for food pages."""
+
+    title: str
+    type: str
+    normal_description: str
+    perfect_description: str = ""
+    failed_description: str = ""
+    ingredients: str = ""
+    recipe_obtain_method: str = ""
+    special_dish: str = ""
+    special_dish_character: str = ""
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the food record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "介绍": {
+                "普通料理": self.normal_description,
+                "完美料理": self.perfect_description,
+                "失败料理": self.failed_description,
+            },
+            "所需食材": self.ingredients,
+            "食谱获取方式": self.recipe_obtain_method,
+            "特殊料理": self.special_dish,
+            "特殊料理角色": self.special_dish_character,
+        }
+
+
+@dataclass
+class WildlifeRecord:
+    """Structured record for wildlife pages."""
+
+    title: str
+    type: str
+    species: str
+    description: str
+    locations: str = ""
+    capturable: str = ""
+    fishing_info: dict[str, str] = field(default_factory=dict)
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the wildlife record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "种类": self.species,
+            "描述": self.description,
+            "出现地点": self.locations,
+            "能否捕捉": self.capturable,
+            "钓鱼信息": {
+                "钓鱼鱼饵": self.fishing_info.get("bait", ""),
+                "钓鱼时间": self.fishing_info.get("time", ""),
+                "钓鱼地点": self.fishing_info.get("location", ""),
+            },
+        }
+
+
+@dataclass
+class QuestItemRecord:
+    """Structured record for quest item pages."""
+
+    title: str
+    type: str
+    description: str
+    related_quest: str = ""
+    obtain_method: str = ""
+    content: str = ""
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the quest item record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "描述": self.description,
+            "相关任务": self.related_quest,
+            "获取方式": self.obtain_method,
+            "内容": self.content,
+        }
+
+
+@dataclass
+class ItemRecord:
+    """Structured record for general item pages."""
+
+    title: str
+    type: str
+    source: str
+    usage: str
+    description: str
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the item record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "来源": self.source,
+            "用途": self.usage,
+            "介绍": self.description,
+        }
+
+
+@dataclass
+class MaterialRecord:
+    """Structured record for material pages."""
+
+    title: str
+    type: str
+    source: str
+    description: str
+    usage: str
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the material record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "来源": self.source,
+            "介绍": self.description,
+            "用途": self.usage,
+        }
+
+
+@dataclass
+class NameCardRecord:
+    """Structured record for name card pages."""
+
+    title: str
+    obtain_method: str
+    description: str
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the name card record for JSON output."""
+        return {
+            "名称": self.title,
+            "获取方式": self.obtain_method,
+            "描述": self.description,
+        }
+
+
+@dataclass
+class SecretItemRecord:
+    """Structured record for domain-like secret item pages."""
+
+    title: str
+    type: str
+    description: str
+    drops: dict[str, str] = field(default_factory=dict)
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the secret item record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "介绍": self.description,
+            "掉落": dict(self.drops),
         }

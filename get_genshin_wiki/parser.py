@@ -31,12 +31,24 @@ WikiText 解析器
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import Any, Iterable
 
 import mwparserfromhell
 
 from .exceptions import ParsingError
-from .models import CharacterRecord, ParsedPage, ParsedSection
+from .models import (
+    CharacterRecord,
+    FoodRecord,
+    ItemRecord,
+    MaterialRecord,
+    NameCardRecord,
+    ParsedPage,
+    ParsedSection,
+    QuestItemRecord,
+    SecretItemRecord,
+    WildlifeRecord,
+)
 
 # 分类链接匹配正则：[[Category:xxx]] 或 [[分类:xxx]]
 _CATEGORY_PATTERN = re.compile(r"\[\[\s*(?:Category|分类)\s*:\s*([^\]|]+)")
@@ -49,6 +61,16 @@ _CHARACTER_TEMPLATE_KEYWORDS = ("角色属性", "角色信息", "角色资料", 
 _TALENT_TEMPLATE_KEYWORDS = ("天赋", "技能")
 # 命座模板关键词
 _CONSTELLATION_TEMPLATE_KEYWORDS = ("命之座", "命座")
+_BREAK_TAG_PATTERN = re.compile(r"<br\s*/?>", re.IGNORECASE)
+_HORIZONTAL_RULE_PATTERN = re.compile(r"<hr\s*/?>", re.IGNORECASE)
+_BREAK_WITH_LINE_END_PATTERN = re.compile(r"(<br\s*/?>)\s*\n", re.IGNORECASE)
+_COMMENT_PATTERN = re.compile(r"<!--.*?-->", re.DOTALL)
+_ICON_TEMPLATE_PATTERN = re.compile(r"\{\{\s*图标\s*(?:\|([^{}|]+))?(?:\|([^{}|]+))?(?:\|[^{}]*)*}}")
+_FILE_LINK_PATTERN = re.compile(r"\[\[\s*(?:文件|File|Image)\s*:[^\]]+\]\]", re.IGNORECASE)
+_HTML_TAG_PATTERN = re.compile(r"</?[A-Za-z][^>]*>")
+_TABBER_SEPARATOR_PATTERN = re.compile(r"(?m)^\|-\|\s*$")
+_TABBER_LABEL_PATTERN = re.compile(r"(?m)^\d+\s*=\s*$")
+_FILE_LINK_PREFIXES = ("文件:", "File:", "Image:", "Category:", "分类:")
 
 
 class WikiTextParser:
@@ -174,7 +196,7 @@ class WikiTextParser:
                 if text.startswith(heading_text):
                     text = text[len(heading_text):].lstrip()
             if text:
-                sections.append(ParsedSection(title=title, text=text))
+                sections.append(ParsedSection(title=title, text=self._normalize_text(text)))
         return sections
 
     def parse_page(self, payload: dict[str, Any]) -> ParsedPage:
@@ -245,6 +267,408 @@ class WikiTextParser:
             templates=parsed_page.templates,
         )
 
+    def parse_food_page(self, payload: dict[str, Any]) -> FoodRecord:
+        """解析食物页面。"""
+        parsed_page = self.parse_page(payload)
+        main_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("类型",),
+                ("介绍",),
+                ("完美介绍", "美味介绍"),
+                ("失败介绍", "奇怪介绍"),
+                ("所需食材", "食材"),
+            ),
+        )
+        recipe_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (("食谱获取方式",),),
+        )
+        special_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("特殊料理",),
+                ("特殊料理角色",),
+                ("特殊料理介绍",),
+            ),
+        )
+        recipe_section = self._find_section_text(parsed_page.sections, ("食谱信息",))
+        special_section = self._find_section_text(parsed_page.sections, ("特殊料理",))
+        return FoodRecord(
+            title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
+            page_id=parsed_page.page_id,
+            type=self._resolve_value(
+                parsed_page.templates,
+                ("类型",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            normal_description=self._resolve_value(
+                parsed_page.templates,
+                ("介绍", "正常料理介绍"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            perfect_description=self._resolve_value(
+                parsed_page.templates,
+                ("完美介绍", "美味介绍"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            failed_description=self._resolve_value(
+                parsed_page.templates,
+                ("失败介绍", "奇怪介绍"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            ingredients=self._resolve_value(
+                parsed_page.templates,
+                ("所需食材", "食材"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            recipe_obtain_method=self._coalesce(
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("食谱获取方式",),
+                    preferred_params=recipe_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                self._extract_labeled_value(recipe_section, ("食谱获取方式",)),
+            ),
+            special_dish=self._coalesce(
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("特殊料理",),
+                    preferred_params=special_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                self._extract_first_non_empty_line(special_section),
+            ),
+            special_dish_character=self._coalesce(
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("特殊料理角色",),
+                    preferred_params=special_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("特殊料理角色",),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                self._extract_labeled_value(special_section, ("特殊料理角色",)),
+            ),
+            categories=parsed_page.categories,
+            sections=parsed_page.sections,
+            templates=parsed_page.templates,
+        )
+
+    def parse_wildlife_page(self, payload: dict[str, Any]) -> WildlifeRecord:
+        """解析野生生物页面。"""
+        parsed_page = self.parse_page(payload)
+        main_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("类型",),
+                ("种类",),
+                ("描述", "介绍"),
+                ("出现地点", "分布地点", "分布"),
+                ("能否捕捉", "是否可捕捉"),
+                ("钓鱼鱼饵", "鱼饵"),
+                ("钓鱼时间",),
+                ("钓鱼地点",),
+            ),
+        )
+        fishing_info = {
+            "bait": self._resolve_value(
+                parsed_page.templates,
+                ("钓鱼鱼饵", "鱼饵"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            "time": self._resolve_value(
+                parsed_page.templates,
+                ("钓鱼时间",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            "location": self._resolve_value(
+                parsed_page.templates,
+                ("钓鱼地点",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+        }
+        return WildlifeRecord(
+            title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
+            page_id=parsed_page.page_id,
+            type=self._resolve_value(
+                parsed_page.templates,
+                ("类型",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            species=self._resolve_value(
+                parsed_page.templates,
+                ("种类",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            description=self._resolve_value(
+                parsed_page.templates,
+                ("描述", "介绍"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            locations=self._resolve_value(
+                parsed_page.templates,
+                ("出现地点", "分布地点", "分布"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            capturable=self._resolve_value(
+                parsed_page.templates,
+                ("能否捕捉", "是否可捕捉"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            fishing_info={key: value for key, value in fishing_info.items() if value},
+            categories=parsed_page.categories,
+            sections=parsed_page.sections,
+            templates=parsed_page.templates,
+        )
+
+    def parse_quest_item_page(self, payload: dict[str, Any]) -> QuestItemRecord:
+        """解析任务道具页面。"""
+        parsed_page = self.parse_page(payload)
+        main_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("类型",),
+                ("描述", "介绍"),
+                ("相关任务",),
+                ("获取方式",),
+                ("内容",),
+            ),
+        )
+        content_section = self._find_section_text(parsed_page.sections, ("内容",))
+        return QuestItemRecord(
+            title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
+            page_id=parsed_page.page_id,
+            type=self._resolve_value(
+                parsed_page.templates,
+                ("类型",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            description=self._resolve_value(
+                parsed_page.templates,
+                ("描述", "介绍"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            related_quest=self._resolve_value(
+                parsed_page.templates,
+                ("相关任务",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            obtain_method=self._resolve_value(
+                parsed_page.templates,
+                ("获取方式",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            content=self._coalesce(
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("内容", "书籍内容"),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                content_section,
+            ),
+            categories=parsed_page.categories,
+            sections=parsed_page.sections,
+            templates=parsed_page.templates,
+        )
+
+    def parse_item_page(self, payload: dict[str, Any]) -> ItemRecord:
+        """解析道具页面。"""
+        parsed_page = self.parse_page(payload)
+        main_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("类型",),
+                ("来源", "获取方式"),
+                ("用途", "用处"),
+                ("介绍", "描述"),
+            ),
+        )
+        return ItemRecord(
+            title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
+            page_id=parsed_page.page_id,
+            type=self._resolve_value(
+                parsed_page.templates,
+                ("类型",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            source=self._resolve_value(
+                parsed_page.templates,
+                ("来源", "获取方式"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            usage=self._resolve_value(
+                parsed_page.templates,
+                ("用途", "用处"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            description=self._resolve_value(
+                parsed_page.templates,
+                ("介绍", "描述"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            categories=parsed_page.categories,
+            sections=parsed_page.sections,
+            templates=parsed_page.templates,
+        )
+
+    def parse_material_page(self, payload: dict[str, Any]) -> MaterialRecord:
+        """解析材料页面。"""
+        parsed_page = self.parse_page(payload)
+        main_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("类型",),
+                ("来源",),
+                ("介绍", "描述"),
+                ("用途", "用处"),
+            ),
+        )
+        return MaterialRecord(
+            title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
+            page_id=parsed_page.page_id,
+            type=self._resolve_value(
+                parsed_page.templates,
+                ("类型",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            source=self._coalesce(
+                self._extract_plain_param_from_wikitext(parsed_page.wikitext, ("来源",)),
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("来源",),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+            ),
+            description=self._coalesce(
+                self._extract_plain_param_from_wikitext(parsed_page.wikitext, ("介绍", "描述")),
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("介绍", "描述"),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+            ),
+            usage=self._coalesce(
+                self._extract_plain_param_from_wikitext(parsed_page.wikitext, ("用途", "用处")),
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("用途", "用处"),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+            ),
+            categories=parsed_page.categories,
+            sections=parsed_page.sections,
+            templates=parsed_page.templates,
+        )
+
+    def parse_namecard_page(self, payload: dict[str, Any]) -> NameCardRecord:
+        """解析名片页面。"""
+        parsed_page = self.parse_page(payload)
+        main_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("获取方式",),
+                ("描述", "介绍"),
+            ),
+        )
+        return NameCardRecord(
+            title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
+            page_id=parsed_page.page_id,
+            obtain_method=self._resolve_value(
+                parsed_page.templates,
+                ("获取方式",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            description=self._resolve_value(
+                parsed_page.templates,
+                ("描述", "介绍"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            categories=parsed_page.categories,
+            sections=parsed_page.sections,
+            templates=parsed_page.templates,
+        )
+
+    def parse_secret_item_page(self, payload: dict[str, Any]) -> SecretItemRecord:
+        """解析秘境页面。"""
+        parsed_page = self.parse_page(payload)
+        main_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("秘境类型", "类型"),
+                ("秘境介绍", "介绍", "描述"),
+                ("难度4掉落", "掉落"),
+            ),
+        )
+        drop_value = self._coalesce(
+            self._resolve_raw_value(
+                parsed_page.templates,
+                ("难度4掉落",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            self._resolve_raw_value(
+                parsed_page.templates,
+                ("掉落",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+        )
+        domain_type = self._resolve_value(
+            parsed_page.templates,
+            ("秘境类型", "类型"),
+            preferred_params=main_template,
+            wikitext=parsed_page.wikitext,
+        )
+        return SecretItemRecord(
+            title=self._resolve_record_title(parsed_page, ("秘境名称", "名称"), preferred_params=main_template),
+            page_id=parsed_page.page_id,
+            type=domain_type,
+            description=self._resolve_value(
+                parsed_page.templates,
+                ("秘境介绍", "介绍", "描述"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            drops=self._extract_secret_item_drops(domain_type, drop_value),
+            categories=parsed_page.categories,
+            sections=parsed_page.sections,
+            templates=parsed_page.templates,
+        )
+
     def _select_best_template(
         self,
         templates: dict[str, list[dict[str, str]]],
@@ -279,6 +703,24 @@ class WikiTextParser:
         candidates.sort(key=lambda item: item[0], reverse=True)
         return candidates[0][1]
 
+    def _select_best_template_by_fields(
+        self,
+        templates: dict[str, list[dict[str, str]]],
+        field_groups: Sequence[Sequence[str]],
+    ) -> dict[str, str]:
+        """根据字段命中数选择最合适的模板。"""
+        best_params: dict[str, str] = {}
+        best_score = 0
+        best_size = -1
+        for items in templates.values():
+            for params in items:
+                score = sum(1 for aliases in field_groups if self._value_from_params(params, aliases, plain=False))
+                if score > best_score or (score == best_score and len(params) > best_size):
+                    best_score = score
+                    best_size = len(params)
+                    best_params = params
+        return best_params
+
     def _collect_matching_templates(
         self,
         templates: dict[str, list[dict[str, str]]],
@@ -304,3 +746,333 @@ class WikiTextParser:
             if any(keyword in name for keyword in keywords):
                 matched.extend(items)
         return matched
+
+    def _resolve_value(
+        self,
+        templates: dict[str, list[dict[str, str]]],
+        aliases: Sequence[str],
+        *,
+        preferred_params: dict[str, str] | None = None,
+        wikitext: str | None = None,
+    ) -> str:
+        """提取清洗后的纯文本字段值。"""
+        if preferred_params:
+            value = self._value_from_params(preferred_params, aliases, plain=True)
+            if value:
+                return value
+        for items in templates.values():
+            for params in items:
+                value = self._value_from_params(params, aliases, plain=True)
+                if value:
+                    return value
+        if wikitext:
+            raw_value = self._extract_param_from_wikitext(wikitext, aliases)
+            if raw_value:
+                return self._normalize_plain_text(raw_value)
+        return ""
+
+    def _resolve_raw_value(
+        self,
+        templates: dict[str, list[dict[str, str]]],
+        aliases: Sequence[str],
+        *,
+        preferred_params: dict[str, str] | None = None,
+        wikitext: str | None = None,
+    ) -> str:
+        """提取规范化后的原始模板字段值。"""
+        if preferred_params:
+            value = self._value_from_params(preferred_params, aliases, plain=False)
+            if value:
+                return value
+        for items in templates.values():
+            for params in items:
+                value = self._value_from_params(params, aliases, plain=False)
+                if value:
+                    return value
+        if wikitext:
+            raw_value = self._extract_param_from_wikitext(wikitext, aliases)
+            if raw_value:
+                return self._normalize_text(raw_value)
+        return ""
+
+    def _value_from_params(
+        self,
+        params: dict[str, str],
+        aliases: Sequence[str],
+        *,
+        plain: bool,
+    ) -> str:
+        """从参数字典中读取第一个非空匹配字段。"""
+        for alias in aliases:
+            if alias not in params:
+                continue
+            raw_value = params[alias]
+            value = self._normalize_plain_text(raw_value) if plain else self._normalize_text(raw_value)
+            if value and value != "[[]]":
+                return value
+        return ""
+
+    def _normalize_text(self, value: str) -> str:
+        """规范化换行与简单转义。"""
+        text = value.replace("\r\n", "\n").replace("\r", "\n")
+        text = text.replace("\\|", "|").replace("{{!}}", "|").replace("&nbsp;", " ").replace("\xa0", " ")
+        text = _COMMENT_PATTERN.sub("", text)
+        text = _BREAK_WITH_LINE_END_PATTERN.sub(r"\1", text)
+        text = _BREAK_TAG_PATTERN.sub("\n", text)
+        text = "\n".join(line.strip() for line in text.split("\n"))
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
+
+    def _normalize_plain_text(self, value: str) -> str:
+        """去除 wikitext 标记并保留文本换行。"""
+        normalized = self._normalize_text(value)
+        normalized = _ICON_TEMPLATE_PATTERN.sub(
+            lambda match: (match.group(2) or match.group(1) or "").strip(),
+            normalized,
+        )
+        normalized = self._strip_plain_markup(normalized)
+        plain_text = mwparserfromhell.parse(normalized).strip_code()
+        return self._normalize_text(str(plain_text))
+
+    def _strip_plain_markup(self, value: str) -> str:
+        """移除不应出现在纯文本字段中的图片、HTML 与 tabber 标记。"""
+        cleaned = _FILE_LINK_PATTERN.sub("", value)
+        cleaned = _HTML_TAG_PATTERN.sub("", cleaned)
+        cleaned = _TABBER_SEPARATOR_PATTERN.sub("", cleaned)
+        cleaned = _TABBER_LABEL_PATTERN.sub("", cleaned)
+        return cleaned
+
+    def _find_section_text(self, sections: Sequence[ParsedSection], titles: Sequence[str]) -> str:
+        """按章节标题查找正文文本。"""
+        wanted = {title.strip() for title in titles}
+        for index, section in enumerate(sections):
+            if section.title.strip() not in wanted:
+                continue
+            text = self._normalize_text(section.text)
+            if text:
+                return text
+            if index + 1 < len(sections):
+                next_text = self._normalize_text(sections[index + 1].text)
+                if next_text:
+                    return next_text
+        return ""
+
+    def _extract_labeled_value(self, text: str, labels: Sequence[str]) -> str:
+        """从章节文本里提取形如“标签: 值”的行。"""
+        normalized = self._normalize_text(text)
+        if not normalized:
+            return ""
+        for line in normalized.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            for label in labels:
+                if not stripped.startswith(label):
+                    continue
+                value = stripped[len(label):].lstrip("：: \t")
+                if value:
+                    return value
+        return ""
+
+    def _extract_first_non_empty_line(self, text: str) -> str:
+        """返回文本中的第一条非空行。"""
+        normalized = self._normalize_text(text)
+        for line in normalized.splitlines():
+            line = line.strip()
+            if line:
+                return line
+        return ""
+
+    def _extract_secret_item_drops(self, domain_type: str, value: str) -> dict[str, str]:
+        """按秘境类型提取结构化掉落字段。"""
+        normalized_type = self._normalize_plain_text(domain_type)
+        if "圣遗物秘境" in normalized_type:
+            artifact_names = self._extract_artifact_drop_names(value)
+            return {
+                "圣遗物1": artifact_names[-2] if len(artifact_names) >= 2 else "",
+                "圣遗物2": artifact_names[-1] if artifact_names else "",
+            }
+        if "天赋技能材料秘境" in normalized_type:
+            return self._extract_grouped_drop_map(value, prefix="天赋技能材料", count=3)
+        if "武器突破材料秘境" in normalized_type:
+            return self._extract_grouped_drop_map(value, prefix="武器突破材料", count=3)
+        fallback_names = self._extract_artifact_drop_names(value)
+        return {
+            f"掉落{index}": item_name
+            for index, item_name in enumerate(fallback_names, start=1)
+        }
+
+    def _extract_artifact_drop_names(self, value: str) -> list[str]:
+        """从圣遗物秘境的掉落字段中提取最后两个套装名。"""
+        if not value:
+            return []
+        code = mwparserfromhell.parse(self._normalize_text(value))
+        icon_titles: list[str] = []
+        for template in code.filter_templates(recursive=True):
+            if str(template.name).strip() != "图标":
+                continue
+            first = self._normalize_plain_text(template.get(1).value.strip()) if template.has(1) else ""
+            second = self._normalize_plain_text(template.get(2).value.strip()) if template.has(2) else ""
+            if first == "圣遗物" and second:
+                icon_titles.append(second)
+        unique_icon_titles = self._unique_preserve_order(icon_titles)
+        if len(unique_icon_titles) >= 2:
+            return unique_icon_titles[-2:]
+        link_titles: list[str] = []
+        for wikilink in code.filter_wikilinks(recursive=True):
+            title = self._normalize_plain_text(str(wikilink.title))
+            if not title or title.startswith(_FILE_LINK_PREFIXES):
+                continue
+            link_titles.append(title)
+        unique_titles = self._unique_preserve_order(link_titles)
+        if len(unique_titles) >= 2:
+            return unique_titles[-2:]
+        plain_text = self._normalize_plain_text(value)
+        parts = [
+            chunk.strip(" -*\t")
+            for chunk in re.split(r"[\n,，、/]+", plain_text)
+            if chunk.strip(" -*\t")
+        ]
+        unique_parts = self._unique_preserve_order(parts)
+        return unique_parts[-2:]
+
+    def _extract_grouped_drop_map(self, value: str, *, prefix: str, count: int) -> dict[str, str]:
+        """从按组展示的掉落字段中提取最后 N 组材料名。"""
+        groups = self._extract_grouped_drop_values(value)
+        selected_groups = groups[-count:] if len(groups) >= count else groups
+        result = {
+            f"{prefix}{index}": ""
+            for index in range(1, count + 1)
+        }
+        for index, group_value in enumerate(selected_groups, start=1):
+            result[f"{prefix}{index}"] = group_value
+        return result
+
+    def _extract_grouped_drop_values(self, value: str) -> list[str]:
+        """提取以 <hr> 等分隔的掉落组文本。"""
+        if not value:
+            return []
+        normalized = self._normalize_text(value)
+        segments = [
+            segment.strip()
+            for segment in _HORIZONTAL_RULE_PATTERN.split(normalized)
+            if segment.strip()
+        ]
+        groups: list[str] = []
+        for segment in segments:
+            code = mwparserfromhell.parse(segment)
+            titles: list[str] = []
+            for template in code.filter_templates(recursive=True):
+                if str(template.name).strip() != "图标":
+                    continue
+                first = self._normalize_plain_text(template.get(1).value.strip()) if template.has(1) else ""
+                second = self._normalize_plain_text(template.get(2).value.strip()) if template.has(2) else ""
+                if first == "圣遗物":
+                    continue
+                title = second or first
+                if title:
+                    titles.append(title)
+            unique_titles = self._unique_preserve_order(titles)
+            if unique_titles:
+                groups.append("、".join(unique_titles))
+                continue
+            plain_text = self._normalize_plain_text(segment)
+            parts = [
+                chunk.strip(" -*\t")
+                for chunk in re.split(r"[\n,，、/]+", plain_text)
+                if chunk.strip(" -*\t")
+            ]
+            unique_parts = self._unique_preserve_order(parts)
+            if unique_parts:
+                groups.append("、".join(unique_parts))
+        return groups
+
+    def _unique_preserve_order(self, values: Sequence[str]) -> list[str]:
+        """按原顺序去重。"""
+        unique_values: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            if value in seen:
+                continue
+            seen.add(value)
+            unique_values.append(value)
+        return unique_values
+
+    def _coalesce(self, *values: str) -> str:
+        """返回第一个非空字符串。"""
+        for value in values:
+            if value:
+                return value
+        return ""
+
+    def _resolve_record_title(
+        self,
+        parsed_page: ParsedPage,
+        aliases: Sequence[str],
+        *,
+        preferred_params: dict[str, str] | None = None,
+    ) -> str:
+        """优先使用模板中的名称字段，回退到页面标题。"""
+        return self._coalesce(
+            self._resolve_value(
+                parsed_page.templates,
+                aliases,
+                preferred_params=preferred_params,
+                wikitext=parsed_page.wikitext,
+            ),
+            parsed_page.title,
+        )
+
+    def _extract_param_from_wikitext(self, wikitext: str, aliases: Sequence[str]) -> str:
+        """在原始 wikitext 中手工提取复杂模板参数。"""
+        for alias in aliases:
+            pattern = re.compile(rf"(?m)^\|{re.escape(alias)}=")
+            match = pattern.search(wikitext)
+            if not match:
+                continue
+            start = match.end()
+            template_depth = 0
+            link_depth = 0
+            index = start
+            while index < len(wikitext):
+                if wikitext.startswith("{{", index):
+                    template_depth += 1
+                    index += 2
+                    continue
+                if wikitext.startswith("}}", index):
+                    if template_depth == 0:
+                        break
+                    template_depth -= 1
+                    index += 2
+                    continue
+                if wikitext.startswith("[[", index):
+                    link_depth += 1
+                    index += 2
+                    continue
+                if wikitext.startswith("]]", index):
+                    if link_depth > 0:
+                        link_depth -= 1
+                    index += 2
+                    continue
+                if (
+                    wikitext[index] == "\n"
+                    and template_depth == 0
+                    and link_depth == 0
+                    and (
+                        wikitext.startswith("\n|", index)
+                        or wikitext.startswith("\n}}", index)
+                    )
+                ):
+                    break
+                index += 1
+            value = wikitext[start:index].strip()
+            if value:
+                return value
+        return ""
+
+    def _extract_plain_param_from_wikitext(self, wikitext: str, aliases: Sequence[str]) -> str:
+        """提取并清洗原始 wikitext 参数值。"""
+        value = self._extract_param_from_wikitext(wikitext, aliases)
+        if not value:
+            return ""
+        return self._normalize_plain_text(value)
