@@ -7,7 +7,9 @@
       "Bash(python:*)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Read(//e/Workplace/Learn_project/get_genshin_wiki-characters/**)",
+      "Bash(rm:*)",
+      "Bash(PYTHONIOENCODING=utf-8 python:*)",
+      "Bash(mkdir:*)",
       "Bash(uv sync)"
     ]
   }
