@@ -60,6 +60,16 @@ CliHandler = Callable[[argparse.Namespace, "CliRuntime"], int]
 _DEFAULT_PARSE_NAMESPACES = {
     "page": "parsed/pages",
     "character": "parsed/characters",
+    "weapon": "parsed/artifacts",
+    "artifact": "parsed/weapons",
+    "monster": "parsed/monsters",
+    "food": "parsed/foods",
+    "wildlife": "parsed/wildlife",
+    "quest-item": "parsed/quest-items",
+    "item": "parsed/items",
+    "material": "parsed/materials",
+    "namecard": "parsed/namecards",
+    "secret-item": "parsed/secret-items",
     "book": "parsed/books",
 }
 
@@ -173,6 +183,98 @@ def build_parser() -> argparse.ArgumentParser:
     parse_character.add_argument("--output-namespace", default=None)
     parse_character.add_argument("--no-persist", action="store_true")
     parse_character.set_defaults(handler=handle_parse_character)
+
+    # parse weapon：解析武器页面
+    parse_weapon = parse_commands.add_parser("weapon", help="Parse a stored weapon page.")
+    parse_weapon.add_argument("title", help="Weapon name")
+    parse_weapon.add_argument("--source-namespace", default="pages")
+    parse_weapon.add_argument("--output-namespace", default=None)
+    parse_weapon.add_argument("--no-persist", action="store_true")
+    parse_weapon.set_defaults(handler=handle_parse_weapon)
+
+    # parse artifact：解析圣遗物套装页面
+    parse_artifact = parse_commands.add_parser("artifact", help="Parse a stored artifact set page.")
+    parse_artifact.add_argument("title", help="Artifact set name")
+    parse_artifact.add_argument("--source-namespace", default="pages")
+    parse_artifact.add_argument("--output-namespace", default=None)
+    parse_artifact.add_argument("--no-persist", action="store_true")
+    parse_artifact.set_defaults(handler=handle_parse_artifact)
+
+    # parse monster：解析怪物页面
+    parse_monster = parse_commands.add_parser("monster", help="Parse a stored monster page.")
+    parse_monster.add_argument("title", help="Monster name")
+    parse_monster.add_argument("--source-namespace", default="pages")
+    parse_monster.add_argument("--output-namespace", default=None)
+    parse_monster.add_argument("--no-persist", action="store_true")
+    parse_monster.set_defaults(handler=handle_parse_monster)
+
+    # parse food：解析食物页面
+    parse_food = parse_commands.add_parser("food", help="Parse a stored food page.")
+    parse_food.add_argument("title", help="Food page title")
+    parse_food.add_argument("--source-namespace", default="pages")
+    parse_food.add_argument("--output-namespace", default=None)
+    parse_food.add_argument("--no-persist", action="store_true")
+    parse_food.set_defaults(handler=handle_parse_food)
+
+    # parse wildlife：解析野生动物页面
+    parse_wildlife = parse_commands.add_parser("wildlife", help="Parse a stored wildlife page.")
+    parse_wildlife.add_argument("title", help="Wildlife page title")
+    parse_wildlife.add_argument("--source-namespace", default="pages")
+    parse_wildlife.add_argument("--output-namespace", default=None)
+    parse_wildlife.add_argument("--no-persist", action="store_true")
+    parse_wildlife.set_defaults(handler=handle_parse_wildlife)
+
+    # parse quest-item：解析任务道具页面
+    parse_quest_item = parse_commands.add_parser(
+        "quest-item",
+        aliases=["questitem"],
+        help="Parse a stored quest item page.",
+    )
+    parse_quest_item.add_argument("title", help="Quest item page title")
+    parse_quest_item.add_argument("--source-namespace", default="pages")
+    parse_quest_item.add_argument("--output-namespace", default=None)
+    parse_quest_item.add_argument("--no-persist", action="store_true")
+    parse_quest_item.set_defaults(handler=handle_parse_quest_item)
+
+    # parse item：解析道具页面
+    parse_item = parse_commands.add_parser("item", help="Parse a stored item page.")
+    parse_item.add_argument("title", help="Item page title")
+    parse_item.add_argument("--source-namespace", default="pages")
+    parse_item.add_argument("--output-namespace", default=None)
+    parse_item.add_argument("--no-persist", action="store_true")
+    parse_item.set_defaults(handler=handle_parse_item)
+
+    # parse material：解析材料页面
+    parse_material = parse_commands.add_parser("material", help="Parse a stored material page.")
+    parse_material.add_argument("title", help="Material page title")
+    parse_material.add_argument("--source-namespace", default="pages")
+    parse_material.add_argument("--output-namespace", default=None)
+    parse_material.add_argument("--no-persist", action="store_true")
+    parse_material.set_defaults(handler=handle_parse_material)
+
+    # parse namecard：解析名片页面
+    parse_namecard = parse_commands.add_parser(
+        "namecard",
+        aliases=["name-card"],
+        help="Parse a stored name card page.",
+    )
+    parse_namecard.add_argument("title", help="Name card page title")
+    parse_namecard.add_argument("--source-namespace", default="pages")
+    parse_namecard.add_argument("--output-namespace", default=None)
+    parse_namecard.add_argument("--no-persist", action="store_true")
+    parse_namecard.set_defaults(handler=handle_parse_namecard)
+
+    # parse secret-item：解析秘境页面
+    parse_secret_item = parse_commands.add_parser(
+        "secret-item",
+        aliases=["secretitem"],
+        help="Parse a stored secret item page.",
+    )
+    parse_secret_item.add_argument("title", help="Secret item page title")
+    parse_secret_item.add_argument("--source-namespace", default="pages")
+    parse_secret_item.add_argument("--output-namespace", default=None)
+    parse_secret_item.add_argument("--no-persist", action="store_true")
+    parse_secret_item.set_defaults(handler=handle_parse_secret_item)
 
     # parse book：解析书籍页面
     parse_book = parse_commands.add_parser("book", help="Parse a stored book page.")
@@ -385,6 +487,116 @@ def handle_parse_character(args: argparse.Namespace, runtime: CliRuntime) -> int
         runtime.store.write(namespace, args.title, result)
     _print_json(result)
     return 0
+
+
+def handle_parse_weapon(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse weapon 命令：解析武器页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    result = runtime.parser.parse_weapon_page(payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["weapon"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_artifact(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse artifact 命令：解析圣遗物套装页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    result = runtime.parser.parse_artifact_set_page(payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["artifact"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_monster(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse monster 命令：解析怪物页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    result = runtime.parser.parse_monster_page(payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["monster"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def _handle_specialized_parse(
+    args: argparse.Namespace,
+    runtime: CliRuntime,
+    *,
+    parse_method: str,
+    namespace_key: str,
+) -> int:
+    """Run one of the structured parse handlers that share the same flow."""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    result = getattr(runtime.parser, parse_method)(payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES[namespace_key]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_food(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse food 命令：解析食物页面。"""
+    return _handle_specialized_parse(args, runtime, parse_method="parse_food_page", namespace_key="food")
+
+
+def handle_parse_wildlife(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse wildlife 命令：解析野生生物页面。"""
+    return _handle_specialized_parse(
+        args,
+        runtime,
+        parse_method="parse_wildlife_page",
+        namespace_key="wildlife",
+    )
+
+
+def handle_parse_quest_item(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse quest-item 命令：解析任务道具页面。"""
+    return _handle_specialized_parse(
+        args,
+        runtime,
+        parse_method="parse_quest_item_page",
+        namespace_key="quest-item",
+    )
+
+
+def handle_parse_item(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse item 命令：解析道具页面。"""
+    return _handle_specialized_parse(args, runtime, parse_method="parse_item_page", namespace_key="item")
+
+
+def handle_parse_material(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse material 命令：解析材料页面。"""
+    return _handle_specialized_parse(
+        args,
+        runtime,
+        parse_method="parse_material_page",
+        namespace_key="material",
+    )
+
+
+def handle_parse_namecard(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse namecard 命令：解析名片页面。"""
+    return _handle_specialized_parse(
+        args,
+        runtime,
+        parse_method="parse_namecard_page",
+        namespace_key="namecard",
+    )
+
+
+def handle_parse_secret_item(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse secret-item 命令：解析秘境页面。"""
+    return _handle_specialized_parse(
+        args,
+        runtime,
+        parse_method="parse_secret_item_page",
+        namespace_key="secret-item",
+    )
 
 
 def handle_parse_book(args: argparse.Namespace, runtime: CliRuntime) -> int:
