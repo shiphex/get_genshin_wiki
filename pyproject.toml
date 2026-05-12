@@ -11,3 +11,6 @@ dependencies = [
 
 [project.scripts]
 get-genshin-wiki = "get_genshin_wiki.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
