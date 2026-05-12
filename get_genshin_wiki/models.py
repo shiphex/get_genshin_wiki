@@ -163,6 +163,82 @@ class ParsedPage:
         }
 
 
+# 书籍卷/章详情
+@dataclass
+class BookVolume:
+    """
+    书籍单卷的结构化数据。
+
+    属性
+    ----
+    name : str
+        卷/章名称
+    description : str
+        卷/章描述
+    location : str
+        获取地点
+    content : str
+        卷/章正文内容，使用 \\n 表示换行
+    """
+
+    name: str
+    description: str
+    location: str
+    content: str
+
+    def to_dict(self) -> dict[str, str]:
+        """将卷记录转换为字典格式，便于 JSON 序列化。"""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "location": self.location,
+            "content": self.content,
+        }
+
+
+# 书籍页面专用解析结果
+@dataclass
+class BookRecord:
+    """
+    原神书籍页面的结构化解析结果。
+
+    包含书籍的基本信息和所有卷/章详情。
+
+    属性
+    ----
+    title : str
+        书籍名称
+    genre : str
+        体裁（如：史书、工具书、小说）
+    country : str
+        所属国家/地区
+    volumes : list[BookVolume]
+        卷/章列表
+    categories : list[str]
+        页面所属分类
+    page_id : int | str | None
+        页面 ID
+    """
+
+    title: str
+    genre: str
+    country: str
+    volumes: list[BookVolume] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """将书籍记录转换为字典格式，便于 JSON 序列化。"""
+        return {
+            "title": self.title,
+            "genre": self.genre,
+            "country": self.country,
+            "volumes": [volume.to_dict() for volume in self.volumes],
+            "categories": self.categories,
+            "page_id": self.page_id,
+        }
+
+
 # 角色页面专用解析结果
 @dataclass
 class CharacterRecord:

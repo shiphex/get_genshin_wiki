@@ -19,6 +19,7 @@
 2. parse - 解析已存储的页面数据
    - page           : 解析通用页面
    - character      : 解析角色页面
+   - book           : 解析书籍页面
 
 3. store - 操作本地存储的 JSON 数据
    - put/query/update/add/delete/exists/list
@@ -69,6 +70,7 @@ _DEFAULT_PARSE_NAMESPACES = {
     "material": "parsed/materials",
     "namecard": "parsed/namecards",
     "secret-item": "parsed/secret-items",
+    "book": "parsed/books",
 }
 
 
@@ -273,6 +275,14 @@ def build_parser() -> argparse.ArgumentParser:
     parse_secret_item.add_argument("--output-namespace", default=None)
     parse_secret_item.add_argument("--no-persist", action="store_true")
     parse_secret_item.set_defaults(handler=handle_parse_secret_item)
+
+    # parse book：解析书籍页面
+    parse_book = parse_commands.add_parser("book", help="Parse a stored book page.")
+    parse_book.add_argument("title", help="Book name")
+    parse_book.add_argument("--source-namespace", default="pages")
+    parse_book.add_argument("--output-namespace", default=None)
+    parse_book.add_argument("--no-persist", action="store_true")
+    parse_book.set_defaults(handler=handle_parse_book)
 
     # ========== store 子命令 ==========
     store_parser = subparsers.add_parser("store", help="Operate on locally stored JSON data.")
@@ -587,6 +597,17 @@ def handle_parse_secret_item(args: argparse.Namespace, runtime: CliRuntime) -> i
         parse_method="parse_secret_item_page",
         namespace_key="secret-item",
     )
+
+
+def handle_parse_book(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse book 命令：解析书籍页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    result = runtime.parser.parse_book_page(payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["book"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
 
 
 # ========== store 命令处理器 ==========

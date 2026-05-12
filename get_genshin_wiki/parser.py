@@ -51,6 +51,7 @@ from .models import (
     QuestItemRecord,
     SecretItemRecord,
     WildlifeRecord,
+    BookRecord, BookVolume,
 )
 
 # 分类链接匹配正则：[[Category:xxx]] 或 [[分类:xxx]]
@@ -74,6 +75,46 @@ _HTML_TAG_PATTERN = re.compile(r"</?[A-Za-z][^>]*>")
 _TABBER_SEPARATOR_PATTERN = re.compile(r"(?m)^\|-\|\s*$")
 _TABBER_LABEL_PATTERN = re.compile(r"(?m)^\d+\s*=\s*$")
 _FILE_LINK_PREFIXES = ("文件:", "File:", "Image:", "Category:", "分类:")
+# 书籍模板关键词
+_BOOK_TEMPLATE_KEYWORDS = ("书籍", "书籍信息", "白夜国馆藏", "千世流樱", "浮世风流", "冒险家")
+
+# 国家代码映射表
+_COUNTRY_CODE_MAP: dict[str, str] = {
+    "0": "提瓦特",
+    "1": "蒙德",
+    "2": "璃月",
+    "3": "稻妻",
+    "4": "须弥",
+    "5": "枫丹",
+    "6": "纳塔",
+    "7": "挪德卡莱",
+    "8": "至冬",
+}
+
+
+def _parse_country_code(value: str) -> str:
+    """解析国家代码值，返回国家名称。
+
+    处理两种格式：
+    1. 纯数字代码：直接查表映射
+    2. 带备注的数字：提取数字部分后查表映射
+
+    参数
+    ----
+    value : str
+        国家字段值，可能是 "3" 或 "3<!-- 备注 -->"
+
+    返回
+    ----
+    str
+        国家名称，映射失败则返回原始值
+    """
+    # 提取数字部分（处理带 HTML 注释的情况）
+    match = re.match(r"^(\d+)", value.strip())
+    if match:
+        code = match.group(1)
+        return _COUNTRY_CODE_MAP.get(code, value)
+    return value
 
 
 class WikiTextParser:
@@ -1008,6 +1049,83 @@ class WikiTextParser:
             categories=parsed_page.categories,
             sections=parsed_page.sections,
             templates=parsed_page.templates,
+        )
+
+    def parse_book_page(self, payload: dict[str, Any]) -> BookRecord:
+        """
+        解析原神书籍页面。
+
+        提取书籍的基本信息（名称、体裁、国家）和所有卷/章详情。
+
+        卷信息从「书籍」模板的参数中提取，参数格式为：
+        - 卷X名=X
+        - 卷X获取地点=X
+        - 卷X描述=X
+        - 卷X内容=X
+
+        参数
+        ----
+        payload : dict[str, Any]
+            MediaWiki API 返回的页面 payload
+
+        返回
+        ----
+        BookRecord
+            包含书籍结构化数据的对象
+        """
+        title, page_id, wikitext = self.extract_page_metadata(payload)
+        templates = self.parse_templates(wikitext)
+        categories = self.parse_categories(wikitext)
+
+        # 从模板中提取书籍基本信息
+        genre = ""
+        country = ""
+        book_params: dict[str, str] = {}
+        for name, items in templates.items():
+            if "书籍" in name:
+                for params in items:
+                    book_params.update(params)
+                    if not genre:
+                        genre = params.get("体裁", params.get("类型", ""))
+                    if not country:
+                        raw_country = params.get("国家", params.get("地区", ""))
+                        country = _parse_country_code(raw_country)
+
+        # 从模板参数中提取卷信息
+        volumes: list[BookVolume] = []
+        # 收集所有卷相关的键
+        volume_keys: dict[int, dict[str, str]] = {}
+        for key, value in book_params.items():
+            # 匹配 "卷X名", "卷X获取地点", "卷X描述", "卷X内容" 格式
+            import re
+            match = re.match(r"^卷(\d+)(名|获取地点|描述|内容)$", key)
+            if match:
+                vol_num = int(match.group(1))
+                field = match.group(2)
+                if vol_num not in volume_keys:
+                    volume_keys[vol_num] = {}
+                volume_keys[vol_num][field] = value
+
+        # 按卷号排序构建 BookVolume
+        for vol_num in sorted(volume_keys.keys()):
+            fields = volume_keys[vol_num]
+            # 将 <br> 替换为 \n（两个连续 <br> 替换为两个连续 \n）
+            content = fields.get("内容", "")
+            content = content.replace("<br>", "\n")
+            volumes.append(BookVolume(
+                name=fields.get("名", ""),
+                description=fields.get("描述", ""),
+                location=fields.get("获取地点", ""),
+                content=content,
+            ))
+
+        return BookRecord(
+            title=title,
+            genre=genre,
+            country=country,
+            volumes=volumes,
+            categories=categories,
+            page_id=page_id,
         )
 
     def _select_best_template(
