@@ -31,11 +31,24 @@ from tests.helpers import build_page_payload
 from tests.test_parser import SPECIALIZED_PAGE_CASES
 
 # 测试用角色 wikitext
-SAMPLE_CHARACTER_WIKITEXT = """{{角色属性|名字=哥伦比娅|元素=冰|武器=法器}}
+SAMPLE_CHARACTER_WIKITEXT = """{{角色资料|名字=哥伦比娅|元素=水|武器=法器|神之眼描述=三相月临}}
 哥伦比娅是愚人众执行官之一。
 
-{{角色天赋|名称=低语之歌|描述=造成冰元素伤害}}
+{{角色天赋|名称=低语之歌|描述=造成水元素伤害|类别=普通攻击|元素=水}}
+{{角色/故事|角色详细=白天还是夜晚？<br>那当然是夜晚。|角色故事1=最先听到的是歌声。|冒险笔记名称=月光织就的眼罩|冒险笔记内容=她相信梦境会说真话。|其他=三相月临|其他故事=在获得「三月的权能」之后，她开始思考自己该如何使用它。|结尾=终}}
+{{角色展示|壹·人物={{切换板|显示内容}}月下白鸽，何以为家？{{切换板|内容结束}}|贰·故事={{切换板|默认显示|她的过去}}{{切换板|显示内容}}[[file:角色哥伦比娅官方故事图3.jpg|thumb|240px|哥伦比娅官方故事图]]过去像潮汐一样回响。{{切换板|内容结束}}}}
 [[Category:角色]]
+"""
+
+SAMPLE_VOICE_WIKITEXT = """{{面包屑|哥伦比娅|角色语音}}{{角色导航}}{{语音tab样式}}
+<div class="resp-tabs-container">
+<div class="resp-tab-content" style="display:block;">
+{{角色/语音1|语音类型=闲聊·歌|语音内容=我的歌并不为谁而唱。}}
+</div>
+<div class="resp-tab-content" style="display:none;">
+{{角色/语音|语音类型=无效示例|语音内容日语=無視する}}
+</div>
+</div>
 """
 
 
@@ -135,11 +148,13 @@ class CliTests(unittest.TestCase):
         """
         # 先写入原始页面数据
         self.store.write("pages", "哥伦比娅", build_page_payload("哥伦比娅", SAMPLE_CHARACTER_WIKITEXT, page_id=7))
+        self.store.write("pages", "哥伦比娅语音", build_page_payload("哥伦比娅语音", SAMPLE_VOICE_WIKITEXT, page_id=8))
 
         exit_code, output = self.run_cli(["parse", "character", "哥伦比娅"])
 
         self.assertEqual(0, exit_code)
-        self.assertEqual("冰", output["attributes"]["元素"])
+        self.assertEqual("水", output["attributes"]["元素"])
+        self.assertEqual("闲聊·歌", output["voice_records"][0]["title"])
         self.assertTrue(self.store.exists("parsed/characters", "哥伦比娅"))
 
     def test_parse_specialized_commands_persist_results(self) -> None:
@@ -165,6 +180,24 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(0, exit_code)
                 self.assertEqual(case["assertions"][field_name], output[field_name])
                 self.assertTrue(self.store.exists(namespace, title))
+
+    def test_parse_character_story_reads_page_payload_and_persists_story_result(self) -> None:
+        """
+        测试 parse character-story 命令：
+        1. 从存储读取原始 payload
+        2. 聚合角色故事相关内容
+        3. 持久化结果到 parsed/character-stories 命名空间
+        """
+        self.store.write("pages", "哥伦比娅", build_page_payload("哥伦比娅", SAMPLE_CHARACTER_WIKITEXT, page_id=7))
+        self.store.write("pages", "哥伦比娅语音", build_page_payload("哥伦比娅语音", SAMPLE_VOICE_WIKITEXT, page_id=8))
+
+        exit_code, output = self.run_cli(["parse", "character-story", "哥伦比娅"])
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("三相月临", output["god_eye_description"])
+        self.assertEqual("角色详细", output["story_records"][0]["title"])
+        self.assertEqual("闲聊·歌", output["voice_records"][0]["title"])
+        self.assertTrue(self.store.exists("parsed/character-stories", "哥伦比娅"))
 
     def test_store_commands_cover_put_query_update_add_and_delete(self) -> None:
         """

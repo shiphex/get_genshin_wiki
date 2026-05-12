@@ -323,10 +323,11 @@ class MediaWikiClient:
         """
         params = {
             "action": "query",
-            "prop": "revisions",
+            "prop": "revisions|categories",
             "titles": title,
             "rvprop": "content",  # 获取 wikitext 内容
             "rvslots": "main",    # 获取主插槽内容
+            "cllimit": "max",
             "format": "json",
         }
         return self._request(params)
