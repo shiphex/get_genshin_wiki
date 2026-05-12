@@ -205,6 +205,146 @@ class CharacterRecord:
         }
 
 
+# 武器页面专用解析结果
+@dataclass
+class WeaponRecord:
+    """
+    原神武器页面的结构化解析结果。
+
+    武器规格要求字段：
+    - 名称 (title)
+    - 类型 (weapon_type)
+    - 介绍 (description)
+    - 突破武器材料序列 (ascension_weapon_materials)
+    - 突破高级材料序列 (ascension_premium_materials)
+    - 突破普通材料序列 (ascension_common_materials)
+    - 获取途径 (obtaining_method)
+    - 锻造材料 (forging_blueprint)
+    - 精炼材料 (refining_material)
+    - 故事 (story)
+
+    属性
+    ----
+    title : str
+        武器名称
+    weapon_type : str
+        武器类型（如 弓、法器、单手剑等）
+    description : str
+        武器介绍
+    ascension_weapon_materials : list[str]
+        突破武器材料序列
+    ascension_premium_materials : list[str]
+        突破高级材料序列
+    ascension_common_materials : list[str]
+        突破普通材料序列
+    obtaining_method : str
+        获取途径（祈愿/限定祈愿/活动名称/任务名称/锻造等）
+    forging_blueprint : str
+        锻造材料，若不可锻造则为"不可锻造获取"
+    refining_material : str
+        精炼材料，若不可精炼则为"不可使用材料精炼"
+    story : str
+        武器故事/背景描述
+    """
+
+    title: str
+    weapon_type: str
+    description: str = ""
+    ascension_weapon_materials: list[str] = field(default_factory=list)
+    ascension_premium_materials: list[str] = field(default_factory=list)
+    ascension_common_materials: list[str] = field(default_factory=list)
+    obtaining_method: str = ""
+    forging_blueprint: str = "不可锻造获取"
+    refining_material: str = "不可使用材料精炼"
+    story: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """将武器记录转换为字典格式，便于 JSON 序列化。"""
+        return {
+            "名称": self.title,
+            "类型": self.weapon_type,
+            "介绍": self.description,
+            "突破武器材料序列": self.ascension_weapon_materials,
+            "突破高级材料序列": self.ascension_premium_materials,
+            "突破普通材料序列": self.ascension_common_materials,
+            "获取途径": self.obtaining_method,
+            "锻造材料": self.forging_blueprint,
+            "精炼材料": self.refining_material,
+            "故事": self.story,
+        }
+
+
+# 圣遗物套装解析结果
+@dataclass
+class ArtifactPieceRecord:
+    """
+    圣遗物部件（生之花、死之羽、时之沙、空之杯、理之冠）。
+
+    属性
+    ----
+    slot : str
+        部位名称（如 生之花、死之羽等）
+    name : str
+        部件名称
+    description : str
+        部件描述
+    story : str
+        部件故事
+    """
+
+    slot: str
+    name: str
+    description: str
+    story: str
+
+    def to_dict(self) -> dict[str, str]:
+        """转换为字典格式。"""
+        return {
+            "名称": self.name,
+            "描述": self.description,
+            "故事": self.story,
+        }
+
+
+@dataclass
+class ArtifactSetRecord:
+    """
+    原神圣遗物套装页面的结构化解析结果。
+
+    圣遗物规格要求字段：
+    - 名称 (title)
+    - 获取方式 (obtaining_method)
+    - 时之沙、死之羽、理之冠、生之花、空之杯: 名称、描述、故事
+
+    属性
+    ----
+    title : str
+        套装名称
+    obtaining_method : str
+        获取方式
+    pieces : list[ArtifactPieceRecord]
+        套装部件列表（生之花、死之羽、时之沙、空之杯、理之冠）
+    """
+
+    title: str
+    obtaining_method: str = ""
+    pieces: list[ArtifactPieceRecord] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """将圣遗物套装记录转换为字典格式，便于 JSON 序列化。"""
+        result = {
+            "名称": self.title,
+            "获取方式": self.obtaining_method,
+        }
+        # 按固定顺序添加各部件
+        slot_order = ["时之沙", "死之羽", "理之冠", "生之花", "空之杯"]
+        pieces_dict = {p.slot: p.to_dict() for p in self.pieces}
+        for slot in slot_order:
+            if slot in pieces_dict:
+                result[slot] = pieces_dict[slot]
+        return result
+
+
 # 怪物页面专用解析结果
 @dataclass
 class MonsterRecord:

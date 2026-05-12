@@ -59,6 +59,8 @@ CliHandler = Callable[[argparse.Namespace, "CliRuntime"], int]
 _DEFAULT_PARSE_NAMESPACES = {
     "page": "parsed/pages",
     "character": "parsed/characters",
+    "weapon": "parsed/artifacts",
+    "artifact": "parsed/weapons",
     "monster": "parsed/monsters",
 }
 
@@ -172,6 +174,22 @@ def build_parser() -> argparse.ArgumentParser:
     parse_character.add_argument("--output-namespace", default=None)
     parse_character.add_argument("--no-persist", action="store_true")
     parse_character.set_defaults(handler=handle_parse_character)
+
+    # parse weapon：解析武器页面
+    parse_weapon = parse_commands.add_parser("weapon", help="Parse a stored weapon page.")
+    parse_weapon.add_argument("title", help="Weapon name")
+    parse_weapon.add_argument("--source-namespace", default="pages")
+    parse_weapon.add_argument("--output-namespace", default=None)
+    parse_weapon.add_argument("--no-persist", action="store_true")
+    parse_weapon.set_defaults(handler=handle_parse_weapon)
+
+    # parse artifact：解析圣遗物套装页面
+    parse_artifact = parse_commands.add_parser("artifact", help="Parse a stored artifact set page.")
+    parse_artifact.add_argument("title", help="Artifact set name")
+    parse_artifact.add_argument("--source-namespace", default="pages")
+    parse_artifact.add_argument("--output-namespace", default=None)
+    parse_artifact.add_argument("--no-persist", action="store_true")
+    parse_artifact.set_defaults(handler=handle_parse_artifact)
 
     # parse monster：解析怪物页面
     parse_monster = parse_commands.add_parser("monster", help="Parse a stored monster page.")
@@ -381,6 +399,28 @@ def handle_parse_character(args: argparse.Namespace, runtime: CliRuntime) -> int
     result = runtime.parser.parse_character_page(payload).to_dict()
     if not args.no_persist:
         namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["character"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_weapon(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse weapon 命令：解析武器页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    result = runtime.parser.parse_weapon_page(payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["weapon"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_artifact(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse artifact 命令：解析圣遗物套装页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    result = runtime.parser.parse_artifact_set_page(payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["artifact"]
         runtime.store.write(namespace, args.title, result)
     _print_json(result)
     return 0
