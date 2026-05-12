@@ -8,7 +8,12 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(rm:*)",
-      "Bash(mkdir:*)"
+      "Bash(PYTHONIOENCODING=utf-8 python:*)",
+      "Bash(mkdir:*)",
+      "Bash(uv sync)",
+      "Bash(do:*)",
+      "Bash(rm:*)",
+      "Bash(find:*)"
     ]
   }
 }

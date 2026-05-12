@@ -25,6 +25,22 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+def _serialize_record_metadata(
+    *,
+    page_id: int | str | None,
+    categories: list[str],
+    sections: list["ParsedSection"],
+    templates: dict[str, list[dict[str, str]]],
+) -> dict[str, Any]:
+    """Build shared metadata for specialized record classes."""
+    return {
+        "page_id": page_id,
+        "categories": categories,
+        "sections": [section.to_dict() for section in sections],
+        "templates": templates,
+    }
+
+
 # HTTP 请求策略配置（不可变对象）
 @dataclass(frozen=True)
 class RequestPolicy:
@@ -144,6 +160,82 @@ class ParsedPage:
             "sections": [section.to_dict() for section in self.sections],
             "templates": self.templates,
             "wikitext": self.wikitext,
+        }
+
+
+# 书籍卷/章详情
+@dataclass
+class BookVolume:
+    """
+    书籍单卷的结构化数据。
+
+    属性
+    ----
+    name : str
+        卷/章名称
+    description : str
+        卷/章描述
+    location : str
+        获取地点
+    content : str
+        卷/章正文内容，使用 \\n 表示换行
+    """
+
+    name: str
+    description: str
+    location: str
+    content: str
+
+    def to_dict(self) -> dict[str, str]:
+        """将卷记录转换为字典格式，便于 JSON 序列化。"""
+        return {
+            "name": self.name,
+            "description": self.description,
+            "location": self.location,
+            "content": self.content,
+        }
+
+
+# 书籍页面专用解析结果
+@dataclass
+class BookRecord:
+    """
+    原神书籍页面的结构化解析结果。
+
+    包含书籍的基本信息和所有卷/章详情。
+
+    属性
+    ----
+    title : str
+        书籍名称
+    genre : str
+        体裁（如：史书、工具书、小说）
+    country : str
+        所属国家/地区
+    volumes : list[BookVolume]
+        卷/章列表
+    categories : list[str]
+        页面所属分类
+    page_id : int | str | None
+        页面 ID
+    """
+
+    title: str
+    genre: str
+    country: str
+    volumes: list[BookVolume] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """将书籍记录转换为字典格式，便于 JSON 序列化。"""
+        return {
+            "title": self.title,
+            "genre": self.genre,
+            "country": self.country,
+            "volumes": [volume.to_dict() for volume in self.volumes],
+            "categories": self.categories,
+            "page_id": self.page_id,
         }
 
 
@@ -283,7 +375,6 @@ class CharacterRecord:
         """将角色记录转换为字典格式，便于 JSON 序列化。"""
         return {
             "title": self.title,
-            "page_id": self.page_id,
             "summary": self.summary,
             "attributes": self.attributes,
             "talents": self.talents,
@@ -317,4 +408,384 @@ class CharacterRecord:
             "categories": self.categories,
             "sections": [section.to_dict() for section in self.sections],
             "templates": self.templates,
+            **_serialize_record_metadata(
+                page_id=self.page_id,
+                categories=self.categories,
+                sections=self.sections,
+                templates=self.templates,
+            ),
+        }
+
+
+@dataclass
+class FoodRecord:
+    """Structured record for food pages."""
+
+    title: str
+    type: str
+    normal_description: str
+    perfect_description: str = ""
+    failed_description: str = ""
+    ingredients: str = ""
+    recipe_obtain_method: str = ""
+    special_dish: str = ""
+    special_dish_character: str = ""
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the food record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "介绍": {
+                "普通料理": self.normal_description,
+                "完美料理": self.perfect_description,
+                "失败料理": self.failed_description,
+            },
+            "所需食材": self.ingredients,
+            "食谱获取方式": self.recipe_obtain_method,
+            "特殊料理": self.special_dish,
+            "特殊料理角色": self.special_dish_character,
+        }
+
+
+@dataclass
+class WildlifeRecord:
+    """Structured record for wildlife pages."""
+
+    title: str
+    type: str
+    species: str
+    description: str
+    locations: str = ""
+    capturable: str = ""
+    fishing_info: dict[str, str] = field(default_factory=dict)
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the wildlife record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "种类": self.species,
+            "描述": self.description,
+            "出现地点": self.locations,
+            "能否捕捉": self.capturable,
+            "钓鱼信息": {
+                "钓鱼鱼饵": self.fishing_info.get("bait", ""),
+                "钓鱼时间": self.fishing_info.get("time", ""),
+                "钓鱼地点": self.fishing_info.get("location", ""),
+            },
+        }
+
+
+@dataclass
+class QuestItemRecord:
+    """Structured record for quest item pages."""
+
+    title: str
+    type: str
+    description: str
+    related_quest: str = ""
+    obtain_method: str = ""
+    content: str = ""
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the quest item record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "描述": self.description,
+            "相关任务": self.related_quest,
+            "获取方式": self.obtain_method,
+            "内容": self.content,
+        }
+
+
+@dataclass
+class ItemRecord:
+    """Structured record for general item pages."""
+
+    title: str
+    type: str
+    source: str
+    usage: str
+    description: str
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the item record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "来源": self.source,
+            "用途": self.usage,
+            "介绍": self.description,
+        }
+
+
+@dataclass
+class MaterialRecord:
+    """Structured record for material pages."""
+
+    title: str
+    type: str
+    source: str
+    description: str
+    usage: str
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the material record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "来源": self.source,
+            "介绍": self.description,
+            "用途": self.usage,
+        }
+
+
+@dataclass
+class NameCardRecord:
+    """Structured record for name card pages."""
+
+    title: str
+    obtain_method: str
+    description: str
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the name card record for JSON output."""
+        return {
+            "名称": self.title,
+            "获取方式": self.obtain_method,
+            "描述": self.description,
+        }
+
+
+@dataclass
+class SecretItemRecord:
+    """Structured record for domain-like secret item pages."""
+
+    title: str
+    type: str
+    description: str
+    drops: dict[str, str] = field(default_factory=dict)
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the secret item record for JSON output."""
+        return {
+            "名称": self.title,
+            "类型": self.type,
+            "介绍": self.description,
+            "掉落": dict(self.drops),
+        }
+
+
+# 武器页面专用解析结果
+@dataclass
+class WeaponRecord:
+    """
+    原神武器页面的结构化解析结果。
+
+    武器规格要求字段：
+    - 名称 (title)
+    - 类型 (weapon_type)
+    - 介绍 (description)
+    - 突破武器材料序列 (ascension_weapon_materials)
+    - 突破高级材料序列 (ascension_premium_materials)
+    - 突破普通材料序列 (ascension_common_materials)
+    - 获取途径 (obtaining_method)
+    - 锻造材料 (forging_blueprint)
+    - 精炼材料 (refining_material)
+    - 故事 (story)
+
+    属性
+    ----
+    title : str
+        武器名称
+    weapon_type : str
+        武器类型（如 弓、法器、单手剑等）
+    description : str
+        武器介绍
+    ascension_weapon_materials : list[str]
+        突破武器材料序列
+    ascension_premium_materials : list[str]
+        突破高级材料序列
+    ascension_common_materials : list[str]
+        突破普通材料序列
+    obtaining_method : str
+        获取途径（祈愿/限定祈愿/活动名称/任务名称/锻造等）
+    forging_blueprint : str
+        锻造材料，若不可锻造则为"不可锻造获取"
+    refining_material : str
+        精炼材料，若不可精炼则为"不可使用材料精炼"
+    story : str
+        武器故事/背景描述
+    """
+
+    title: str
+    weapon_type: str
+    description: str = ""
+    ascension_weapon_materials: list[str] = field(default_factory=list)
+    ascension_premium_materials: list[str] = field(default_factory=list)
+    ascension_common_materials: list[str] = field(default_factory=list)
+    obtaining_method: str = ""
+    forging_blueprint: str = "不可锻造获取"
+    refining_material: str = "不可使用材料精炼"
+    story: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """将武器记录转换为字典格式，便于 JSON 序列化。"""
+        return {
+            "名称": self.title,
+            "类型": self.weapon_type,
+            "介绍": self.description,
+            "突破武器材料序列": self.ascension_weapon_materials,
+            "突破高级材料序列": self.ascension_premium_materials,
+            "突破普通材料序列": self.ascension_common_materials,
+            "获取途径": self.obtaining_method,
+            "锻造材料": self.forging_blueprint,
+            "精炼材料": self.refining_material,
+            "故事": self.story,
+        }
+
+
+# 圣遗物套装解析结果
+@dataclass
+class ArtifactPieceRecord:
+    """
+    圣遗物部件（生之花、死之羽、时之沙、空之杯、理之冠）。
+
+    属性
+    ----
+    slot : str
+        部位名称（如 生之花、死之羽等）
+    name : str
+        部件名称
+    description : str
+        部件描述
+    story : str
+        部件故事
+    """
+
+    slot: str
+    name: str
+    description: str
+    story: str
+
+    def to_dict(self) -> dict[str, str]:
+        """转换为字典格式。"""
+        return {
+            "名称": self.name,
+            "描述": self.description,
+            "故事": self.story,
+        }
+
+
+@dataclass
+class ArtifactSetRecord:
+    """
+    原神圣遗物套装页面的结构化解析结果。
+
+    圣遗物规格要求字段：
+    - 名称 (title)
+    - 获取方式 (obtaining_method)
+    - 时之沙、死之羽、理之冠、生之花、空之杯: 名称、描述、故事
+
+    属性
+    ----
+    title : str
+        套装名称
+    obtaining_method : str
+        获取方式
+    pieces : list[ArtifactPieceRecord]
+        套装部件列表（生之花、死之羽、时之沙、空之杯、理之冠）
+    """
+
+    title: str
+    obtaining_method: str = ""
+    pieces: list[ArtifactPieceRecord] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """将圣遗物套装记录转换为字典格式，便于 JSON 序列化。"""
+        result = {
+            "名称": self.title,
+            "获取方式": self.obtaining_method,
+        }
+        # 按固定顺序添加各部件
+        slot_order = ["时之沙", "死之羽", "理之冠", "生之花", "空之杯"]
+        pieces_dict = {p.slot: p.to_dict() for p in self.pieces}
+        for slot in slot_order:
+            if slot in pieces_dict:
+                result[slot] = pieces_dict[slot]
+        return result
+
+
+# 怪物页面专用解析结果
+@dataclass
+class MonsterRecord:
+    """
+    原神怪物页面的结构化解析结果。
+
+    属性（仅包含 git-worktree-spec.md 中要求的核心字段）：
+    ----
+    title : str
+        怪物名称
+    monster_class : str
+        怪物类别（如：周刷BOSS、精英等）
+    monster_category : str
+        怪物分类（如：值得铭记的强敌、自律机关等）
+    monster_type : str
+        怪物类型（如：其他、战争机械等）
+    location : str
+        出现地点
+    drop_materials : list[str]
+        掉落素材列表
+    description : str
+        怪物介绍
+    """
+
+    title: str
+    monster_class: str
+    monster_category: str
+    monster_type: str
+    location: str
+    drop_materials: list[str] = field(default_factory=list)
+    description: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """将怪物记录转换为字典格式，便于 JSON 序列化。"""
+        return {
+            "title": self.title,
+            "monster_class": self.monster_class,
+            "monster_category": self.monster_category,
+            "monster_type": self.monster_type,
+            "location": self.location,
+            "drop_materials": self.drop_materials,
+            "description": self.description,
         }

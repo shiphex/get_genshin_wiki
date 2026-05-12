@@ -28,6 +28,7 @@ from get_genshin_wiki.crawler import WikiCrawler
 from get_genshin_wiki.parser import WikiTextParser
 from get_genshin_wiki.storage import JsonFileStore
 from tests.helpers import build_page_payload
+from tests.test_parser import SPECIALIZED_PAGE_CASES
 
 # 测试用角色 wikitext
 SAMPLE_CHARACTER_WIKITEXT = """{{角色资料|名字=哥伦比娅|元素=水|武器=法器|神之眼描述=三相月临}}
@@ -155,6 +156,30 @@ class CliTests(unittest.TestCase):
         self.assertEqual("水", output["attributes"]["元素"])
         self.assertEqual("闲聊·歌", output["voice_records"][0]["title"])
         self.assertTrue(self.store.exists("parsed/characters", "哥伦比娅"))
+
+    def test_parse_specialized_commands_persist_results(self) -> None:
+        """测试新增的 7 个 parse 子命令及其默认输出命名空间。"""
+        case_lookup = {case["title"]: case for case in SPECIALIZED_PAGE_CASES}
+        command_cases = [
+            ("food", "花果草糖", "parsed/foods", "特殊料理"),
+            ("wildlife", "无奇巨斧鱼", "parsed/wildlife", "钓鱼信息"),
+            ("questitem", "装有信件的漂流瓶", "parsed/quest-items", "内容"),
+            ("item", "奇特的「留影机」", "parsed/items", "来源"),
+            ("material", "混沌枢纽", "parsed/materials", "用途"),
+            ("name-card", "蒙德·望楼", "parsed/namecards", "获取方式"),
+            ("secretitem", "月童的库藏", "parsed/secret-items", "掉落"),
+        ]
+
+        for page_id, (command, title, namespace, field_name) in enumerate(command_cases, start=20):
+            with self.subTest(command=command, title=title):
+                case = case_lookup[title]
+                self.store.write("pages", title, build_page_payload(title, case["wikitext"], page_id=page_id))
+
+                exit_code, output = self.run_cli(["parse", command, title])
+
+                self.assertEqual(0, exit_code)
+                self.assertEqual(case["assertions"][field_name], output[field_name])
+                self.assertTrue(self.store.exists(namespace, title))
 
     def test_parse_character_story_reads_page_payload_and_persists_story_result(self) -> None:
         """
