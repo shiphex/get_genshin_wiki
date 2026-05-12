@@ -65,7 +65,7 @@
 - [x] 完善天赋模板解析（支援多元素天赋）
 - [x] 新增 `CharacterStoryRecord` dataclass 存储角色故事
 - [x] 新增角色邀约/好感度解析方法
-- [x] 新增 CLI 子命令 `parse character-story`
+- [x] 角色解析结果统一收敛到 `parse character`，并只写入 `data/parsed/characters`
 - [x] 新增测试覆盖
 - [x] 更新 `models.py` 新增相关 Record 类
 - [x] 更新 `parser.py` 新增解析方法

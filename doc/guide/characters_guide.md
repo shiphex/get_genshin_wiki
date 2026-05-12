@@ -16,9 +16,6 @@ pip install mwparserfromhell requests
 # 抓取并解析角色主页面
 python -m get_genshin_wiki.cli parse character <角色名>
 
-# 抓取并解析角色故事
-python -m get_genshin_wiki.cli parse character-story <角色名>
-
 # 批量抓取（需先配置角色列表）
 python -X utf8 tools/crawl_validate_characters.py
 ```
@@ -49,7 +46,6 @@ data/
 │   └── <角色名>语音__<hash>.json
 ├── parsed/
 │   ├── characters/     # 角色解析结果
-│   └── character-stories/  # 角色故事解析结果
 └── reports/           # 完整性报告
 ```
 
@@ -63,14 +59,26 @@ python -X utf8 tools/crawl_validate_characters.py
 
 ## 解析字段说明
 
-| 字段 | 来源 | 说明 |
+| 字段组 | 来源 | 说明 |
 |------|------|------|
-| `name` | 主页面 | 角色名称 |
-| `element` | 主页面 | 元素属性 |
-| `weapon` | 主页面 | 武器类型 |
-| `constellation` | 主页面 | 命之座 |
-| `talents` | 主页面 | 天赋信息 |
-| `god_eye_description` | 主页面 | 神之眼描述 |
-| `power_record` | 主页面 | 权能内容 |
-| `story_sections` | 主页面 | 壹·人物 / 贰·故事 |
-| `voice_records` | 语音页 | 角色语音（独立页面 `name语音`） |
+| `角色` | 主页面 | 角色主信息，包含名称、称号、所属、归属、元素属性、武器类型等表格字段 |
+| `角色故事` | 主页面 | `角色详细` 与 `角色故事1..n` |
+| `冒险笔记` | 主页面 | `冒险笔记名称` -> `冒险笔记内容` |
+| `权能` | 主页面 | 以 `神之眼描述` 为子项名的权能文本 |
+| `壹·人物` | 主页面 | `角色介绍1..n` |
+| `贰·故事` | 主页面 | 切换板标题 -> 故事正文 |
+| `角色语音` | 语音页 | 角色语音（独立页面 `name语音`） |
+
+角色解析结果统一写入 `data/parsed/characters/<角色名>__*.json`，落盘结构为：
+
+```json
+{
+  "角色": {},
+  "角色故事": {},
+  "冒险笔记": {},
+  "权能": {},
+  "壹·人物": {},
+  "贰·故事": {},
+  "角色语音": {}
+}
+```

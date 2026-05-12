@@ -30,8 +30,8 @@
 ## 存储位置
 
 - 原始页面数据：`data/pages/`
-- 武器解析结果：`data/parsed/artifacts/`
-- 圣遗物套装解析结果：`data/parsed/weapons/`
+- 武器解析结果：`data/parsed/weapons/`
+- 圣遗物套装解析结果：`data/parsed/artifacts/`
 
 ## 使用方法
 
@@ -54,7 +54,11 @@ python -m get_genshin_wiki.cli parse weapon "霜结的誓金枝"
 # 解析特定圣遗物套装页面
 python -m get_genshin_wiki.cli parse artifact "风起之日"
 
-# 批量解析武器（需自行编写脚本遍历 pages 目录）
+# 批量离线重解析
+python tools/parse_all_categories.py --entity weapons --entity artifacts --limit 15
+
+# 批量抓取、解析、验证
+python tools/crawl_reparse_all.py --entity weapons --entity artifacts --limit 15
 ```
 
 ### 3. 存储结构
