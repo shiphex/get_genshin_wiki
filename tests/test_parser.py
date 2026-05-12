@@ -456,6 +456,21 @@ class WikiTextParserTests(unittest.TestCase):
         self.assertEqual("我的歌并不为谁而唱。\n但如果有人驻足。", result.voice_records[0].content)
         self.assertNotIn("歌は誰のためでもない。", result.voice_records[0].content)
 
+        stored = result.to_storage_dict()
+        self.assertEqual(
+            ["角色", "角色故事", "冒险笔记", "权能", "壹·人物", "贰·故事", "角色语音"],
+            list(stored.keys()),
+        )
+        self.assertEqual("哥伦比娅", stored["角色"]["名称"])
+        self.assertEqual("挪德卡莱", stored["角色"]["所属"])
+        self.assertEqual("霜月、愚人众", stored["角色"]["归属"])
+        self.assertEqual("少女、月之少女、十字路的主人、小鸽子", stored["角色"]["昵称/外号"])
+        self.assertEqual("白天还是夜晚？\n那当然是夜晚。", stored["角色故事"]["角色详细"])
+        self.assertEqual("在获得「三月的权能」之后，她开始思考自己该如何使用它。", stored["权能"]["三相月临"])
+        self.assertEqual("过去像潮汐一样回响。", stored["贰·故事"]["她的过去"])
+        self.assertEqual("我的歌并不为谁而唱。\n但如果有人驻足。", stored["角色语音"]["闲聊·歌"])
+        self.assertNotIn("title", stored)
+
     def test_parse_character_story_page_returns_story_focused_payload(self) -> None:
         """
         测试 parse_character_story_page 返回故事聚合结果。
@@ -676,179 +691,23 @@ class WikiTextParserTests(unittest.TestCase):
             secret_item_result["掉落"],
         )
 
-        talent_domain_payload = build_page_payload(
-            "昏识塔",
+        artifact_domain_without_difficulty4_payload = build_page_payload(
+            "华池岩岫",
             """{{秘境副本
-|秘境名称=昏识塔
-|秘境类型=天赋技能材料秘境
-|秘境介绍=在遥远的过去，地上各处都曾有人竖起几乎能触达天顶的高塔。
-|难度4掉落=
-{{星期|1}}{{图标|材料|「诤言」的教导}}{{图标|材料|「诤言」的指引}}{{图标|材料|「诤言」的哲学|}}<hr>
-{{星期|2}}{{图标|材料|「巧思」的教导}}{{图标|材料|「巧思」的指引}}{{图标|材料|「巧思」的哲学|}}<hr>
-{{星期|3}}{{图标|材料|「笃行」的教导}}{{图标|材料|「笃行」的指引}}{{图标|材料|「笃行」的哲学|}}
-}}""",
-            page_id=205,
-        )
-        talent_domain_result = self.parser.parse_secret_item_page(talent_domain_payload).to_dict()
-        self.assertEqual(
-            {
-                "天赋技能材料1": "「诤言」的教导、「诤言」的指引、「诤言」的哲学",
-                "天赋技能材料2": "「巧思」的教导、「巧思」的指引、「巧思」的哲学",
-                "天赋技能材料3": "「笃行」的教导、「笃行」的指引、「笃行」的哲学",
-            },
-            talent_domain_result["掉落"],
-        )
-
-    def test_parse_monster_page_extracts_monster_specific_fields(self) -> None:
-        """
-        测试 parse_monster_page 正确提取怪物特有字段。
-        """
-        monster_wikitext = """{{怪物信息|怪物类别=周刷BOSS|怪物分类=值得铭记的强敌|怪物类型=其他|出现地点=蒙德·风起地|掉落素材=BOSS|BOSS素材=升扬样本·骑士,升扬样本·战车,升扬样本·王族}}
-集魔女会诸家技艺而制成的集团军。
-
-== 介绍 ==
-这是怪物的介绍内容。
-
-[[Category:怪物]]
-[[分类:BOSS]]
-"""
-        payload = build_page_payload("门扉前的弈局", monster_wikitext, page_id=10)
-        result = self.parser.parse_monster_page(payload)
-
-        self.assertEqual("门扉前的弈局", result.title)
-        self.assertEqual("周刷BOSS", result.monster_class)
-        self.assertEqual("值得铭记的强敌", result.monster_category)
-        self.assertEqual("其他", result.monster_type)
-        self.assertEqual("蒙德·风起地", result.location)
-        self.assertIn("升扬样本·骑士", result.drop_materials)
-        self.assertIn("升扬样本·战车", result.drop_materials)
-        self.assertIn("升扬样本·王族", result.drop_materials)
-
-    def test_parse_monster_page_with_elite_monster(self) -> None:
-        """
-        测试 parse_monster_page 解析精英怪物（掉落素材不是 BOSS 类型）。
-        """
-        elite_wikitext = """{{怪物属性|怪物类别=精英|怪物分类=自律机关|怪物类型=战争机械|出现地点=稻妻|掉落素材=混沌机关,混沌枢纽,混沌真眼}}
-为了适应特殊的目标，有着定制化外形与机能的异形机械。
-
-[[Category:怪物]]
-"""
-        payload = build_page_payload("遗迹防卫者", elite_wikitext, page_id=11)
-        result = self.parser.parse_monster_page(payload)
-
-        self.assertEqual("遗迹防卫者", result.title)
-        self.assertEqual("精英", result.monster_class)
-        self.assertEqual("自律机关", result.monster_category)
-        self.assertEqual("战争机械", result.monster_type)
-        self.assertEqual("稻妻", result.location)
-        self.assertIn("混沌机关", result.drop_materials)
-        self.assertIn("混沌枢纽", result.drop_materials)
-        self.assertIn("混沌真眼", result.drop_materials)
-
-    def test_parse_specialized_pages_extract_expected_fields(self) -> None:
-        """测试 7 类物品页面的专用解析器。"""
-        for index, case in enumerate(SPECIALIZED_PAGE_CASES, start=100):
-            with self.subTest(method=case["method"], title=case["title"]):
-                payload = build_page_payload(case["title"], case["wikitext"], page_id=index)
-                result = getattr(self.parser, case["method"])(payload).to_dict()
-                required = SPECIALIZED_REQUIRED_KEYS[case["method"]]
-
-                self.assertEqual(case["title"], result["名称"])
-                self.assertEqual(required["top_level"], set(result.keys()))
-                for field_name, nested_keys in required["nested"].items():
-                    self.assertEqual(nested_keys, set(result[field_name].keys()))
-                for field, expected in case["assertions"].items():
-                    self.assertEqual(expected, result[field])
-
-    def test_parse_specialized_pages_handles_real_world_template_variants(self) -> None:
-        """测试真实页面中出现的字段别名和复杂模板。"""
-        wildlife_payload = build_page_payload(
-            "生物志：白鸽",
-            """{{野生生物图鉴
-|名称=白鸽
-|类型=禽鸟
-|种类=鸽
-|描述=提瓦特常见的鸟类。<br><br>洁白可爱的白鸽。
-|出现地点=绝云间北面
-|能否捕捉=能
-}}""",
-            page_id=201,
-        )
-        wildlife_result = self.parser.parse_wildlife_page(wildlife_payload).to_dict()
-        self.assertEqual("白鸽", wildlife_result["名称"])
-
-        quest_item_payload = build_page_payload(
-            "装有信件的漂流瓶",
-            """{{任务道具
-|名称=装有信件的漂流瓶
-|类型=书籍<!-- 注释 -->
-|描述=无意中钓上来的漂流瓶。
-|获取方式=「月中王国」活动稻妻钓鱼获得
-|书籍内容=爹咧！娘咧！<br>孩儿不孝！
-}}""",
-            page_id=202,
-        )
-        quest_item_result = self.parser.parse_quest_item_page(quest_item_payload).to_dict()
-        self.assertEqual("书籍", quest_item_result["类型"])
-        self.assertEqual("爹咧！娘咧！\n孩儿不孝！", quest_item_result["内容"])
-
-        quest_item_markup_payload = build_page_payload(
-            "《欢迎来到那夏镇！》",
-            """{{任务道具
-|名称={{PAGENAME}}
-|类型=书籍
-|描述=导览图。
-|获取方式=任务获得
-|书籍内容=[[file:欢迎来到那夏镇-插图.png|center]]<br><center>欢迎来到那夏镇！</center><br><tabber>
-1=
-正文第一段。<br><br>
-|-|
-2=
-正文第二段。
-</tabber>
-}}""",
-            page_id=2021,
-        )
-        quest_item_markup_result = self.parser.parse_quest_item_page(quest_item_markup_payload).to_dict()
-        self.assertEqual("欢迎来到那夏镇！\n\n正文第一段。\n\n正文第二段。", quest_item_markup_result["内容"])
-
-        material_payload = build_page_payload(
-            "混沌枢纽",
-            """{{素材图鉴
-|名称=混沌枢纽
-|类型=武器培养素材
-|来源='''精英怪物掉落'''、
-40级以上遗迹机兵掉落、
-（帮助：[https://www.bilibili.com/video/BV1fq4y1X7WL 位置视频]）
-|用处={{图标|混沌真眼}}（炼金合成）、
-{{#arraymap:{{#ask:[[分类:武器]][[需求材料::~*{{PAGENAME}}*]]|format=sep|sort=稀有度|order=desc|link=none}}|,|@|{{图标|@}}（50/60级突破）<br>|}}
-|用途=武器突破（50/60级突破）、{{图标|混沌真眼}}（炼金合成）
-|介绍=来自不再活动的古代遗迹机关。<br>在无法维持机关构装体的结构性之后，其中蕴含的伟大技术与未知力量也失去意义了吧。
-}}""",
-            page_id=203,
-        )
-        material_result = self.parser.parse_material_page(material_payload).to_dict()
-        self.assertEqual("混沌枢纽", material_result["名称"])
-        self.assertEqual("武器培养素材", material_result["类型"])
-        self.assertIn("精英怪物掉落", material_result["来源"])
-        self.assertIn("武器突破", material_result["用途"])
-        self.assertIn("炼金合成", material_result["用途"])
-        self.assertIn("来自不再活动的古代遗迹机关。", material_result["介绍"])
-
-        secret_item_payload = build_page_payload(
-            "月童的库藏",
-            """{{秘境副本
-|秘境名称=月童的库藏
+|秘境名称=华池岩岫
 |秘境类型=圣遗物秘境
-|秘境介绍=那是早已被月下的凡人们所遗忘的遥远世代。
-|难度4掉落={{图标|圣遗物|教官|4}}{{图标|圣遗物|奇迹|4}}{{图标|圣遗物|风起之日|5}}{{图标|圣遗物|晨星与月的晓歌|5}}
+|秘境介绍=奥藏山中的秘境仍在等待新的挑战者。
+|难度3掉落={{图标|圣遗物|赌徒|3|3}}{{图标|圣遗物|学士|3|3}}{{图标|圣遗物|染血的骑士道|5}}{{图标|圣遗物|昔日宗室之仪|5}}
+|难度4掉落=
 }}""",
-            page_id=204,
+            page_id=2041,
         )
-        secret_item_result = self.parser.parse_secret_item_page(secret_item_payload).to_dict()
+        artifact_domain_without_difficulty4_result = self.parser.parse_secret_item_page(
+            artifact_domain_without_difficulty4_payload
+        ).to_dict()
         self.assertEqual(
-            {"圣遗物1": "风起之日", "圣遗物2": "晨星与月的晓歌"},
-            secret_item_result["掉落"],
+            {"圣遗物1": "染血的骑士道", "圣遗物2": "昔日宗室之仪"},
+            artifact_domain_without_difficulty4_result["掉落"],
         )
 
         talent_domain_payload = build_page_payload(
@@ -872,6 +731,26 @@ class WikiTextParserTests(unittest.TestCase):
                 "天赋技能材料3": "「笃行」的教导、「笃行」的指引、「笃行」的哲学",
             },
             talent_domain_result["掉落"],
+        )
+
+        boss_domain_payload = build_page_payload(
+            "待解「弈局」",
+            """{{秘境副本
+|秘境名称=待解「弈局」
+|秘境类型=BOSS秘境
+|秘境介绍=古老的棋局仍在等待最后一次落子。
+|难度4掉落={{图标|材料|升扬样本·骑士}}{{图标|材料|升扬样本·战车}}{{图标|材料|升扬样本·王族}}{{图标|材料|燃愿玛瑙碎屑}}{{图标|圣遗物|战狂|4}}
+}}""",
+            page_id=206,
+        )
+        boss_domain_result = self.parser.parse_secret_item_page(boss_domain_payload).to_dict()
+        self.assertEqual(
+            {
+                "材料1": "升扬样本·骑士",
+                "材料2": "升扬样本·战车",
+                "材料3": "升扬样本·王族",
+            },
+            boss_domain_result["掉落"],
         )
 
     def test_extract_page_metadata_raises_for_invalid_payload(self) -> None:

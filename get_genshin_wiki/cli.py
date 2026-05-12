@@ -60,8 +60,8 @@ CliHandler = Callable[[argparse.Namespace, "CliRuntime"], int]
 _DEFAULT_PARSE_NAMESPACES = {
     "page": "parsed/pages",
     "character": "parsed/characters",
-    "weapon": "parsed/artifacts",
-    "artifact": "parsed/weapons",
+    "weapon": "parsed/weapons",
+    "artifact": "parsed/artifacts",
     "monster": "parsed/monsters",
     "food": "parsed/foods",
     "wildlife": "parsed/wildlife",
@@ -71,7 +71,6 @@ _DEFAULT_PARSE_NAMESPACES = {
     "namecard": "parsed/namecards",
     "secret-item": "parsed/secret-items",
     "book": "parsed/books",
-    "character-story": "parsed/character-stories",
 }
 
 
@@ -284,17 +283,6 @@ def build_parser() -> argparse.ArgumentParser:
     parse_book.add_argument("--output-namespace", default=None)
     parse_book.add_argument("--no-persist", action="store_true")
     parse_book.set_defaults(handler=handle_parse_book)
-
-    # parse character-story：解析角色故事内容
-    parse_character_story = parse_commands.add_parser(
-        "character-story",
-        help="Parse stored character story content.",
-    )
-    parse_character_story.add_argument("title", help="Character name")
-    parse_character_story.add_argument("--source-namespace", default="pages")
-    parse_character_story.add_argument("--output-namespace", default=None)
-    parse_character_story.add_argument("--no-persist", action="store_true")
-    parse_character_story.set_defaults(handler=handle_parse_character_story)
 
     # ========== store 子命令 ==========
     store_parser = subparsers.add_parser("store", help="Operate on locally stored JSON data.")
@@ -509,7 +497,7 @@ def handle_parse_character(args: argparse.Namespace, runtime: CliRuntime) -> int
     """处理 parse character 命令：解析角色页面。"""
     payload = runtime.store.read(args.source_namespace, args.title)
     voice_payload = _maybe_load_voice_payload(runtime.store, args.source_namespace, args.title)
-    result = runtime.parser.parse_character_page(payload, voice_payload=voice_payload).to_dict()
+    result = runtime.parser.parse_character_page(payload, voice_payload=voice_payload).to_storage_dict()
     if not args.no_persist:
         namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["character"]
         runtime.store.write(namespace, args.title, result)
@@ -636,19 +624,6 @@ def handle_parse_book(args: argparse.Namespace, runtime: CliRuntime) -> int:
         runtime.store.write(namespace, args.title, result)
     _print_json(result)
     return 0
-
-
-def handle_parse_character_story(args: argparse.Namespace, runtime: CliRuntime) -> int:
-    """处理 parse character-story 命令：解析角色故事内容。"""
-    payload = runtime.store.read(args.source_namespace, args.title)
-    voice_payload = _maybe_load_voice_payload(runtime.store, args.source_namespace, args.title)
-    result = runtime.parser.parse_character_story_page(payload, voice_payload=voice_payload)
-    if not args.no_persist:
-        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["character-story"]
-        runtime.store.write(namespace, args.title, result)
-    _print_json(result)
-    return 0
-
 
 # ========== store 命令处理器 ==========
 

@@ -30,19 +30,38 @@ DEFAULT_TITLES = [
     "神里绫华",
 ]
 
-CORE_REQUIRED_FIELDS = (
-    "title",
-    "page_id",
-    "summary",
-    "attributes",
-    "sections",
-    "templates",
-    "element",
-    "weapon_type",
+CHARACTER_STORAGE_GROUPS = (
+    "角色",
+    "角色故事",
+    "冒险笔记",
+    "权能",
+    "壹·人物",
+    "贰·故事",
+    "角色语音",
 )
-STORY_REQUIRED_FIELDS = (
-    "story_records",
-    "voice_records",
+CHARACTER_INFO_KEYS = (
+    "名称",
+    "称号",
+    "全名",
+    "所属",
+    "出身",
+    "种族",
+    "介绍",
+    "神之眼描述",
+    "元素属性",
+    "武器类型",
+    "命之座",
+    "特殊料理",
+    "性别",
+    "羁绊属性",
+    "昵称/外号",
+    "衣装名称",
+    "归属",
+    "职业",
+)
+CHARACTER_NON_EMPTY_INFO_KEYS = (
+    "名称",
+    "介绍",
 )
 
 
@@ -88,43 +107,36 @@ def validate_character(
     payload: dict[str, Any],
     voice_payload: dict[str, Any] | None,
     character_record: dict[str, Any],
-    story_record: dict[str, Any],
     store: JsonFileStore,
 ) -> dict[str, Any]:
     """Validate stored raw and parsed data for one character."""
-    page_title = character_record.get("title", "")
+    character_info = character_record.get("角色", {})
     raw_ok = page_has_wikitext(payload)
     wikitext = next(iter(payload.get("query", {}).get("pages", {}).values()), {}).get("revisions", [{}])[0].get("slots", {}).get("main", {}).get("*", "")
     stored_paths = {
         "page": str(store.resolve_path("pages", title)),
         "voice_page": str(store.resolve_path("pages", f"{title}语音")),
         "character": str(store.resolve_path("parsed/characters", title)),
-        "character_story": str(store.resolve_path("parsed/character-stories", title)),
     }
     file_presence = {
         "page": store.exists("pages", title),
         "voice_page": store.exists("pages", f"{title}语音"),
         "character": store.exists("parsed/characters", title),
-        "character_story": store.exists("parsed/character-stories", title),
     }
-    core_missing = missing_fields(character_record, CORE_REQUIRED_FIELDS)
-    story_missing = missing_fields(story_record, STORY_REQUIRED_FIELDS)
+    missing_groups = [group for group in CHARACTER_STORAGE_GROUPS if group not in character_record]
+    missing_info_keys = (
+        list(CHARACTER_INFO_KEYS)
+        if not isinstance(character_info, dict)
+        else [field for field in CHARACTER_INFO_KEYS if field not in character_info]
+    )
+    empty_info_keys = [] if not isinstance(character_info, dict) else missing_fields(character_info, CHARACTER_NON_EMPTY_INFO_KEYS)
     warnings: list[str] = []
-    if not character_record.get("talents"):
-        warnings.append("talents")
-    if not character_record.get("constellations"):
-        warnings.append("constellations")
-    if not character_record.get("story_records"):
-        warnings.append("story_records")
-    if not character_record.get("full_name"):
-        warnings.append("full_name")
-    if not character_record.get("introduction"):
-        warnings.append("introduction")
-    if not character_record.get("categories"):
-        warnings.append("categories")
+    for group_name in ("冒险笔记", "权能", "壹·人物", "贰·故事"):
+        if group_name in character_record and not character_record.get(group_name):
+            warnings.append(group_name)
 
     critical_issues: list[str] = []
-    if page_title != title:
+    if not isinstance(character_info, dict) or character_info.get("名称", "") != title:
         critical_issues.append("title_mismatch")
     if not raw_ok:
         critical_issues.append("missing_wikitext")
@@ -132,31 +144,34 @@ def validate_character(
         critical_issues.append("storage_missing")
     if voice_payload is None or not page_has_wikitext(voice_payload):
         critical_issues.append("missing_voice_page")
-    critical_issues.extend(f"core:{field}" for field in core_missing)
-    critical_issues.extend(f"story:{field}" for field in story_missing)
-    if "壹·人物" in wikitext and not character_record.get("character_introductions"):
-        critical_issues.append("missing_character_introductions")
-    if "贰·故事" in wikitext and not character_record.get("story_sections"):
-        critical_issues.append("missing_story_sections")
+    critical_issues.extend(f"group:{field}" for field in missing_groups)
+    critical_issues.extend(f"character:{field}" for field in missing_info_keys)
+    critical_issues.extend(f"character:{field}" for field in empty_info_keys)
+    if not character_record.get("角色故事"):
+        critical_issues.append("missing_story_records")
+    if not character_record.get("角色语音"):
+        critical_issues.append("missing_voice_records")
+    if "壹·人物" in wikitext and not character_record.get("壹·人物"):
+        warnings.append("壹·人物")
+    if "贰·故事" in wikitext and not character_record.get("贰·故事"):
+        warnings.append("贰·故事")
 
     return {
         "title": title,
-        "page_id": character_record.get("page_id"),
+        "page_id": None,
         "raw_ok": raw_ok,
         "storage_paths": stored_paths,
         "storage_exists": file_presence,
         "counts": {
-            "attributes": len(character_record.get("attributes", {})),
-            "talents": len(character_record.get("talents", [])),
-            "constellations": len(character_record.get("constellations", [])),
-            "story_records": len(character_record.get("story_records", [])),
-            "voice_records": len(character_record.get("voice_records", [])),
-            "adventure_notes": len(character_record.get("adventure_notes", [])),
-            "character_introductions": len(character_record.get("character_introductions", [])),
-            "story_sections": len(character_record.get("story_sections", [])),
+            "角色信息字段数": len(character_info) if isinstance(character_info, dict) else 0,
+            "角色故事": len(character_record.get("角色故事", {})),
+            "角色语音": len(character_record.get("角色语音", {})),
+            "冒险笔记": len(character_record.get("冒险笔记", {})),
+            "壹·人物": len(character_record.get("壹·人物", {})),
+            "贰·故事": len(character_record.get("贰·故事", {})),
         },
-        "core_missing_fields": core_missing,
-        "story_missing_fields": story_missing,
+        "core_missing_fields": missing_groups + missing_info_keys + empty_info_keys,
+        "story_missing_fields": [],
         "warnings": sorted(set(warnings)),
         "critical_issues": critical_issues,
         "ok": not critical_issues,
@@ -177,14 +192,9 @@ def run_batch(data_root: Path, titles: list[str]) -> dict[str, Any]:
         character_record = parser.parse_character_page(
             payload,
             voice_payload=usable_voice_payload,
-        ).to_dict()
-        story_record = parser.parse_character_story_page(
-            payload,
-            voice_payload=usable_voice_payload,
-        )
+        ).to_storage_dict()
         store.write("parsed/characters", title, character_record)
-        store.write("parsed/character-stories", title, story_record)
-        results.append(validate_character(title, payload, voice_payload, character_record, story_record, store))
+        results.append(validate_character(title, payload, voice_payload, character_record, store))
 
     summary = {
         "requested_count": len(titles),

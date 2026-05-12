@@ -469,9 +469,9 @@ class WikiTextParser:
         weapon_type = attributes.get("类型", "")
 
         # 突破材料序列（多个参数，可能是列表）
-        ascension_weapon_materials = self._extract_list_field(attributes, "突破武器材料")
-        ascension_premium_materials = self._extract_list_field(attributes, "突破高级材料")
-        ascension_common_materials = self._extract_list_field(attributes, "突破普通材料")
+        ascension_weapon_materials = self._extract_prefixed_list_field(attributes, "突破武器材料")
+        ascension_premium_materials = self._extract_prefixed_list_field(attributes, "突破高级材料")
+        ascension_common_materials = self._extract_prefixed_list_field(attributes, "突破普通材料")
 
         # 获取途径
         obtaining_method = self._parse_obtaining_method(attributes.get("获取途径", ""))
@@ -1138,9 +1138,8 @@ class WikiTextParser:
             ),
         )
         drop_value = self._coalesce(
-            self._resolve_raw_value(
+            self._resolve_highest_difficulty_drop_value(
                 parsed_page.templates,
-                ("难度4掉落",),
                 preferred_params=main_template,
                 wikitext=parsed_page.wikitext,
             ),
@@ -1321,7 +1320,7 @@ class WikiTextParser:
                 matched.extend(items)
         return matched
 
-    def _extract_list_field(self, attributes: dict[str, str], prefix: str) -> list[str]:
+    def _extract_prefixed_list_field(self, attributes: dict[str, str], prefix: str) -> list[str]:
         """
         从属性字典中提取列表字段。
 
@@ -1339,11 +1338,13 @@ class WikiTextParser:
         list[str]
             字段值列表
         """
-        result = []
+        result: list[str] = []
         for key, value in attributes.items():
             if key.startswith(prefix):
-                result.append(value)
-        return result
+                cleaned = self._clean_field_value(value)
+                if cleaned:
+                    result.append(cleaned)
+        return self._dedupe(result)
 
     def _parse_obtaining_method(self, raw: str) -> str:
         """
@@ -1366,8 +1367,6 @@ class WikiTextParser:
         raw = raw.strip()
         if not raw:
             return ""
-
-        import re
 
         # 去除 HTML 注释
         raw = re.sub(r"<!--.*?-->", "", raw)
@@ -1410,14 +1409,12 @@ class WikiTextParser:
         str | None
             锻造材料描述，若不可锻造则返回 None
         """
-        import re
         can_forge = re.sub(r"<!--.*?-->", "", attributes.get("是否可锻造获取", "否"))
         if can_forge == "否":
             return None
 
         # 收集锻造材料
-        import re
-        materials = []
+        materials: list[str] = []
         for i in range(1, 4):
             key = f"锻造材料{i}="
             for attr_key, attr_value in attributes.items():
@@ -1443,7 +1440,6 @@ class WikiTextParser:
         str | None
             精炼材料描述，若不可精炼则返回 None
         """
-        import re
         refining_key = "精炼材料="
         for key, value in attributes.items():
             if key.startswith(refining_key) or key == "精炼材料":
@@ -1641,6 +1637,25 @@ class WikiTextParser:
                 return self._normalize_text(raw_value)
         return ""
 
+    def _resolve_highest_difficulty_drop_value(
+        self,
+        templates: dict[str, list[dict[str, str]]],
+        *,
+        preferred_params: dict[str, str] | None = None,
+        wikitext: str | None = None,
+    ) -> str:
+        """Resolve the highest available non-empty 难度N掉落 field."""
+        for level in range(6, 0, -1):
+            value = self._resolve_raw_value(
+                templates,
+                (f"难度{level}掉落",),
+                preferred_params=preferred_params,
+                wikitext=wikitext,
+            )
+            if value:
+                return value
+        return ""
+
     def _value_from_params(
         self,
         params: dict[str, str],
@@ -1657,17 +1672,6 @@ class WikiTextParser:
             if value and value != "[[]]":
                 return value
         return ""
-
-    def _normalize_text(self, value: str) -> str:
-        """规范化换行与简单转义。"""
-        text = value.replace("\r\n", "\n").replace("\r", "\n")
-        text = text.replace("\\|", "|").replace("{{!}}", "|").replace("&nbsp;", " ").replace("\xa0", " ")
-        text = _COMMENT_PATTERN.sub("", text)
-        text = _BREAK_WITH_LINE_END_PATTERN.sub(r"\1", text)
-        text = _BREAK_TAG_PATTERN.sub("\n", text)
-        text = "\n".join(line.strip() for line in text.split("\n"))
-        text = re.sub(r"\n{3,}", "\n\n", text)
-        return text.strip()
 
     def _normalize_plain_text(self, value: str) -> str:
         """去除 wikitext 标记并保留文本换行。"""
@@ -1738,6 +1742,16 @@ class WikiTextParser:
                 "圣遗物1": artifact_names[-2] if len(artifact_names) >= 2 else "",
                 "圣遗物2": artifact_names[-1] if artifact_names else "",
             }
+        if "BOSS秘境" in normalized_type:
+            boss_materials = self._extract_ordered_drop_names(value)[:3]
+            result = {
+                "材料1": "",
+                "材料2": "",
+                "材料3": "",
+            }
+            for index, material_name in enumerate(boss_materials, start=1):
+                result[f"材料{index}"] = material_name
+            return result
         if "天赋技能材料秘境" in normalized_type:
             return self._extract_grouped_drop_map(value, prefix="天赋技能材料", count=3)
         if "武器突破材料秘境" in normalized_type:
@@ -1781,6 +1795,42 @@ class WikiTextParser:
         ]
         unique_parts = self._unique_preserve_order(parts)
         return unique_parts[-2:]
+
+    def _extract_ordered_drop_names(self, value: str) -> list[str]:
+        """Extract ordered item names from a raw domain drop field."""
+        if not value:
+            return []
+        code = mwparserfromhell.parse(self._normalize_text(value))
+        icon_titles: list[str] = []
+        for template in code.filter_templates(recursive=True):
+            if str(template.name).strip() != "图标":
+                continue
+            first = self._normalize_plain_text(template.get(1).value.strip()) if template.has(1) else ""
+            second = self._normalize_plain_text(template.get(2).value.strip()) if template.has(2) else ""
+            title = second or first
+            if title:
+                icon_titles.append(title)
+        unique_icon_titles = self._unique_preserve_order(icon_titles)
+        if unique_icon_titles:
+            return unique_icon_titles
+
+        link_titles: list[str] = []
+        for wikilink in code.filter_wikilinks(recursive=True):
+            title = self._normalize_plain_text(str(wikilink.title))
+            if not title or title.startswith(_FILE_LINK_PREFIXES):
+                continue
+            link_titles.append(title)
+        unique_titles = self._unique_preserve_order(link_titles)
+        if unique_titles:
+            return unique_titles
+
+        plain_text = self._normalize_plain_text(value)
+        parts = [
+            chunk.strip(" -*\t")
+            for chunk in re.split(r"[\n,，、/]+", plain_text)
+            if chunk.strip(" -*\t")
+        ]
+        return self._unique_preserve_order(parts)
 
     def _extract_grouped_drop_map(self, value: str, *, prefix: str, count: int) -> dict[str, str]:
         """从按组展示的掉落字段中提取最后 N 组材料名。"""
@@ -2299,11 +2349,18 @@ class WikiTextParser:
         return _BR_TAG_PATTERN.sub("\n", text).replace("\r\n", "\n").replace("\r", "\n")
 
     def _normalize_text(self, text: str) -> str:
-        """规范化文本中的空白与换行。"""
-        normalized = self._normalize_line_breaks(text)
+        """规范化文本中的转义、空白与换行。"""
+        normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+        normalized = normalized.replace("\\|", "|").replace("{{!}}", "|")
+        normalized = normalized.replace("&nbsp;", " ").replace("\xa0", " ")
+        normalized = _COMMENT_PATTERN.sub("", normalized)
+        normalized = _BREAK_WITH_LINE_END_PATTERN.sub(r"\1", normalized)
+        normalized = self._normalize_line_breaks(normalized)
+        normalized = "\n".join(line.strip() for line in normalized.split("\n"))
         normalized = re.sub(r"[ \t]+\n", "\n", normalized)
         normalized = re.sub(r"\n[ \t]+", "\n", normalized)
         normalized = re.sub(r"[ \t]{2,}", " ", normalized)
+        normalized = re.sub(r"\n{3,}", "\n\n", normalized)
         return normalized.strip()
 
     def _strip_quotes(self, text: str) -> str:

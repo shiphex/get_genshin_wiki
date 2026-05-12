@@ -416,6 +416,58 @@ class CharacterRecord:
             ),
         }
 
+    def to_storage_dict(self) -> dict[str, Any]:
+        """Serialize the character record to the minimal persisted schema."""
+        power_title = ""
+        power_content = ""
+        if self.power_record is not None:
+            power_title = self.god_eye_description or self.power_record.title
+            power_content = self.power_record.content
+
+        return {
+            "角色": {
+                "名称": self.title,
+                "称号": self._join_values(self.titles),
+                "全名": self.full_name,
+                "所属": self.homeland,
+                "出身": self.origin,
+                "种族": self.race,
+                "介绍": self.introduction,
+                "神之眼描述": self.god_eye_description,
+                "元素属性": self.element,
+                "武器类型": self.weapon_type,
+                "命之座": self.constellation,
+                "特殊料理": self.special_dish,
+                "性别": self.gender,
+                "羁绊属性": self.bond_attribute,
+                "昵称/外号": self._join_values(self.nicknames),
+                "衣装名称": self._join_values(self.outfits),
+                "归属": self._join_values(self.affiliation),
+                "职业": self.profession,
+            },
+            "角色故事": self._records_to_mapping(self.story_records),
+            "冒险笔记": self._records_to_mapping(self.adventure_notes),
+            "权能": {} if not power_title and not power_content else {power_title: power_content},
+            "壹·人物": self._records_to_mapping(self.character_introductions),
+            "贰·故事": self._records_to_mapping(self.story_sections),
+            "角色语音": self._records_to_mapping(self.voice_records),
+        }
+
+    def _join_values(self, values: list[str]) -> str:
+        """Join multi-value character fields using the agreed separator."""
+        return "、".join(value for value in values if value)
+
+    def _records_to_mapping(self, records: list[Any]) -> dict[str, str]:
+        """Convert ordered record lists into stable key/value mappings."""
+        result: dict[str, str] = {}
+        for record in records:
+            title = getattr(record, "title", "")
+            content = getattr(record, "content", "")
+            if not title or title in result:
+                continue
+            result[title] = content
+        return result
+
 
 @dataclass
 class FoodRecord:

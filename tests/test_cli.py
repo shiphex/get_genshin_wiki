@@ -23,15 +23,15 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from get_genshin_wiki.cli import CliRuntime, main
+from get_genshin_wiki.cli import CliRuntime, build_parser, main
 from get_genshin_wiki.crawler import WikiCrawler
 from get_genshin_wiki.parser import WikiTextParser
 from get_genshin_wiki.storage import JsonFileStore
 from tests.helpers import build_page_payload
-from tests.test_parser import SPECIALIZED_PAGE_CASES
+from tests.test_parser import SAMPLE_BOOK_WIKITEXT, SPECIALIZED_PAGE_CASES
 
 # 测试用角色 wikitext
-SAMPLE_CHARACTER_WIKITEXT = """{{角色资料|名字=哥伦比娅|元素=水|武器=法器|神之眼描述=三相月临}}
+SAMPLE_CHARACTER_WIKITEXT = """{{角色资料|名字=哥伦比娅|称号=空月归乡|所属=挪德卡莱|介绍=于挪德卡莱诞生的「月之少女」。|元素=水|武器=法器|神之眼描述=三相月临|命之座=御月鸽座}}
 哥伦比娅是愚人众执行官之一。
 
 {{角色天赋|名称=低语之歌|描述=造成水元素伤害|类别=普通攻击|元素=水}}
@@ -49,6 +49,23 @@ SAMPLE_VOICE_WIKITEXT = """{{面包屑|哥伦比娅|角色语音}}{{角色导航
 {{角色/语音|语音类型=无效示例|语音内容日语=無視する}}
 </div>
 </div>
+"""
+
+SAMPLE_WEAPON_WIKITEXT = """{{武器属性|名字=霜结的誓金枝|类型=弓|介绍=由古老的白木打造而成的长弓|获取途径=[[限定祈愿]]|是否可锻造获取=否}}
+{{武器突破|突破武器材料1=长夜燧火|突破高级材料1=焰剑|突破普通材料1=执凭}}
+{{武器故事|故事=在遥古的岁月，曾有牧歌与繁花统治无忧的乡野。}}
+[[Category:武器]]
+"""
+
+SAMPLE_ARTIFACT_WIKITEXT = """{{圣遗物属性|套装名称=风起之日|获取方式={{圣遗物套装/获取途径|BOSS|(四星)击杀首领或周本BOSS}}|时之沙名称=春律的片刻|时之沙描述=时之沙描述文本|时之沙故事=时之沙故事文本|死之羽名称=晨光的明誓|死之羽描述=死之羽描述文本|死之羽故事=死之羽故事文本|理之冠名称=哀慕的恋歌|理之冠描述=理之冠描述文本|理之冠故事=理之冠故事文本|生之花名称=风花的箴铭|生之花描述=生之花描述文本|生之花故事=生之花故事文本|空之杯名称=未言的宴话|空之杯描述=空之杯描述文本|空之杯故事=空之杯故事文本}}
+[[Category:圣遗物]]
+"""
+
+SAMPLE_MONSTER_WIKITEXT = """{{怪物信息|怪物类别=周刷BOSS|怪物分类=值得铭记的强敌|怪物类型=其他|出现地点=蒙德·风起地|掉落素材=BOSS|BOSS素材=升扬样本·骑士,升扬样本·战车,升扬样本·王族}}
+集魔女会诸家技艺而制成的集团军。
+
+== 介绍 ==
+这是怪物的介绍内容。
 """
 
 
@@ -153,9 +170,13 @@ class CliTests(unittest.TestCase):
         exit_code, output = self.run_cli(["parse", "character", "哥伦比娅"])
 
         self.assertEqual(0, exit_code)
-        self.assertEqual("水", output["attributes"]["元素"])
-        self.assertEqual("闲聊·歌", output["voice_records"][0]["title"])
+        self.assertEqual("哥伦比娅", output["角色"]["名称"])
+        self.assertEqual("水", output["角色"]["元素属性"])
+        self.assertEqual("闲聊·歌", next(iter(output["角色语音"].keys())))
+        self.assertEqual("我的歌并不为谁而唱。", output["角色语音"]["闲聊·歌"])
+        self.assertNotIn("title", output)
         self.assertTrue(self.store.exists("parsed/characters", "哥伦比娅"))
+        self.assertFalse(self.store.exists("parsed/character-stories", "哥伦比娅"))
 
     def test_parse_specialized_commands_persist_results(self) -> None:
         """测试新增的 7 个 parse 子命令及其默认输出命名空间。"""
@@ -181,23 +202,31 @@ class CliTests(unittest.TestCase):
                 self.assertEqual(case["assertions"][field_name], output[field_name])
                 self.assertTrue(self.store.exists(namespace, title))
 
-    def test_parse_character_story_reads_page_payload_and_persists_story_result(self) -> None:
-        """
-        测试 parse character-story 命令：
-        1. 从存储读取原始 payload
-        2. 聚合角色故事相关内容
-        3. 持久化结果到 parsed/character-stories 命名空间
-        """
-        self.store.write("pages", "哥伦比娅", build_page_payload("哥伦比娅", SAMPLE_CHARACTER_WIKITEXT, page_id=7))
-        self.store.write("pages", "哥伦比娅语音", build_page_payload("哥伦比娅语音", SAMPLE_VOICE_WIKITEXT, page_id=8))
+    def test_parse_weapon_artifact_monster_and_book_commands_persist_results(self) -> None:
+        """测试 parse weapon/artifact/monster/book 的默认输出命名空间。"""
+        cases = [
+            ("weapon", "霜结的誓金枝", SAMPLE_WEAPON_WIKITEXT, "parsed/weapons", "类型", "弓"),
+            ("artifact", "风起之日", SAMPLE_ARTIFACT_WIKITEXT, "parsed/artifacts", "获取方式", "击杀首领或周本BOSS"),
+            ("monster", "门扉前的弈局", SAMPLE_MONSTER_WIKITEXT, "parsed/monsters", "monster_class", "周刷BOSS"),
+            ("book", "白夜国馆藏", SAMPLE_BOOK_WIKITEXT, "parsed/books", "genre", "史书"),
+        ]
 
-        exit_code, output = self.run_cli(["parse", "character-story", "哥伦比娅"])
+        for page_id, (command, title, wikitext, namespace, field_name, expected) in enumerate(cases, start=40):
+            with self.subTest(command=command, title=title):
+                self.store.write("pages", title, build_page_payload(title, wikitext, page_id=page_id))
 
-        self.assertEqual(0, exit_code)
-        self.assertEqual("三相月临", output["god_eye_description"])
-        self.assertEqual("角色详细", output["story_records"][0]["title"])
-        self.assertEqual("闲聊·歌", output["voice_records"][0]["title"])
-        self.assertTrue(self.store.exists("parsed/character-stories", "哥伦比娅"))
+                exit_code, output = self.run_cli(["parse", command, title])
+
+                self.assertEqual(0, exit_code)
+                self.assertEqual(expected, output[field_name])
+                self.assertTrue(self.store.exists(namespace, title))
+
+    def test_parse_character_story_subcommand_is_removed(self) -> None:
+        """测试 parse character-story 子命令已移除。"""
+        with self.assertRaises(SystemExit) as context:
+            build_parser().parse_args(["parse", "character-story", "哥伦比娅"])
+
+        self.assertEqual(2, context.exception.code)
 
     def test_store_commands_cover_put_query_update_add_and_delete(self) -> None:
         """
