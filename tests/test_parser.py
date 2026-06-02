@@ -192,6 +192,93 @@ SAMPLE_BOOK_WIKITEXT = """{{书籍|名称=白夜国馆藏|体裁=史书|国家=�
 {{书籍|卷2名=鬼人正传|卷2获取地点=完成「鸣海渚祭」活动获得|卷2描述=讲述了珊瑚宫一段不为人知的历史|卷2内容=第一章内容...}}
 """
 
+SAMPLE_ARCHON_LIST_WIKITEXT = """== 序章：捕风的异乡人 ==
+=== 第一幕：捕风的异乡人 ===
+* [[鸟瞰风物]]
+* [[异常的权柄]]
+
+== 第四章：白露与黑潮的序诗 ==
+=== 第六幕：你存在的时空 ===
+* [[如月长存]]
+"""
+
+SAMPLE_ARCHON_WIKITEXT = """{{任务
+|任务名称=鸟瞰风物
+|任务描述=从坠星山谷启程，你和派蒙走走看看，一路前行。
+|系列任务=捕风的异乡人
+|前置任务=流浪者的足迹
+|后续任务=异常的权柄
+|任务流程=* 前往低语森林
+* 寻找安柏
+|出场人物=安柏、派蒙
+}}
+== 任务剧情 ==
+安柏：前面的区域，之后再来探索吧。
+旅行者：好，我们继续前进。
+选项：我们出发吧。
+风带来了远方的种子。
+派蒙：嘿嘿，冒险才刚开始呢！
+"""
+
+SAMPLE_ARCHON_ICON_LIST_WIKITEXT = """== [[序章]] 捕风的异乡人 ==
+'''本部分会依次解锁并接取'''
+{{图标|任务|蒙德|1|序章 第一幕|捕风的异乡人}}
+{{图标|任务|蒙德|2|序章 第二幕|为了没有眼泪的明天}}
+{{图标|任务|蒙德|3|序章 第三幕|巨龙与自由之歌}}
+
+== [[第一章]] 辞行久远之躯 ==
+'''前3幕任务分别在23级、25级、28级解锁，第四幕在完成世界任务[[迫近的客星]]后解锁'''
+{{图标|任务|璃月|1|第一章 第一幕|浮世浮生千岩间}}
+{{图标|任务|璃月|2|第一章 第二幕|辞行久远之躯}}
+{{图标|任务|璃月|3|第一章 第三幕|迫近的客星}}
+'''[[拾枝者·戴因斯雷布]]'''
+{{图标|任务|蒙德|4|第一章 第四幕|我们终将重逢}}
+"""
+
+SAMPLE_ARCHON_TEMPLATE_OPTION_WIKITEXT = """{{任务
+|任务名称=鸟瞰风物
+|任务名称英文=Bird's Eye View
+|任务描述=从坠星山谷启程，你和派蒙走走看看，一路前行。
+|系列任务=捕风的异乡人
+|前置任务=完成魔神任务 序章·第一幕「[[流浪者的足迹]]」
+|并行任务=序章·第一幕「[[林间相会]]」
+|后续任务=序章·第一幕「[[异常的权柄]]」
+|任务流程=* 前往低语森林
+* 寻找安柏
+|出场人物=安柏、派蒙
+}}
+== 任务剧情 ==
+安柏：前面的区域，之后再来探索吧。
+旅行者：好，我们继续前进。
+{{选项|选项1=我们出发吧。|选择1=*风带来了远方的种子。|选项2=再等等。}}
+派蒙：啊哦，冒险才刚开始呢！
+"""
+
+SAMPLE_ARCHON_MOON_SONG_LIST_WIKITEXT = """== [[第五章]] 炽烈的还魂诗 ==
+{{图标|任务|纳塔|6|第五章 第六幕|你存在的时空}}
+== [[空月之歌]] ==
+{{图标|任务|挪德卡莱|1|空月之歌 序奏|归途}}
+{{图标|任务|挪德卡莱|2|空月之歌 第一幕|雪浪与苍林之舞}}
+"""
+
+SAMPLE_ARCHON_MOON_SONG_QUEST_WIKITEXT = """{{任务
+|任务名称=月亮升起的地方
+|任务描述=月光铺就前路。
+|任务地区=挪德卡莱
+|任务条件=完成魔神任务：空月之歌·序奏「[[归途]]」
+|系列任务=空月之歌,雪浪与苍林之舞
+|前置任务=*[[归途]]
+|任务流程=*踏上新的旅程
+}}
+==任务剧情==
+===踏上新的旅程===
+*派蒙：那我们就出发吧。
+{{剧情选项
+|选项1=走吧。
+|剧情1=*旅行者：嗯。
+}}
+"""
+
 SPECIALIZED_PAGE_CASES = [
     {
         "title": "花果草糖",
@@ -752,6 +839,114 @@ class WikiTextParserTests(unittest.TestCase):
             },
             boss_domain_result["掉落"],
         )
+
+    def test_parse_archon_quest_list_page_extracts_chapter_act_hierarchy(self) -> None:
+        """测试魔神任务列表页可提取章幕与任务顺序。"""
+        payload = build_page_payload("魔神任务", SAMPLE_ARCHON_ICON_LIST_WIKITEXT, page_id=300)
+
+        entries = self.parser.parse_archon_quest_list_page(payload)
+        context = self.parser.build_archon_series_context(entries)
+
+        self.assertEqual(
+            [
+                "捕风的异乡人",
+                "为了没有眼泪的明天",
+                "巨龙与自由之歌",
+                "浮世浮生千岩间",
+                "辞行久远之躯",
+                "迫近的客星",
+                "拾枝者·戴因斯雷布",
+                "我们终将重逢",
+            ],
+            [entry["title"] for entry in entries],
+        )
+        self.assertEqual("序章", entries[0]["chapter"])
+        self.assertEqual("捕风的异乡人", entries[0]["chapter_name"])
+        self.assertEqual("第一幕", entries[0]["act"])
+        self.assertEqual("第一章", entries[3]["chapter"])
+        self.assertEqual("第三幕", entries[5]["act"])
+        self.assertEqual("", entries[6]["act"])
+        self.assertEqual(("序章", "第一幕", "捕风的异乡人", ""), context["捕风的异乡人"])
+        self.assertEqual(("第一章", "第三幕", "辞行久远之躯", ""), context["迫近的客星"])
+        self.assertEqual(("第一章", "第四幕", "辞行久远之躯", ""), context["我们终将重逢"])
+
+    def test_parse_archon_quest_page_extracts_dialogues_and_series_context(self) -> None:
+        """测试魔神任务页面解析会整合对话与章幕上下文。"""
+        payload = build_page_payload("鸟瞰风物", SAMPLE_ARCHON_TEMPLATE_OPTION_WIKITEXT, page_id=301)
+        series_context = {"捕风的异乡人": ("序章", "第一幕")}
+
+        result = self.parser.parse_archon_quest_page(payload, series_context=series_context)
+        serialized = result.to_dict()
+
+        self.assertEqual("鸟瞰风物", result.title)
+        self.assertEqual("Bird's Eye View", result.english_title)
+        self.assertEqual("序章", result.chapter)
+        self.assertEqual("第一幕", result.act)
+        self.assertEqual("从坠星山谷启程，你和派蒙走走看看，一路前行。", result.description)
+        self.assertEqual(["前往低语森林", "寻找安柏"], result.objectives)
+        self.assertEqual("流浪者的足迹", result.prerequisites[0].title)
+        self.assertEqual("序章", result.prerequisites[0].chapter)
+        self.assertEqual("第一幕", result.prerequisites[0].act)
+        self.assertEqual("林间相会", result.parallel_quests[0].title)
+        self.assertEqual("异常的权柄", result.follow_up_quests[0].title)
+        self.assertEqual(["安柏", "派蒙"], result.related_npcs)
+        self.assertEqual(
+            ["character", "traveler", "option", "narration", "option", "character"],
+            [dialogue.dialogue_type for dialogue in result.dialogues],
+        )
+        self.assertEqual("安柏", result.dialogues[0].speaker)
+        self.assertEqual("我们出发吧。", result.dialogues[2].text)
+        self.assertEqual("风带来了远方的种子。", result.dialogues[3].text)
+        self.assertEqual("再等等。", result.dialogues[4].text)
+        self.assertTrue(all(dialogue.task_flow == "" for dialogue in result.dialogues))
+        self.assertEqual(["前往低语森林", "寻找安柏"], serialized["任务流程"])
+        self.assertEqual("", serialized["对话"][0]["所属任务流程"])
+
+    def test_parse_archon_quest_list_page_handles_kongyuezhige_without_chapter_number(self) -> None:
+        """测试空月之歌不会沿用第五章上下文。"""
+        payload = build_page_payload("魔神任务", SAMPLE_ARCHON_MOON_SONG_LIST_WIKITEXT, page_id=302)
+
+        entries = self.parser.parse_archon_quest_list_page(payload)
+        context = self.parser.build_archon_series_context(entries)
+
+        self.assertEqual(["你存在的时空", "归途", "雪浪与苍林之舞"], [entry["title"] for entry in entries])
+        self.assertEqual("第五章", entries[0]["chapter"])
+        self.assertEqual("空月之歌", entries[1]["chapter"])
+        self.assertEqual("", entries[1]["chapter_name"])
+        self.assertEqual("序奏", entries[1]["act"])
+        self.assertEqual("空月之歌", entries[2]["chapter"])
+        self.assertEqual("第一幕", entries[2]["act"])
+        self.assertEqual(("空月之歌", "第一幕", "", ""), context["雪浪与苍林之舞"])
+
+    def test_parse_archon_quest_page_extracts_nested_dialogues_names_and_renamed_roles(self) -> None:
+        """测试嵌套任务剧情与剧情选项能被解析，并输出章节名称/幕名称/相关角色。"""
+        payload = build_page_payload("月亮升起的地方", SAMPLE_ARCHON_MOON_SONG_QUEST_WIKITEXT, page_id=303)
+        series_context = {
+            "雪浪与苍林之舞": ("空月之歌", "第一幕", "", "雪浪与苍林之舞"),
+            "归途": ("空月之歌", "序奏", "", "归途"),
+        }
+
+        result = self.parser.parse_archon_quest_page(payload, series_context=series_context)
+        serialized = result.to_dict()
+
+        self.assertEqual("空月之歌", result.chapter)
+        self.assertEqual("", result.chapter_name)
+        self.assertEqual("第一幕", result.act)
+        self.assertEqual("雪浪与苍林之舞", result.act_name)
+        self.assertEqual("空月之歌", result.prerequisites[0].chapter)
+        self.assertEqual("序奏", result.prerequisites[0].act)
+        self.assertEqual(["派蒙", "旅行者"], result.related_npcs)
+        self.assertEqual(["character", "option", "traveler"], [dialogue.dialogue_type for dialogue in result.dialogues])
+        self.assertEqual("走吧。", result.dialogues[1].text)
+        self.assertEqual("嗯。", result.dialogues[2].text)
+        self.assertEqual("踏上新的旅程", result.dialogues[0].task_flow)
+        self.assertEqual("踏上新的旅程", result.dialogues[1].task_flow)
+        self.assertEqual("", serialized["章节名称"])
+        self.assertEqual("雪浪与苍林之舞", serialized["幕名称"])
+        self.assertEqual(["派蒙", "旅行者"], serialized["相关角色"])
+        self.assertEqual(["踏上新的旅程"], serialized["任务流程"])
+        self.assertEqual("踏上新的旅程", serialized["对话"][0]["所属任务流程"])
+        self.assertNotIn("相关NPC", serialized)
 
     def test_extract_page_metadata_raises_for_invalid_payload(self) -> None:
         """
