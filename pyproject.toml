@@ -14,3 +14,8 @@ get-genshin-wiki = "get_genshin_wiki.cli:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

@@ -13,7 +13,10 @@
       "Bash(uv sync)",
       "Bash(do:*)",
       "Bash(rm:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(.venv/Scripts/python:*)",
+      "Bash(uv:*)",
+      "Bash(mv:*)"
     ]
   }
 }
