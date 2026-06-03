@@ -168,3 +168,31 @@ class WikiCrawler:
             if persist:
                 written_paths.append(self.store.write("pages", title, payload))
         return written_paths
+
+    def probe_north_library_category(self, prefix: str = "北陆图书馆") -> dict[str, Any]:
+        """Probe the live wiki to find the canonical North Library category name."""
+        candidates = self.client.list_categories(prefix=prefix)
+        category_name = next((item for item in candidates if item == prefix), "")
+        if not category_name and candidates:
+            category_name = sorted(candidates, key=lambda item: (len(item), item))[0]
+        return {
+            "category_name": category_name or prefix,
+            "category_candidates": candidates,
+        }
+
+    def crawl_north_library(
+        self,
+        title: str = "北陆图书馆",
+        persist: bool = True,
+    ) -> dict[str, Any]:
+        """Fetch the North Library page payload and its discovered category metadata."""
+        payload = self.crawl_page(title, persist=persist)
+        page = next(iter(payload.get("query", {}).get("pages", {}).values()), {})
+        probe = self.probe_north_library_category(prefix=title)
+        return {
+            "title": page.get("title", title),
+            "page_id": page.get("pageid"),
+            "category_name": probe["category_name"],
+            "category_candidates": probe["category_candidates"],
+            "payload": payload,
+        }
