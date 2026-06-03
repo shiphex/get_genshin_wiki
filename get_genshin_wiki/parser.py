@@ -40,24 +40,29 @@ from .exceptions import ParsingError
 from .models import (
     ArtifactPieceRecord,
     ArtifactSetRecord,
-    CharacterRecord,
-    MonsterRecord, ParsedPage,
-    ParsedSection,
-    WeaponRecord,
-    FoodRecord,
-    ItemRecord,
-    MaterialRecord,
-    NameCardRecord,
-    QuestItemRecord,
-    SecretItemRecord,
-    WildlifeRecord,
-    BookRecord, BookVolume,
-    AdventureNotesRecord,
+    BookRecord,
+    BookVolume,
+    ChronicleRecord,
+    ChronicleItemRecord,
+    ChroniclePageRecord,
+    ChronicleSectionRecord,
     CharacterRecord,
     CharacterStoryRecord,
     CharacterVoiceRecord,
     ConstellationRecord,
+    AdventureNotesRecord,
+    FoodRecord,
+    ItemRecord,
+    MaterialRecord,
+    MonsterRecord,
+    NameCardRecord,
+    ParsedPage,
+    ParsedSection,
+    QuestItemRecord,
+    SecretItemRecord,
     TalentRecord,
+    WeaponRecord,
+    WildlifeRecord,
 )
 
 # 分类链接匹配正则：[[Category:xxx]] 或 [[分类:xxx]]
@@ -91,6 +96,30 @@ _VOICE_BLOCK_PATTERN = re.compile(
 )
 _FILE_LINK_PATTERN = re.compile(r"\[\[\s*(?:File|file|文件)\s*:[^\]]+\]\]", re.IGNORECASE)
 _LIST_SPLIT_PATTERN = re.compile(r"(?:\n|、|，|,)+")
+_CHRONICLE_HEADING_PATTERN = re.compile(r"^(={3,5})\s*(.*?)\s*\1\s*$")
+_CHRONICLE_BOLD_ITEM_PATTERN = re.compile(r"^'''(.+?)'''(?:\s*[：:]\s*(.*))?$")
+_CHRONICLE_BULLET_PATTERN = re.compile(r"^\*\s*(.+)$")
+_CHRONICLE_BULLET_ITEM_PATTERN = re.compile(r"^(?P<year>.+?)(?:\s{2,}|\t+|[：:])\s*(?P<content>.+)$")
+_CHRONICLE_WRAPPER_TAG_PATTERN = re.compile(r"^</?div\b[^>]*>$", re.IGNORECASE)
+_CHRONICLE_FACTION_KEYWORDS = (
+    "势力",
+    "阵营",
+    "王朝",
+    "王庭",
+    "政权",
+    "统治",
+    "统一",
+    "分裂",
+    "联盟",
+    "城邦",
+    "执政",
+    "秩序",
+    "覆灭",
+    "灭亡",
+    "崛起",
+    "退守",
+    "版图",
+)
 
 # 角色属性模板关键词（用于识别角色信息模板）
 _CHARACTER_TEMPLATE_KEYWORDS = ("角色属性", "角色信息", "角色资料", "角色")
@@ -331,6 +360,18 @@ class WikiTextParser:
             sections=sections,
             templates=self.parse_templates(wikitext),
             wikitext=wikitext,
+        )
+
+    def parse_chronicle_page(self, payload: dict[str, Any]) -> ChroniclePageRecord:
+        """解析提瓦特编年史页面，按章节层级与条目顺序提取记录。"""
+        parsed_page = self.parse_page(payload)
+        intro, sections = self._extract_chronicle_sections(parsed_page.title, parsed_page.wikitext)
+        return ChroniclePageRecord(
+            title=parsed_page.title,
+            page_id=parsed_page.page_id,
+            categories=parsed_page.categories,
+            intro=intro,
+            sections=sections,
         )
 
     def parse_character_page(
@@ -1273,6 +1314,443 @@ class WikiTextParser:
         """解析独立的角色语音页面。"""
         _, _, wikitext = self.extract_page_metadata(payload)
         return self._extract_voice_records_from_wikitext(wikitext)
+
+    def _extract_chronicle_records(self, page_title: str, wikitext: str) -> list[ChronicleRecord]:
+        """按标题层级、项目时间与条目顺序抽取编年史记录。"""
+        records: list[ChronicleRecord] = []
+        heading_stack: dict[int, str] = {}
+        section_lines: list[str] = []
+        section_bullets: list[str] = []
+        section_raw_fragments: list[str] = []
+        item_year = ""
+        item_lines: list[str] = []
+        item_bullets: list[str] = []
+        item_raw_fragments: list[str] = []
+        started = False
+
+        def append_line(buffer: list[str], raw_fragments: list[str], value: str) -> None:
+            stripped = value.strip()
+            if not stripped:
+                if buffer and buffer[-1] != "":
+                    buffer.append("")
+                return
+            buffer.append(value)
+            raw_fragments.append(value)
+
+        def append_bullet(buffer: list[str], raw_fragments: list[str], value: str) -> None:
+            stripped = value.strip()
+            if not stripped:
+                return
+            buffer.append(value)
+            raw_fragments.append(value)
+
+        def flush_section() -> None:
+            nonlocal section_lines, section_bullets, section_raw_fragments
+            record = self._build_chronicle_record(
+                page_title,
+                self._current_chronicle_path(heading_stack),
+                "",
+                section_lines,
+                section_bullets,
+                section_raw_fragments,
+            )
+            if record is not None:
+                records.append(record)
+            section_lines = []
+            section_bullets = []
+            section_raw_fragments = []
+
+        def flush_item() -> None:
+            nonlocal item_year, item_lines, item_bullets, item_raw_fragments
+            record = self._build_chronicle_record(
+                page_title,
+                self._current_chronicle_path(heading_stack),
+                item_year,
+                item_lines,
+                item_bullets,
+                item_raw_fragments,
+            )
+            if record is not None:
+                records.append(record)
+            item_year = ""
+            item_lines = []
+            item_bullets = []
+            item_raw_fragments = []
+
+        for raw_line in wikitext.splitlines():
+            line = raw_line.strip()
+            if not started:
+                heading_match = _CHRONICLE_HEADING_PATTERN.match(line)
+                bold_match = _CHRONICLE_BOLD_ITEM_PATTERN.match(line)
+                bullet_match = _CHRONICLE_BULLET_PATTERN.match(line)
+                if heading_match or bold_match or bullet_match:
+                    started = True
+                else:
+                    continue
+            if not line:
+                if item_year or item_lines or item_bullets:
+                    append_line(item_lines, item_raw_fragments, "")
+                else:
+                    append_line(section_lines, section_raw_fragments, "")
+                continue
+            if _CATEGORY_LINK_PATTERN.fullmatch(line):
+                continue
+            if line == "__NOEDITSECTION__":
+                continue
+            if _CHRONICLE_WRAPPER_TAG_PATTERN.fullmatch(line):
+                continue
+
+            heading_match = _CHRONICLE_HEADING_PATTERN.match(line)
+            if heading_match:
+                if item_year or item_lines or item_bullets:
+                    flush_item()
+                else:
+                    flush_section()
+                level = len(heading_match.group(1))
+                title = self._clean_field_value(heading_match.group(2))
+                heading_stack = {
+                    existing_level: existing_title
+                    for existing_level, existing_title in heading_stack.items()
+                    if existing_level < level
+                }
+                if title:
+                    heading_stack[level] = title
+                continue
+
+            bold_match = _CHRONICLE_BOLD_ITEM_PATTERN.match(line)
+            if bold_match:
+                if item_year or item_lines or item_bullets:
+                    flush_item()
+                else:
+                    flush_section()
+                item_year = self._clean_field_value(bold_match.group(1))
+                remainder = bold_match.group(2) or ""
+                append_line(item_lines, item_raw_fragments, remainder)
+                continue
+
+            bullet_match = _CHRONICLE_BULLET_PATTERN.match(line)
+            if bullet_match:
+                bullet_text = bullet_match.group(1)
+                bullet_item = self._split_chronicle_bullet_item(bullet_text)
+                if bullet_item is not None:
+                    if item_year or item_lines or item_bullets:
+                        flush_item()
+                    elif section_lines or section_bullets:
+                        flush_section()
+                    item_year = bullet_item["year"]
+                    append_line(item_lines, item_raw_fragments, bullet_item["content"])
+                    continue
+                if item_year or item_lines or item_bullets:
+                    append_bullet(item_bullets, item_raw_fragments, bullet_text)
+                else:
+                    append_bullet(section_bullets, section_raw_fragments, bullet_text)
+                continue
+
+            if item_year or item_lines or item_bullets:
+                append_line(item_lines, item_raw_fragments, raw_line)
+            else:
+                append_line(section_lines, section_raw_fragments, raw_line)
+
+        if item_year or item_lines or item_bullets:
+            flush_item()
+        else:
+            flush_section()
+        return records
+
+    def _build_chronicle_record(
+        self,
+        page_title: str,
+        heading_path: list[str],
+        year: str,
+        lines: list[str],
+        bullets: list[str],
+        raw_fragments: list[str],
+    ) -> ChronicleRecord | None:
+        """将一个编年史片段转换为结构化记录。"""
+        cleaned_year = self._clean_field_value(year)
+        cleaned_path = [self._clean_field_value(item) for item in heading_path if self._clean_field_value(item)]
+        if not cleaned_year and cleaned_path and self._looks_like_chronicle_year(cleaned_path[-1]):
+            cleaned_year = cleaned_path[-1]
+            cleaned_path = cleaned_path[:-1]
+
+        background = self._clean_field_value("\n".join(lines), context="story")
+        major_events = self._extract_chronicle_major_events(bullets, background)
+        if not cleaned_year and not bullets:
+            major_events = []
+        faction_changes = self._extract_chronicle_faction_changes(major_events, background)
+        related_characters = self._extract_chronicle_related_characters("\n".join(raw_fragments))
+        era_name = " / ".join(cleaned_path) or page_title
+
+        if not any((cleaned_year, background, major_events, faction_changes, related_characters)):
+            return None
+        return ChronicleRecord(
+            era_name=era_name,
+            year=cleaned_year,
+            major_events=major_events,
+            faction_changes=faction_changes,
+            related_characters=related_characters,
+            background=background,
+        )
+
+    def _current_chronicle_path(self, heading_stack: dict[int, str]) -> list[str]:
+        """返回当前编年史标题路径。"""
+        return [heading_stack[level] for level in sorted(heading_stack)]
+
+    def _extract_chronicle_sections(
+        self,
+        page_title: str,
+        wikitext: str,
+    ) -> tuple[str, list[ChronicleSectionRecord]]:
+        """鎸夌珷鑺傘€侀」鐩€佹潯鐩拰姝ｆ枃鏋勫缓缂栧勾鍙茬珷鑺傛爲銆?"""
+        sections: list[ChronicleSectionRecord] = []
+        page_intro_lines: list[str] = []
+        section_stack: list[tuple[int, ChronicleSectionRecord]] = []
+        section_buffers: dict[int, list[str]] = {}
+        current_item: ChronicleItemRecord | None = None
+        current_item_content_lines: list[str] = []
+        current_item_entry_lines: list[str] = []
+        current_item_raw_fragments: list[str] = []
+        started = False
+
+        def append_line(buffer: list[str], value: str) -> None:
+            stripped = value.strip()
+            if not stripped:
+                if buffer and buffer[-1] != "":
+                    buffer.append("")
+                return
+            buffer.append(value)
+
+        def append_non_empty(buffer: list[str], value: str) -> None:
+            if value.strip():
+                buffer.append(value)
+
+        def finalize_text(lines: list[str]) -> str:
+            return self._clean_field_value("\n".join(lines), context="story")
+
+        def current_section() -> ChronicleSectionRecord | None:
+            if not section_stack:
+                return None
+            return section_stack[-1][1]
+
+        def ensure_root_section() -> ChronicleSectionRecord:
+            section = current_section()
+            if section is not None:
+                return section
+            synthetic = ChronicleSectionRecord(title=page_title, level=0)
+            sections.append(synthetic)
+            section_stack.append((0, synthetic))
+            section_buffers[id(synthetic)] = []
+            return synthetic
+
+        def close_sections(min_level: int) -> None:
+            while section_stack and section_stack[-1][0] >= min_level:
+                _, section = section_stack.pop()
+                section.content = finalize_text(section_buffers.pop(id(section), []))
+
+        def flush_item() -> None:
+            nonlocal current_item, current_item_content_lines, current_item_entry_lines, current_item_raw_fragments
+            if current_item is None:
+                return
+            current_item.content = finalize_text(current_item_content_lines)
+            current_item.entries = self._dedupe(
+                [
+                    cleaned
+                    for raw_entry in current_item_entry_lines
+                    if (cleaned := self._clean_field_value(raw_entry, context="story"))
+                ]
+            )
+            current_item.related_characters = self._extract_chronicle_related_characters(
+                "\n".join(current_item_raw_fragments)
+            )
+            if not any(
+                (
+                    self._clean_field_value(current_item.title),
+                    current_item.content,
+                    current_item.entries,
+                    current_item.related_characters,
+                )
+            ):
+                section = current_section()
+                if section is not None and current_item in section.items:
+                    section.items.remove(current_item)
+            current_item = None
+            current_item_content_lines = []
+            current_item_entry_lines = []
+            current_item_raw_fragments = []
+
+        def open_section(level: int, title: str) -> None:
+            clean_title = self._clean_field_value(title)
+            if not clean_title:
+                return
+            close_sections(level)
+            section = ChronicleSectionRecord(title=clean_title, level=level)
+            if section_stack:
+                section_stack[-1][1].subsections.append(section)
+            else:
+                sections.append(section)
+            section_stack.append((level, section))
+            section_buffers[id(section)] = []
+
+        def start_item(title: str, initial_content: str = "") -> None:
+            nonlocal current_item, current_item_content_lines, current_item_entry_lines, current_item_raw_fragments
+            clean_title = self._clean_field_value(title)
+            if not clean_title:
+                return
+            item = ChronicleItemRecord(title=clean_title)
+            ensure_root_section().items.append(item)
+            current_item = item
+            current_item_content_lines = []
+            current_item_entry_lines = []
+            current_item_raw_fragments = []
+            if initial_content:
+                append_line(current_item_content_lines, initial_content)
+                append_non_empty(current_item_raw_fragments, initial_content)
+
+        for raw_line in wikitext.splitlines():
+            line = raw_line.strip()
+            heading_match = _CHRONICLE_HEADING_PATTERN.match(line)
+            bold_match = _CHRONICLE_BOLD_ITEM_PATTERN.match(line)
+            bullet_match = _CHRONICLE_BULLET_PATTERN.match(line)
+
+            if not started:
+                if heading_match or bold_match or bullet_match:
+                    started = True
+                else:
+                    continue
+
+            if not line:
+                if current_item is not None:
+                    append_line(current_item_content_lines, "")
+                elif section_stack:
+                    append_line(section_buffers[id(section_stack[-1][1])], "")
+                else:
+                    append_line(page_intro_lines, "")
+                continue
+            if _CATEGORY_LINK_PATTERN.fullmatch(line):
+                continue
+            if line == "__NOEDITSECTION__":
+                continue
+            if _CHRONICLE_WRAPPER_TAG_PATTERN.fullmatch(line):
+                continue
+
+            if heading_match:
+                flush_item()
+                open_section(len(heading_match.group(1)), heading_match.group(2))
+                continue
+
+            if bold_match:
+                flush_item()
+                start_item(bold_match.group(1), bold_match.group(2) or "")
+                continue
+
+            if bullet_match:
+                bullet_text = bullet_match.group(1)
+                bullet_item = self._split_chronicle_bullet_item(bullet_text)
+                if bullet_item is not None:
+                    flush_item()
+                    start_item(bullet_item["year"], bullet_item["content"])
+                    continue
+                if current_item is not None:
+                    append_non_empty(current_item_entry_lines, bullet_text)
+                    append_non_empty(current_item_raw_fragments, bullet_text)
+                elif section_stack:
+                    append_line(section_buffers[id(section_stack[-1][1])], f"* {bullet_text}")
+                else:
+                    append_line(page_intro_lines, f"* {bullet_text}")
+                continue
+
+            if current_item is not None:
+                append_line(current_item_content_lines, raw_line)
+                append_non_empty(current_item_raw_fragments, raw_line)
+            elif section_stack:
+                append_line(section_buffers[id(section_stack[-1][1])], raw_line)
+            else:
+                append_line(page_intro_lines, raw_line)
+
+        flush_item()
+        close_sections(0)
+        return finalize_text(page_intro_lines), sections
+
+    def _extract_chronicle_major_events(self, bullets: list[str], background: str) -> list[str]:
+        """优先使用列表项提取重大事件；否则保留正文为单条事件。"""
+        cleaned_bullets = self._dedupe(
+            [
+                self._clean_field_value(item, context="story")
+                for item in bullets
+                if self._clean_field_value(item, context="story")
+            ]
+        )
+        if cleaned_bullets:
+            return cleaned_bullets
+        if background:
+            return [background]
+        return []
+
+    def _extract_chronicle_faction_changes(self, events: list[str], background: str) -> list[str]:
+        """提取包含势力、统治、政权等关键词的句子。"""
+        candidates: list[str] = []
+        for event in events:
+            event_sentences = self._split_chronicle_sentences(event)
+            candidates.extend(event_sentences or [event])
+        candidates.extend(self._split_chronicle_sentences(background))
+        return self._dedupe(
+            [
+                candidate
+                for candidate in candidates
+                if any(keyword in candidate for keyword in _CHRONICLE_FACTION_KEYWORDS)
+            ]
+        )
+
+    def _extract_chronicle_related_characters(self, raw_text: str) -> list[str]:
+        """从编年史片段中的内部链接提取相关人物候选。"""
+        if not raw_text.strip():
+            return []
+        names: list[str] = []
+        code = mwparserfromhell.parse(raw_text)
+        for wikilink in code.filter_wikilinks(recursive=True):
+            title = str(wikilink.title).strip().split("#", 1)[0].strip()
+            if not title or any(title.startswith(prefix) for prefix in _FILE_LINK_PREFIXES):
+                continue
+            if ":" in title:
+                continue
+            cleaned = self._clean_field_value(title)
+            if cleaned:
+                names.append(cleaned)
+        return self._dedupe(names)
+
+    def _split_chronicle_sentences(self, text: str) -> list[str]:
+        """按句号、问号、感叹号切分编年史正文。"""
+        if not text:
+            return []
+        return [sentence.strip() for sentence in re.split(r"(?<=[。！？])\s*", text) if sentence.strip()]
+
+    def _split_chronicle_bullet_item(self, bullet_text: str) -> dict[str, str] | None:
+        """将 `*时间  内容` 形式的公元纪条目拆分为时间与正文。"""
+        cleaned = bullet_text.strip()
+        if not cleaned:
+            return None
+        match = _CHRONICLE_BULLET_ITEM_PATTERN.match(cleaned)
+        if not match:
+            return None
+        year = self._clean_field_value(match.group("year"))
+        content = match.group("content").strip()
+        if not year or not self._looks_like_chronicle_year(year):
+            return None
+        return {
+            "year": year,
+            "content": content,
+        }
+
+    def _looks_like_chronicle_year(self, value: str) -> bool:
+        """判断标题是否更像是年代/时间标签而非纪年名称。"""
+        normalized = value.strip()
+        if not normalized:
+            return False
+        if re.search(r"\d", normalized):
+            return True
+        if normalized.startswith("公元"):
+            return True
+        return any(token in normalized for token in ("年前", "年后", "元年", "次年", "翌年", "同年", "当年"))
 
     def _select_best_template(
         self,
@@ -2365,7 +2843,11 @@ class WikiTextParser:
 
     def _strip_quotes(self, text: str) -> str:
         """移除包裹文本的常见引号。"""
-        return text.strip().strip("「」\"'")
+        stripped = text.strip()
+        for left, right in (("「", "」"), ("\"", "\""), ("'", "'")):
+            if stripped.startswith(left) and stripped.endswith(right) and len(stripped) >= len(left) + len(right):
+                return stripped[len(left) : len(stripped) - len(right)].strip()
+        return stripped
 
     def _dedupe(self, values: Iterable[str]) -> list[str]:
         """保持顺序去重。"""

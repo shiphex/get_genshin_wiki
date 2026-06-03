@@ -470,6 +470,90 @@ class CharacterRecord:
 
 
 @dataclass
+class ChronicleRecord:
+    """Legacy flat chronicle record kept for compatibility with old helpers."""
+
+    era_name: str
+    year: str
+    major_events: list[str] = field(default_factory=list)
+    faction_changes: list[str] = field(default_factory=list)
+    related_characters: list[str] = field(default_factory=list)
+    background: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the legacy chronicle record for JSON output."""
+        return {
+            "era_name": self.era_name,
+            "year": self.year,
+            "major_events": self.major_events,
+            "faction_changes": self.faction_changes,
+            "related_characters": self.related_characters,
+            "background": self.background,
+        }
+
+
+@dataclass
+class ChronicleItemRecord:
+    """Structured record for one chronicle item within a chapter."""
+
+    title: str
+    content: str = ""
+    entries: list[str] = field(default_factory=list)
+    related_characters: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the chronicle item for JSON output."""
+        return {
+            "title": self.title,
+            "content": self.content,
+            "entries": self.entries,
+            "related_characters": self.related_characters,
+        }
+
+
+@dataclass
+class ChronicleSectionRecord:
+    """Structured record for one chronicle chapter or subchapter."""
+
+    title: str
+    level: int
+    content: str = ""
+    items: list[ChronicleItemRecord] = field(default_factory=list)
+    subsections: list["ChronicleSectionRecord"] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the chronicle section for JSON output."""
+        return {
+            "title": self.title,
+            "level": self.level,
+            "content": self.content,
+            "items": [item.to_dict() for item in self.items],
+            "subsections": [section.to_dict() for section in self.subsections],
+        }
+
+
+@dataclass
+class ChroniclePageRecord:
+    """Structured record for one chronicle page and its chapter tree."""
+
+    title: str
+    intro: str = ""
+    sections: list[ChronicleSectionRecord] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the chronicle page record for JSON output."""
+        return {
+            "title": self.title,
+            "intro": self.intro,
+            "sections": [section.to_dict() for section in self.sections],
+            "categories": self.categories,
+            "page_id": self.page_id,
+        }
+
+
+@dataclass
 class FoodRecord:
     """Structured record for food pages."""
 
