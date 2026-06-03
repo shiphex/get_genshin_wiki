@@ -71,6 +71,7 @@ _DEFAULT_PARSE_NAMESPACES = {
     "namecard": "parsed/namecards",
     "secret-item": "parsed/secret-items",
     "book": "parsed/books",
+    "north-library": "parsed/north-library",
 }
 
 
@@ -163,6 +164,15 @@ def build_parser() -> argparse.ArgumentParser:
     crawl_category_pages.add_argument("--page-limit", type=int, default=None, help="Limit number of pages")
     crawl_category_pages.add_argument("--no-persist", action="store_true")
     crawl_category_pages.set_defaults(handler=handle_crawl_category_pages)
+
+    crawl_north_library = crawl_commands.add_parser(
+        "north-library",
+        help="Fetch, parse, and persist the North Library index page.",
+    )
+    crawl_north_library.add_argument("--title", default="北陆图书馆", help="North Library page title")
+    crawl_north_library.add_argument("--output-namespace", default=None, help="Namespace to write parsed result")
+    crawl_north_library.add_argument("--no-persist", action="store_true")
+    crawl_north_library.set_defaults(handler=handle_crawl_north_library)
 
     # ========== parse 子命令 ==========
     parse_parser = subparsers.add_parser("parse", help="Parse stored page payloads.")
@@ -476,6 +486,30 @@ def handle_crawl_category_pages(args: argparse.Namespace, runtime: CliRuntime) -
         result.append(page_metadata)
 
     _print_json(result)
+    return 0
+
+
+def handle_crawl_north_library(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """Handle crawl north-library: probe category, fetch page, parse, and persist JSON."""
+    runtime.client.assert_api_allowed()
+    crawl_result = runtime.crawler.crawl_north_library(args.title, persist=not args.no_persist)
+    payload = crawl_result.pop("payload")
+    record = runtime.parser.parse_north_library_page(payload)
+    record.library_category = crawl_result["category_name"]
+    record.category_candidates = crawl_result["category_candidates"]
+    parsed = record.to_dict()
+
+    response: dict[str, Any] = {
+        **crawl_result,
+        "parsed": parsed,
+    }
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["north-library"]
+        parsed_path = runtime.store.write(namespace, record.title, parsed)
+        response["page_path"] = runtime.store.resolve_path("pages", record.title)
+        response["parsed_path"] = parsed_path
+
+    _print_json(response)
     return 0
 
 
