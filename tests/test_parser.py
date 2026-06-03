@@ -192,6 +192,27 @@ SAMPLE_BOOK_WIKITEXT = """{{书籍|名称=白夜国馆藏|体裁=史书|国家=�
 {{书籍|卷2名=鬼人正传|卷2获取地点=完成「鸣海渚祭」活动获得|卷2描述=讲述了珊瑚宫一段不为人知的历史|卷2内容=第一章内容...}}
 """
 
+SAMPLE_NORTH_LIBRARY_WIKITEXT = """北陆图书馆导言<br>第二行
+
+=<center>提瓦特</center>=
+一级正文
+==[[提瓦特编年史]]==
+二级正文
+===穿越星海===
+三级正文
+====史莱姆====
+四级正文
+<big>'''时间'''</big>
+项目正文<br>第二行
+*普通条目
+*'''周期'''
+条目正文
+<big>'''{{颜色|火1|火}}'''</big>
+颜色项目正文
+
+[[Category:北陆图书馆]]
+"""
+
 SPECIALIZED_PAGE_CASES = [
     {
         "title": "花果草糖",
@@ -752,6 +773,44 @@ class WikiTextParserTests(unittest.TestCase):
             },
             boss_domain_result["掉落"],
         )
+
+    def test_parse_north_library_page_builds_hierarchical_nodes(self) -> None:
+        """测试北陆图书馆页面解析会保留标题层级、项目与条目结构。"""
+        payload = build_page_payload("北陆图书馆", SAMPLE_NORTH_LIBRARY_WIKITEXT, page_id=301)
+
+        result = self.parser.parse_north_library_page(payload)
+
+        self.assertEqual("北陆图书馆", result.title)
+        self.assertEqual("北陆图书馆导言\n第二行", result.summary)
+        self.assertEqual(["北陆图书馆"], result.categories)
+        self.assertEqual(1, len(result.nodes))
+
+        first = result.nodes[0]
+        second = first.children[0]
+        third = second.children[0]
+        fourth = third.children[0]
+        item = fourth.children[0]
+        titled_entry = item.children[1]
+        color_item = fourth.children[1]
+
+        self.assertEqual(("一级", "提瓦特", "一级正文"), (first.kind, first.title, first.text))
+        self.assertEqual(("二级", "提瓦特编年史", "二级正文"), (second.kind, second.title, second.text))
+        self.assertEqual(("三级", "穿越星海", "三级正文"), (third.kind, third.title, third.text))
+        self.assertEqual(("四级", "史莱姆", "四级正文"), (fourth.kind, fourth.title, fourth.text))
+        self.assertEqual(("项目", "时间", "项目正文\n第二行"), (item.kind, item.title, item.text))
+        self.assertEqual(("条目", "", "普通条目"), (item.children[0].kind, item.children[0].title, item.children[0].text))
+        self.assertEqual(("条目", "周期", "条目正文"), (titled_entry.kind, titled_entry.title, titled_entry.text))
+        self.assertEqual(("项目", "火", "颜色项目正文"), (color_item.kind, color_item.title, color_item.text))
+
+    def test_parse_north_library_page_falls_back_to_payload_categories(self) -> None:
+        """测试北陆图书馆页面在无分类标记时会回退到 payload 分类。"""
+        payload = build_page_payload("北陆图书馆", SAMPLE_NORTH_LIBRARY_WIKITEXT.replace("[[Category:北陆图书馆]]", ""), page_id=302)
+        page = next(iter(payload["query"]["pages"].values()))
+        page["categories"] = [{"title": "Category:需要帮助"}]
+
+        result = self.parser.parse_north_library_page(payload)
+
+        self.assertEqual(["需要帮助"], result.categories)
 
     def test_extract_page_metadata_raises_for_invalid_payload(self) -> None:
         """
