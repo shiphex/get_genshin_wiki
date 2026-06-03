@@ -28,7 +28,7 @@ from get_genshin_wiki.crawler import WikiCrawler
 from get_genshin_wiki.parser import WikiTextParser
 from get_genshin_wiki.storage import JsonFileStore
 from tests.helpers import build_page_payload
-from tests.test_parser import SAMPLE_BOOK_WIKITEXT, SPECIALIZED_PAGE_CASES
+from tests.test_parser import SAMPLE_BOOK_WIKITEXT, SAMPLE_CHRONICLE_WIKITEXT, SPECIALIZED_PAGE_CASES
 
 # 测试用角色 wikitext
 SAMPLE_CHARACTER_WIKITEXT = """{{角色资料|名字=哥伦比娅|称号=空月归乡|所属=挪德卡莱|介绍=于挪德卡莱诞生的「月之少女」。|元素=水|武器=法器|神之眼描述=三相月临|命之座=御月鸽座}}
@@ -86,15 +86,25 @@ class FakeClient:
 
     def list_categories(self, prefix: str | None = None) -> list[str]:
         """返回预设分类列表。"""
+        if prefix in {"提瓦特", "公元", "编年"}:
+            return []
         return ["角色"] if prefix is None else [prefix]
 
     def list_category_members(self, category_name: str) -> list[str]:
         """返回预设分类成员列表。"""
+        if category_name in {"提瓦特编年史", "提瓦特编年史（公元纪）", "公元纪"}:
+            return []
         return ["哥伦比娅", "阿蕾奇诺"]
 
     def fetch_page_payload(self, title: str) -> dict:
         """返回预设页面 payload 并记录请求。"""
         self.page_requests.append(title)
+        if title == "提瓦特编年史（公元纪）":
+            return build_page_payload(title, SAMPLE_CHRONICLE_WIKITEXT, page_id=len(self.page_requests))
+        if title == "提瓦特编年史":
+            return build_page_payload(title, "#重定向 [[提瓦特编年史（公元纪）]]", page_id=len(self.page_requests))
+        if title == "编年史":
+            return build_page_payload(title, "#重定向 [[提瓦特编年史]]", page_id=len(self.page_requests))
         return build_page_payload(title, f"{title} 的正文", page_id=len(self.page_requests))
 
 
@@ -156,6 +166,20 @@ class CliTests(unittest.TestCase):
         self.assertTrue(self.store.exists("pages", "哥伦比娅"))
         self.assertFalse(self.store.exists("pages", "阿蕾奇诺"))
 
+    def test_crawl_chronicle_pages_falls_back_to_page_probe_and_persists_pages(self) -> None:
+        """测试 crawl chronicle-pages 会回退到页面探测并抓取编年史页面。"""
+        exit_code, output = self.run_cli(["crawl", "chronicle-pages", "--page-limit", "1"])
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("page", output["source_type"])
+        self.assertEqual("", output["category_name"])
+        self.assertEqual(["提瓦特编年史（公元纪）"], output["page_titles"])
+        self.assertEqual(1, len(output["pages"]))
+        self.assertEqual("提瓦特编年史（公元纪）", output["pages"][0]["title"])
+        self.assertEqual(["提瓦特编年史（公元纪）", "提瓦特编年史（公元纪）"], self.client.page_requests)
+        self.assertEqual(1, self.client.allowed_checks)
+        self.assertTrue(self.store.exists("pages", "提瓦特编年史（公元纪）"))
+
     def test_parse_character_reads_page_payload_and_persists_result(self) -> None:
         """
         测试 parse character 命令：
@@ -177,6 +201,29 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("title", output)
         self.assertTrue(self.store.exists("parsed/characters", "哥伦比娅"))
         self.assertFalse(self.store.exists("parsed/character-stories", "哥伦比娅"))
+
+    def test_parse_chronicle_reads_page_payload_and_persists_result(self) -> None:
+        """测试 parse chronicle 命令会输出并持久化编年史结构。"""
+        self.store.write(
+            "pages",
+            "提瓦特编年史（公元纪）",
+            build_page_payload("提瓦特编年史（公元纪）", SAMPLE_CHRONICLE_WIKITEXT, page_id=11),
+        )
+
+        exit_code, output = self.run_cli(["parse", "chronicle", "提瓦特编年史（公元纪）"])
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("提瓦特编年史（公元纪）", output["title"])
+        self.assertEqual("", output["intro"])
+        self.assertEqual(1, len(output["sections"]))
+        self.assertEqual("提瓦特公元纪年", output["sections"][0]["title"])
+        self.assertEqual("公元前", output["sections"][0]["items"][0]["title"])
+        self.assertTrue(self.store.exists("parsed/chronicles", "提瓦特编年史（公元纪）"))
+        return
+        self.assertEqual("提瓦特编年史（公元纪）", output["title"])
+        self.assertEqual(4, len(output["records"]))
+        self.assertEqual("公元前", output["records"][1]["year"])
+        self.assertTrue(self.store.exists("parsed/chronicles", "提瓦特编年史（公元纪）"))
 
     def test_parse_specialized_commands_persist_results(self) -> None:
         """测试新增的 7 个 parse 子命令及其默认输出命名空间。"""
