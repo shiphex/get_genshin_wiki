@@ -300,6 +300,39 @@ SAMPLE_NORTH_LIBRARY_WIKITEXT = """北陆图书馆导言<br>第二行
 [[Category:北陆图书馆]]
 """
 
+SAMPLE_CHRONICLE_SPEC_WIKITEXT = """=== 太古 ===
+==== 原初 ====
+===== 原初之人 =====
+'''降临之初'''
+*[[法涅斯]]自世界之外降临提瓦特，击败七龙王。
+*建立新的世界秩序与四执政。
+[[尼伯龙根]]率领旧王残余退守深渊，势力此消彼长。
+
+'''约四十年后'''
+*原初之人与龙族再度爆发大战。
+旧日王庭覆灭，提瓦特进入新的统治阶段。
+
+=== 魔神战争时期 ===
+'''约两千年前'''
+*[[巴巴托斯]]与[[摩拉克斯]]在乱世中崛起。
+魔神战争改变了各国势力版图。
+[[Category:提瓦特编年史]]
+"""
+
+SAMPLE_CHRONICLE_WIKITEXT = """{{文章模板
+|文章上级页面=北陆图书馆
+|时间=4.14 21:00
+|是否原创=是
+|作者=陈冰然
+}}
+===提瓦特公元纪年===
+（以鸽子衔枝之年为公元1年）
+*公元前  [[尼伯龙根]]与提瓦特一同诞生。龙族统治着古代提瓦特。
+*公元1年  「第一王座」法涅斯从蛋中诞生，割裂出「原初四影」作为最初的执政。
+*公元41年  七龙王全向法涅斯俯首称臣。龙在枫丹地区的统治崩溃，部分龙族退守暗之外海。
+[[Category:待补充]]
+"""
+
 SPECIALIZED_PAGE_CASES = [
     {
         "title": "花果草糖",
@@ -599,6 +632,130 @@ class WikiTextParserTests(unittest.TestCase):
 
         self.assertEqual(["闲聊·歌", "下雨的时候"], [item.title for item in result])
         self.assertEqual("我的歌并不为谁而唱。\n但如果有人驻足。", result[0].content)
+
+    def test_parse_chronicle_page_extracts_structured_timeline_records(self) -> None:
+        """测试 parse_chronicle_page 提取公元纪样式的结构化记录。"""
+        payload = build_page_payload("提瓦特编年史（公元纪）", SAMPLE_CHRONICLE_WIKITEXT, page_id=12)
+
+        result = self.parser.parse_chronicle_page(payload).to_dict()
+
+        self.assertEqual("提瓦特编年史（公元纪）", result["title"])
+        self.assertEqual(12, result["page_id"])
+        self.assertEqual(["待补充"], result["categories"])
+        self.assertEqual("", result["intro"])
+        self.assertEqual(1, len(result["sections"]))
+
+        era_section = result["sections"][0]
+        self.assertEqual("提瓦特公元纪年", era_section["title"])
+        self.assertEqual(3, era_section["level"])
+        self.assertEqual("（以鸽子衔枝之年为公元1年）", era_section["content"])
+        self.assertEqual([], era_section["subsections"])
+        self.assertEqual(3, len(era_section["items"]))
+
+        first_item = era_section["items"][0]
+        self.assertEqual("公元前", first_item["title"])
+        self.assertEqual("尼伯龙根与提瓦特一同诞生。龙族统治着古代提瓦特。", first_item["content"])
+        self.assertEqual([], first_item["entries"])
+        self.assertEqual(["尼伯龙根"], first_item["related_characters"])
+
+        second_item = era_section["items"][1]
+        self.assertEqual("公元1年", second_item["title"])
+        self.assertIn("法涅斯从蛋中诞生", second_item["content"])
+        self.assertEqual([], second_item["entries"])
+
+        third_item = era_section["items"][2]
+        self.assertEqual("公元41年", third_item["title"])
+        self.assertIn("七龙王全向法涅斯俯首称臣。", third_item["content"])
+        self.assertEqual([], third_item["entries"])
+        return
+
+        self.assertEqual("提瓦特编年史（公元纪）", result["title"])
+        self.assertEqual(12, result["page_id"])
+        self.assertEqual(["待补充"], result["categories"])
+        self.assertEqual(4, len(result["records"]))
+
+        first_record = result["records"][0]
+        self.assertEqual("提瓦特公元纪年", first_record["era_name"])
+        self.assertEqual("", first_record["year"])
+        self.assertEqual([], first_record["major_events"])
+        self.assertEqual([], first_record["faction_changes"])
+        self.assertEqual([], first_record["related_characters"])
+        self.assertEqual("（以鸽子衔枝之年为公元1年）", first_record["background"])
+
+        second_record = result["records"][1]
+        self.assertEqual("公元前", second_record["year"])
+        self.assertEqual(["尼伯龙根与提瓦特一同诞生。龙族统治着古代提瓦特。"], second_record["major_events"])
+        self.assertEqual(["龙族统治着古代提瓦特。"], second_record["faction_changes"])
+        self.assertEqual(["尼伯龙根"], second_record["related_characters"])
+        self.assertEqual("尼伯龙根与提瓦特一同诞生。龙族统治着古代提瓦特。", second_record["background"])
+
+        third_record = result["records"][2]
+        self.assertEqual("公元1年", third_record["year"])
+        self.assertIn("法涅斯从蛋中诞生", third_record["major_events"][0])
+        self.assertEqual(["「第一王座」法涅斯从蛋中诞生，割裂出「原初四影」作为最初的执政。"], third_record["faction_changes"])
+
+        fourth_record = result["records"][3]
+        self.assertEqual("公元41年", fourth_record["year"])
+        self.assertIn("七龙王全向法涅斯俯首称臣。", fourth_record["major_events"][0])
+        self.assertIn("龙在枫丹地区的统治崩溃，部分龙族退守暗之外海。", fourth_record["faction_changes"])
+
+    def test_parse_chronicle_page_supports_spec_heading_and_bold_item_rules(self) -> None:
+        """测试 parse_chronicle_page 兼容 spec 中定义的标题/项目/条目法则。"""
+        payload = build_page_payload("提瓦特编年史", SAMPLE_CHRONICLE_SPEC_WIKITEXT, page_id=13)
+
+        result = self.parser.parse_chronicle_page(payload).to_dict()
+
+        self.assertEqual("", result["intro"])
+        self.assertEqual(2, len(result["sections"]))
+
+        ancient_section = result["sections"][0]
+        self.assertEqual("太古", ancient_section["title"])
+        self.assertEqual(3, ancient_section["level"])
+        self.assertEqual("", ancient_section["content"])
+        self.assertEqual([], ancient_section["items"])
+        self.assertEqual(1, len(ancient_section["subsections"]))
+
+        origin_section = ancient_section["subsections"][0]
+        self.assertEqual("原初", origin_section["title"])
+        self.assertEqual(4, origin_section["level"])
+        self.assertEqual(1, len(origin_section["subsections"]))
+
+        first_people_section = origin_section["subsections"][0]
+        self.assertEqual("原初之人", first_people_section["title"])
+        self.assertEqual(5, first_people_section["level"])
+        self.assertEqual(2, len(first_people_section["items"]))
+
+        first_item = first_people_section["items"][0]
+        self.assertEqual("降临之初", first_item["title"])
+        self.assertEqual(
+            ["法涅斯自世界之外降临提瓦特，击败七龙王。", "建立新的世界秩序与四执政。"],
+            first_item["entries"],
+        )
+        self.assertIn("法涅斯", first_item["related_characters"])
+
+        second_item = first_people_section["items"][1]
+        self.assertEqual("约四十年后", second_item["title"])
+        self.assertEqual(
+            ["原初之人与龙族再度爆发大战。"],
+            second_item["entries"],
+        )
+        self.assertEqual("旧日王庭覆灭，提瓦特进入新的统治阶段。", second_item["content"])
+
+        archon_war_section = result["sections"][1]
+        self.assertEqual("魔神战争时期", archon_war_section["title"])
+        self.assertEqual(1, len(archon_war_section["items"]))
+        self.assertEqual("约两千年前", archon_war_section["items"][0]["title"])
+        return
+
+        self.assertEqual(3, len(result["records"]))
+        self.assertEqual("太古 / 原初 / 原初之人", result["records"][0]["era_name"])
+        self.assertEqual("降临之初", result["records"][0]["year"])
+        self.assertEqual(
+            ["法涅斯自世界之外降临提瓦特，击败七龙王。", "建立新的世界秩序与四执政。"],
+            result["records"][0]["major_events"],
+        )
+        self.assertEqual("约四十年后", result["records"][1]["year"])
+        self.assertEqual("魔神战争时期", result["records"][2]["era_name"])
 
     def test_parse_character_page_extracts_sections_and_categories_from_realistic_wikitext(self) -> None:
         """

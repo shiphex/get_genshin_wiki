@@ -59,6 +59,7 @@ CliHandler = Callable[[argparse.Namespace, "CliRuntime"], int]
 # 解析输出的默认命名空间映射
 _DEFAULT_PARSE_NAMESPACES = {
     "page": "parsed/pages",
+    "chronicle": "parsed/chronicles",
     "character": "parsed/characters",
     "archon-quest": "parsed/archon-quests",
     "weapon": "parsed/weapons",
@@ -175,6 +176,15 @@ def build_parser() -> argparse.ArgumentParser:
     crawl_north_library.add_argument("--no-persist", action="store_true")
     crawl_north_library.set_defaults(handler=handle_crawl_north_library)
 
+    # crawl chronicle-pages：探测并抓取提瓦特编年史分类页面
+    crawl_chronicle_pages = crawl_commands.add_parser(
+        "chronicle-pages",
+        help="Detect the chronicle category and fetch all of its pages.",
+    )
+    crawl_chronicle_pages.add_argument("--page-limit", type=int, default=None, help="Limit number of pages")
+    crawl_chronicle_pages.add_argument("--no-persist", action="store_true")
+    crawl_chronicle_pages.set_defaults(handler=handle_crawl_chronicle_pages)
+
     # ========== parse 子命令 ==========
     parse_parser = subparsers.add_parser("parse", help="Parse stored page payloads.")
     parse_commands = parse_parser.add_subparsers(dest="parse_target", required=True)
@@ -186,6 +196,14 @@ def build_parser() -> argparse.ArgumentParser:
     parse_page.add_argument("--output-namespace", default=None, help="Namespace to write parsed result")
     parse_page.add_argument("--no-persist", action="store_true")
     parse_page.set_defaults(handler=handle_parse_page)
+
+    # parse chronicle：解析编年史页面
+    parse_chronicle = parse_commands.add_parser("chronicle", help="Parse a stored chronicle page.")
+    parse_chronicle.add_argument("title", help="Chronicle page title")
+    parse_chronicle.add_argument("--source-namespace", default="pages")
+    parse_chronicle.add_argument("--output-namespace", default=None)
+    parse_chronicle.add_argument("--no-persist", action="store_true")
+    parse_chronicle.set_defaults(handler=handle_parse_chronicle)
 
     # parse character：解析角色页面
     parse_character = parse_commands.add_parser("character", help="Parse a stored character page.")
@@ -539,6 +557,17 @@ def handle_crawl_north_library(args: argparse.Namespace, runtime: CliRuntime) ->
     return 0
 
 
+def handle_crawl_chronicle_pages(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 crawl chronicle-pages 命令：探测并抓取编年史分类页面。"""
+    runtime.client.assert_api_allowed()
+    result = runtime.crawler.crawl_chronicle_pages(
+        page_limit=args.page_limit,
+        persist=not args.no_persist,
+    )
+    _print_json(result)
+    return 0
+
+
 # ========== parse 命令处理器 ==========
 
 
@@ -548,6 +577,17 @@ def handle_parse_page(args: argparse.Namespace, runtime: CliRuntime) -> int:
     result = runtime.parser.parse_page(payload).to_dict()
     if not args.no_persist:
         namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["page"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_chronicle(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse chronicle 命令：解析提瓦特编年史页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    result = runtime.parser.parse_chronicle_page(payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["chronicle"]
         runtime.store.write(namespace, args.title, result)
     _print_json(result)
     return 0

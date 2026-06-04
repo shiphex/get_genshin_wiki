@@ -76,6 +76,8 @@ class MediaWikiClient:
         )
         # HTTP 会话：使用提供的或创建新的
         self.session = session or requests.Session()
+        if session is None:
+            self.session.trust_env = False
         # 睡眠函数：用于测试时注入 mock 函数
         self.sleep = sleep_func or time.sleep
         # 时间函数：用于测试时注入 mock 函数
