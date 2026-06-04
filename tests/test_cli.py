@@ -28,7 +28,12 @@ from get_genshin_wiki.crawler import WikiCrawler
 from get_genshin_wiki.parser import WikiTextParser
 from get_genshin_wiki.storage import JsonFileStore
 from tests.helpers import build_page_payload
-from tests.test_parser import SAMPLE_BOOK_WIKITEXT, SPECIALIZED_PAGE_CASES
+from tests.test_parser import (
+    SAMPLE_ARCHON_ICON_LIST_WIKITEXT,
+    SAMPLE_ARCHON_TEMPLATE_OPTION_WIKITEXT,
+    SAMPLE_BOOK_WIKITEXT,
+    SPECIALIZED_PAGE_CASES,
+)
 
 # 测试用角色 wikitext
 SAMPLE_CHARACTER_WIKITEXT = """{{角色资料|名字=哥伦比娅|称号=空月归乡|所属=挪德卡莱|介绍=于挪德卡莱诞生的「月之少女」。|元素=水|武器=法器|神之眼描述=三相月临|命之座=御月鸽座}}
@@ -177,6 +182,30 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("title", output)
         self.assertTrue(self.store.exists("parsed/characters", "哥伦比娅"))
         self.assertFalse(self.store.exists("parsed/character-stories", "哥伦比娅"))
+
+    def test_parse_archon_quest_reads_page_payload_and_persists_result(self) -> None:
+        """测试 parse archon-quest 命令会利用列表页上下文并持久化结果。"""
+        self.store.write("pages", "魔神任务", build_page_payload("魔神任务", SAMPLE_ARCHON_ICON_LIST_WIKITEXT, page_id=9))
+        self.store.write("pages", "鸟瞰风物", build_page_payload("鸟瞰风物", SAMPLE_ARCHON_TEMPLATE_OPTION_WIKITEXT, page_id=10))
+
+        exit_code, output = self.run_cli(["parse", "archon-quest", "鸟瞰风物"])
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("鸟瞰风物", output["任务标题"]["中文"])
+        self.assertEqual("序章", output["章节"])
+        self.assertEqual("捕风的异乡人", output["章节名称"])
+        self.assertEqual("第一幕", output["幕"])
+        self.assertEqual("", output["幕名称"])
+        self.assertEqual("option", output["对话"][2]["类型"])
+        self.assertEqual(["前往低语森林", "寻找安柏"], output["任务流程"])
+        self.assertEqual("", output["对话"][0]["所属任务流程"])
+        self.assertIn("相关角色", output)
+        self.assertNotIn("相关NPC", output)
+        self.assertNotIn("英文", output["任务标题"])
+        self.assertNotIn("任务奖励", output)
+        self.assertNotIn("奖励摘要", output)
+        self.assertNotIn("所属版本", output)
+        self.assertTrue(self.store.exists("parsed/archon-quests", "鸟瞰风物"))
 
     def test_parse_specialized_commands_persist_results(self) -> None:
         """测试新增的 7 个 parse 子命令及其默认输出命名空间。"""
