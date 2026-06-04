@@ -897,6 +897,87 @@ class SecretItemRecord:
         }
 
 
+@dataclass
+class EventQuestDialogueEntry:
+    """Structured dialogue item extracted from an event quest flow."""
+
+    type: str
+    speaker: str = ""
+    content: str = ""
+    options: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize a dialogue item for JSON output."""
+        result: dict[str, Any] = {"类型": self.type}
+        if self.speaker:
+            result["说话者"] = self.speaker
+        if self.content:
+            result["内容"] = self.content
+        if self.options:
+            result["选项"] = list(self.options)
+        return result
+
+
+@dataclass
+class EventQuestStepRecord:
+    """Structured dialogue flow for a single event quest step."""
+
+    title: str
+    dialogue: list[EventQuestDialogueEntry] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize a quest flow and its dialogue entries."""
+        return {
+            "任务流程": self.title,
+            "对话": [item.to_dict() for item in self.dialogue],
+        }
+
+
+@dataclass
+class EventQuestRecord:
+    """Structured record for event-quest style pages."""
+
+    title: str
+    region: str
+    quest_type: str
+    event_list: list[str] = field(default_factory=list)
+    event_name: str = ""
+    event_period: str = ""
+    quests: list[str] = field(default_factory=list)
+    description: str = ""
+    dialogue: list[EventQuestStepRecord] = field(default_factory=list)
+    version: str = ""
+    related_event: str = ""
+    related_event_description: str = ""
+    related_characters: list[str] = field(default_factory=list)
+    previous_quest: str = ""
+    next_quest: str = ""
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the event quest record for JSON output."""
+        return {
+            "任务名称": self.title,
+            "任务地区": self.region,
+            "任务类型": self.quest_type,
+            "所属版本": self.version,
+            "所属任务": self.related_event,
+            "所属任务描述": self.related_event_description,
+            "相关角色": "、".join(value for value in self.related_characters if value),
+            "前置任务": self.previous_quest,
+            "后续任务": self.next_quest,
+            "活动列表": list(self.event_list),
+            "活动名称": self.event_name,
+            "活动期间": self.event_period,
+            "任务描述": self.description,
+            "任务列表": list(self.quests),
+            "剧情对话": [item.to_dict() for item in self.dialogue],
+        }
+
+
 # 武器页面专用解析结果
 @dataclass
 class WeaponRecord:

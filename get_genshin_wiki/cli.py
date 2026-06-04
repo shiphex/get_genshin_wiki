@@ -47,6 +47,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+import requests
+
 from .client import MediaWikiClient
 from .crawler import WikiCrawler
 from .parser import WikiTextParser
@@ -62,6 +64,7 @@ _DEFAULT_PARSE_NAMESPACES = {
     "chronicle": "parsed/chronicles",
     "character": "parsed/characters",
     "archon-quest": "parsed/archon-quests",
+    "event-quest": "parsed/event-quests",
     "weapon": "parsed/weapons",
     "artifact": "parsed/artifacts",
     "monster": "parsed/monsters",
@@ -109,7 +112,9 @@ def build_runtime(data_root: Path | None = None) -> CliRuntime:
         配置好的运行时环境对象
     """
     store = JsonFileStore(data_root)
-    client = MediaWikiClient()
+    session = requests.Session()
+    session.trust_env = False
+    client = MediaWikiClient(session=session)
     crawler = WikiCrawler(client=client, store=store)
     parser = WikiTextParser()
     return CliRuntime(store=store, client=client, crawler=crawler, parser=parser)
@@ -185,6 +190,16 @@ def build_parser() -> argparse.ArgumentParser:
     crawl_chronicle_pages.add_argument("--no-persist", action="store_true")
     crawl_chronicle_pages.set_defaults(handler=handle_crawl_chronicle_pages)
 
+    # crawl event-quests：自动探测活动任务分类并抓取成员页面
+    crawl_event_quests = crawl_commands.add_parser(
+        "event-quests",
+        aliases=["eventquests"],
+        help="Discover and fetch event quest pages plus related event pages.",
+    )
+    crawl_event_quests.add_argument("--page-limit", type=int, default=None, help="Limit number of quest pages")
+    crawl_event_quests.add_argument("--no-persist", action="store_true")
+    crawl_event_quests.set_defaults(handler=handle_crawl_event_quests)
+
     # ========== parse 子命令 ==========
     parse_parser = subparsers.add_parser("parse", help="Parse stored page payloads.")
     parse_commands = parse_parser.add_subparsers(dest="parse_target", required=True)
@@ -224,6 +239,18 @@ def build_parser() -> argparse.ArgumentParser:
     parse_archon_quest.add_argument("--output-namespace", default=None)
     parse_archon_quest.add_argument("--no-persist", action="store_true")
     parse_archon_quest.set_defaults(handler=handle_parse_archon_quest)
+
+    # parse event-quest：解析活动任务页面
+    parse_event_quest = parse_commands.add_parser(
+        "event-quest",
+        aliases=["eventquest"],
+        help="Parse a stored event quest page.",
+    )
+    parse_event_quest.add_argument("title", help="Event quest page title")
+    parse_event_quest.add_argument("--source-namespace", default="pages")
+    parse_event_quest.add_argument("--output-namespace", default=None)
+    parse_event_quest.add_argument("--no-persist", action="store_true")
+    parse_event_quest.set_defaults(handler=handle_parse_event_quest)
 
     # parse weapon：解析武器页面
     parse_weapon = parse_commands.add_parser("weapon", help="Parse a stored weapon page.")
@@ -483,6 +510,27 @@ def _maybe_load_archon_series_context(
     return runtime.parser.build_archon_series_context(entries)
 
 
+def _maybe_load_event_payload(
+    store: JsonFileStore,
+    parser: WikiTextParser,
+    namespace: str,
+    payload: dict[str, Any],
+) -> dict[str, Any] | None:
+    """尝试读取活动任务页面对应的活动主页面 payload。"""
+    record = parser.parse_event_quest_page(payload)
+    event_title = record.event_name or record.related_event
+    if not event_title or event_title == record.title or not store.exists(namespace, event_title):
+        return None
+    event_payload = store.read(namespace, event_title)
+    pages = event_payload.get("query", {}).get("pages", {})
+    page = next(iter(pages.values()), {})
+    revisions = page.get("revisions", [])
+    if not revisions:
+        return None
+    wikitext = revisions[0].get("slots", {}).get("main", {}).get("*", "")
+    return event_payload if wikitext else None
+
+
 # ========== crawl 命令处理器 ==========
 
 
@@ -568,6 +616,50 @@ def handle_crawl_chronicle_pages(args: argparse.Namespace, runtime: CliRuntime) 
     return 0
 
 
+def handle_crawl_event_quests(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 crawl event-quests 命令：探测分类并抓取任务及相关活动页面。"""
+    runtime.client.assert_api_allowed()
+    category_name = runtime.crawler.discover_event_quest_category(persist=not args.no_persist)
+    members = runtime.crawler.crawl_category_members(category_name, persist=not args.no_persist)
+    if args.page_limit is not None:
+        members = members[: args.page_limit]
+
+    quest_pages: list[dict[str, Any]] = []
+    related_event_titles: list[str] = []
+    seen_event_titles: set[str] = set()
+
+    for title in members:
+        payload = runtime.crawler.crawl_page(title, persist=not args.no_persist)
+        record = runtime.parser.parse_event_quest_page(payload)
+        page_metadata = _page_metadata(payload, title)
+        if not args.no_persist:
+            page_metadata["path"] = runtime.store.resolve_path("pages", title)
+        quest_pages.append(page_metadata)
+
+        event_title = record.event_name or record.related_event
+        if not event_title or event_title == record.title or event_title in seen_event_titles:
+            continue
+        seen_event_titles.add(event_title)
+        related_event_titles.append(event_title)
+
+    event_pages: list[dict[str, Any]] = []
+    for title in related_event_titles:
+        payload = runtime.crawler.crawl_page(title, persist=not args.no_persist)
+        page_metadata = _page_metadata(payload, title)
+        if not args.no_persist:
+            page_metadata["path"] = runtime.store.resolve_path("pages", title)
+        event_pages.append(page_metadata)
+
+    _print_json(
+        {
+            "category": category_name,
+            "quests": quest_pages,
+            "events": event_pages,
+        }
+    )
+    return 0
+
+
 # ========== parse 命令处理器 ==========
 
 
@@ -612,6 +704,18 @@ def handle_parse_archon_quest(args: argparse.Namespace, runtime: CliRuntime) -> 
     result = runtime.parser.parse_archon_quest_page(payload, series_context=series_context).to_dict()
     if not args.no_persist:
         namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["archon-quest"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_event_quest(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse event-quest 命令：解析活动任务页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    event_payload = _maybe_load_event_payload(runtime.store, runtime.parser, args.source_namespace, payload)
+    result = runtime.parser.parse_event_quest_page(payload, event_payload=event_payload).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["event-quest"]
         runtime.store.write(namespace, args.title, result)
     _print_json(result)
     return 0

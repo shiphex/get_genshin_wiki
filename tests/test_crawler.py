@@ -35,19 +35,26 @@ class FakeClient:
     def __init__(self) -> None:
         self.page_requests: list[str] = []  # 记录请求过的页面
         self.category_requests: list[str | None] = []  # 记录分类探测请求
+        self.categories = ["角色", "活动事件", "活动页面"]
+        self.category_members = {
+            "角色": ["哥伦比娅", "阿蕾奇诺"],
+            "活动事件": ["有朋自远方来·其二", "为了没有眼泪的重逢"],
+        }
 
     def list_categories(self, prefix: str | None = None) -> list[str]:
         """返回预设的分类列表。"""
         self.category_requests.append(prefix)
         if prefix in {"提瓦特", "公元", "编年"}:
             return []
-        return ["角色"] if prefix is None else [prefix]
+        if prefix is None:
+            return list(self.categories)
+        return [name for name in self.categories if name.startswith(prefix)]
 
     def list_category_members(self, category_name: str) -> list[str]:
         """返回预设的分类成员列表。"""
         if category_name in {"提瓦特编年史", "提瓦特编年史（公元纪）", "公元纪"}:
             return []
-        return ["哥伦比娅", "阿蕾奇诺"]
+        return list(self.category_members.get(category_name, []))
 
     def fetch_page_payload(self, title: str) -> dict:
         """返回预设的页面 payload，并记录请求。"""
@@ -81,8 +88,15 @@ class WikiCrawlerTests(unittest.TestCase):
         """
         categories = self.crawler.crawl_categories()
 
-        self.assertEqual(["角色"], categories)
+        self.assertEqual(["角色", "活动事件", "活动页面"], categories)
         self.assertTrue(self.store.list_keys("categories"))
+
+    def test_discover_event_quest_category_prefers_activity_event_category(self) -> None:
+        """测试 discover_event_quest_category 会定位到实际的“活动事件”分类。"""
+        category_name = self.crawler.discover_event_quest_category()
+
+        self.assertEqual("活动事件", category_name)
+        self.assertEqual({"category": "活动事件"}, self.store.read("categories", "event-quests"))
 
     def test_crawl_page_persists_payload(self) -> None:
         """

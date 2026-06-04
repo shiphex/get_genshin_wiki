@@ -333,6 +333,173 @@ SAMPLE_CHRONICLE_WIKITEXT = """{{文章模板
 [[Category:待补充]]
 """
 
+SAMPLE_EVENT_PAGE_WIKITEXT = """{{活动信息
+|活动名称=「有朋自远方来」
+|开始时间=2023/05/11 10:00
+|结束时间=2023/05/22 03:59
+|活动描述=望舒客栈近日迎来了一批来自须弥的客人，你和派蒙决定帮言笑招待他们。
+}}
+==活动剧情==
+===活动任务===
+* [[有朋自远方来·其一]]
+* [[有朋自远方来·其二]]
+* [[有朋自远方来·其三]]
+"""
+
+SAMPLE_EVENT_QUEST_WIKITEXT = """{{任务
+|任务名称=有朋自远方来·其二
+|任务地区=璃月
+|任务类型=活动事件
+|相关活动=[[「有朋自远方来」]]
+|出场人物=[[言笑]]、[[珐露珊]]、[[莱依拉]]、[[多莉]]
+|时间=2023/05/11 10:00 ~ 2023/05/22 03:59
+|任务描述=经历了一天的忙碌，你和派蒙已然可以应付日常的后厨工作，除非有口味挑剔且要求严苛的客人上门…
+}}
+==任务相关==
+===任务条件===
+* 完成任务 有朋自远方来·其一
+===前置任务===
+* [[有朋自远方来·其一]]
+===后续任务===
+* [[有朋自远方来·其三]]
+===任务流程===
+* 与言笑对话
+* 为等待已久的须弥一行人上菜
+===任务剧情===
+> 经历了一天的忙碌，你和派蒙已然可以应付日常的后厨工作。
+====与言笑对话====
+* 言笑：早啊旅行者，今天准备招待新的客人了。
+厨房里飘出热油与香辛料的味道。
+★
+* [[文件:剧情选项-图标-对话.png|32px]] 这声音是…
+* [[文件:剧情选项-图标-对话.png|32px]] 他们看起来很饿。
+* 派蒙：是须弥来的客人！
+* 旅行者：（听上去像是珐露珊她们。）
+====为等待已久的须弥一行人上菜====
+* 言笑：菜来咯，各位慢用。
+几人各怀心事，各自动筷……
+* 珐露珊：看来今天的餐桌格外热闹。
+[[Category:任务]]
+[[Category:活动事件]]
+"""
+
+SAMPLE_EVENT_QUEST_INLINE_OPTION_WIKITEXT = """{{任务
+|任务名称=有朋自远方来·其一
+|任务地区=璃月
+|任务类型=活动事件
+|相关活动=[[「有朋自远方来」]]
+|任务描述=某日，你和派蒙路过了望舒客栈。
+}}
+==任务相关==
+===任务条件===
+* 完成任务「有朋自远方来·其零」
+===任务流程===
+* 查看望舒客栈外的告示
+===任务剧情===
+> 某日，你和派蒙路过了望舒客栈。
+====查看望舒客栈外的告示====
+* 派蒙：——旅行者！你看你看，高薪急聘！
+★
+* [[文件:剧情选项-图标-对话.png|32px]] 望舒客栈怎么会突然招厨师？
+* 派蒙：欸…你说的对哦。
+★
+* [[文件:剧情选项-图标-对话.png|32px]] 你是想去问问言笑的情况吗？
+* [[文件:剧情选项-图标-对话.png|32px]] 你是想去问问酬劳有多少吧。
+* 派蒙：嗯——顺便也去问问酬劳有多少！
+"""
+
+SAMPLE_VERSIONED_EVENT_QUEST_WIKITEXT = """{{任务
+|任务名称=为了没有眼泪的重逢
+|任务地区=蒙德
+|任务类型=传说任务
+|所属版本=月之五
+|相关活动=[[「捕风的归客」]]
+|出场人物=[[迪卢克]]、[[法尔伽]]、[[琴]]
+|时间=2026/01/01 10:00 ~ 2026/02/01 03:59
+|任务描述=艾莉丝用魔法创造了重现你在蒙德旅行经历的泡泡，用于向远征归来的骑士们讲述这段故事。
+}}
+===前置任务===
+* [[捕风的归客]]
+===后续任务===
+* [[巨龙与自由的变奏]]
+===任务流程===
+* 等待到第二天（8-10点）
+===任务剧情===
+> 艾莉丝用魔法创造了重现你在蒙德旅行经历的泡泡。
+====等待到第二天（8-10点）====
+* 旅行者：我已经准备好了。
+夜风穿过蒙德城门。
+* 派蒙：那我们出发吧！
+"""
+
+SAMPLE_BRANCHED_EVENT_QUEST_WIKITEXT = """{{任务
+|任务名称=落幕时分
+|任务地区=须弥
+|任务类型=活动事件
+|相关活动=[[「盛典与慧业」]]
+|任务描述=突然想起卡维还在教令院。
+|任务流程=
+* 回教令院看看
+* （与卡维对话）
+* （回教令院看看）
+}}
+==任务剧情·分支一==
+====回教令院看看====
+* 卡维：第一分支。
+==任务剧情·分支二==
+====回教令院看看====
+====与卡维对话====
+* 卡维：第二分支。
+"""
+
+SAMPLE_ALIAS_HEADING_EVENT_QUEST_WIKITEXT = """{{任务
+|任务名称=未染尘埃的秋霜
+|任务地区=蒙德
+|任务类型=活动事件
+|相关活动=[[「曲生酌微梦」]]
+|任务描述=测试不同标题层级的剧情。
+}}
+==剧情==
+=====◆ 与卢卡对话，进入酒馆 =====
+=====◆ 前往吧台并完成营业准备 =====
+=====◆ 与申鹤对话 =====
+* 申鹤：旅行者，你好。
+=====◆ 为申鹤调制指定饮品 =====
+=====◆ 将饮品交给申鹤 =====
+* 申鹤：很甜。
+{{剧情选项
+|选项1=奶泡没有太多味道…
+|剧情1=
+派蒙：是这样没错…
+|选项2=就像山顶的积雪…
+|剧情2=
+申鹤：这样啊。
+}}
+"""
+
+SAMPLE_NESTED_EVENT_QUEST_WIKITEXT = """{{任务
+|任务名称=暂无止境的斗虫之路！
+|任务地区=璃月
+|任务类型=活动事件
+|相关活动=[[「荒泷甲光烈烈斗虫大修行」]]
+|任务描述=测试嵌套流程标题。
+|任务流程=
+* 对战「天崩石裂超级强者」
+* 与荒泷一斗一行对话
+}}
+==任务剧情==
+===对战「天崩石裂超级强者」===
+* 香菱：准备好了。
+====击败「花羽叶月神机」====
+{{剧情选项
+|选项1=专注难度挑战成功
+|剧情1=
+{{人物对话|左|「天崩石裂超级强者」|♪~}}
+}}
+===与荒泷一斗一行对话===
+* 荒泷一斗：成功了！
+"""
+
 SPECIALIZED_PAGE_CASES = [
     {
         "title": "花果草糖",
@@ -1163,6 +1330,136 @@ class WikiTextParserTests(unittest.TestCase):
         result = self.parser.parse_north_library_page(payload)
 
         self.assertEqual(["需要帮助"], result.categories)
+
+    def test_parse_event_quest_page_extracts_metadata_and_dialogue(self) -> None:
+        """测试 parse_event_quest_page 解析活动任务元数据、流程与对话。"""
+        payload = build_page_payload("有朋自远方来·其二", SAMPLE_EVENT_QUEST_WIKITEXT, page_id=301)
+        event_payload = build_page_payload("「有朋自远方来」", SAMPLE_EVENT_PAGE_WIKITEXT, page_id=302)
+
+        result = self.parser.parse_event_quest_page(payload, event_payload=event_payload)
+
+        self.assertEqual("有朋自远方来·其二", result.title)
+        self.assertEqual("璃月", result.region)
+        self.assertEqual("活动事件", result.quest_type)
+        self.assertEqual("「有朋自远方来」", result.related_event)
+        self.assertEqual(["言笑", "珐露珊", "莱依拉", "多莉"], result.related_characters)
+        self.assertEqual("有朋自远方来·其一", result.previous_quest)
+        self.assertEqual("有朋自远方来·其三", result.next_quest)
+        self.assertEqual("望舒客栈近日迎来了一批来自须弥的客人，你和派蒙决定帮言笑招待他们。", result.related_event_description)
+        self.assertEqual(
+            ["有朋自远方来·其一", "有朋自远方来·其二", "有朋自远方来·其三"],
+            result.event_list,
+        )
+        self.assertEqual("「有朋自远方来」", result.event_name)
+        self.assertEqual("2023/05/11 10:00 ~ 2023/05/22 03:59", result.event_period)
+        self.assertEqual(
+            ["与言笑对话", "为等待已久的须弥一行人上菜"],
+            result.quests,
+        )
+        self.assertEqual("角色/NPC", result.dialogue[0].dialogue[0].type)
+        self.assertEqual("言笑", result.dialogue[0].dialogue[0].speaker)
+        self.assertEqual("旁白", result.dialogue[0].dialogue[1].type)
+        self.assertEqual(["这声音是…", "他们看起来很饿。"], result.dialogue[0].dialogue[2].options)
+        self.assertEqual("旅行者", result.dialogue[0].dialogue[4].type)
+
+    def test_parse_event_quest_page_handles_versioned_story_task_without_event_page(self) -> None:
+        """测试 parse_event_quest_page 在缺少活动主页时回退当前任务页面字段。"""
+        payload = build_page_payload("为了没有眼泪的重逢", SAMPLE_VERSIONED_EVENT_QUEST_WIKITEXT, page_id=303)
+
+        result = self.parser.parse_event_quest_page(payload)
+
+        self.assertEqual("为了没有眼泪的重逢", result.title)
+        self.assertEqual("蒙德", result.region)
+        self.assertEqual("传说任务", result.quest_type)
+        self.assertEqual("月之五", result.version)
+        self.assertEqual("「捕风的归客」", result.related_event)
+        self.assertEqual("「捕风的归客」", result.event_name)
+        self.assertEqual("2026/01/01 10:00 ~ 2026/02/01 03:59", result.event_period)
+        self.assertEqual("", result.related_event_description)
+        self.assertEqual("捕风的归客", result.previous_quest)
+        self.assertEqual("巨龙与自由的变奏", result.next_quest)
+        self.assertEqual(["等待到第二天（8-10点）"], result.quests)
+        self.assertEqual("旅行者", result.dialogue[0].dialogue[0].type)
+        self.assertEqual("旁白", result.dialogue[0].dialogue[1].type)
+
+    def test_parse_event_quest_page_uses_branched_plot_headings_when_parent_plot_section_is_split(self) -> None:
+        """测试 parse_event_quest_page 会从“任务剧情·分支X”章节中提取重复流程标题。"""
+        payload = build_page_payload("落幕时分", SAMPLE_BRANCHED_EVENT_QUEST_WIKITEXT, page_id=3031)
+
+        result = self.parser.parse_event_quest_page(payload)
+
+        self.assertEqual(
+            ["回教令院看看", "回教令院看看", "与卡维对话"],
+            result.quests,
+        )
+        self.assertEqual(
+            ["回教令院看看", "回教令院看看", "与卡维对话"],
+            [step.title for step in result.dialogue],
+        )
+        self.assertEqual("卡维", result.dialogue[0].dialogue[0].speaker)
+        self.assertEqual([], result.dialogue[1].dialogue)
+        self.assertEqual("卡维", result.dialogue[2].dialogue[0].speaker)
+
+    def test_parse_event_quest_page_supports_plot_aliases_and_level_five_headings(self) -> None:
+        """测试 parse_event_quest_page 支持“剧情”章节与 ===== 流程标题。"""
+        payload = build_page_payload("未染尘埃的秋霜", SAMPLE_ALIAS_HEADING_EVENT_QUEST_WIKITEXT, page_id=3032)
+
+        result = self.parser.parse_event_quest_page(payload)
+
+        self.assertEqual(
+            [
+                "◆ 与卢卡对话，进入酒馆",
+                "◆ 前往吧台并完成营业准备",
+                "◆ 与申鹤对话",
+                "◆ 为申鹤调制指定饮品",
+                "◆ 将饮品交给申鹤",
+            ],
+            result.quests,
+        )
+        self.assertEqual(5, len(result.dialogue))
+        self.assertEqual([], result.dialogue[0].dialogue)
+        self.assertEqual("申鹤", result.dialogue[2].dialogue[0].speaker)
+        self.assertEqual("选项", result.dialogue[4].dialogue[1].type)
+        self.assertEqual(
+            ["奶泡没有太多味道…", "就像山顶的积雪…"],
+            result.dialogue[4].dialogue[1].options,
+        )
+
+    def test_parse_event_quest_page_keeps_nested_plot_steps_and_template_dialogue(self) -> None:
+        """测试 parse_event_quest_page 会保留嵌套流程标题并展开模板对白。"""
+        payload = build_page_payload("暂无止境的斗虫之路！", SAMPLE_NESTED_EVENT_QUEST_WIKITEXT, page_id=3033)
+
+        result = self.parser.parse_event_quest_page(payload)
+
+        self.assertEqual(
+            ["对战「天崩石裂超级强者」", "击败「花羽叶月神机」", "与荒泷一斗一行对话"],
+            result.quests,
+        )
+        self.assertEqual(
+            ["对战「天崩石裂超级强者」", "击败「花羽叶月神机」", "与荒泷一斗一行对话"],
+            [step.title for step in result.dialogue],
+        )
+        self.assertEqual("香菱", result.dialogue[0].dialogue[0].speaker)
+        self.assertEqual("选项", result.dialogue[1].dialogue[0].type)
+        self.assertEqual(["专注难度挑战成功"], result.dialogue[1].dialogue[0].options)
+        self.assertEqual("「天崩石裂超级强者」", result.dialogue[1].dialogue[1].speaker)
+        self.assertEqual("♪~", result.dialogue[1].dialogue[1].content)
+
+    def test_parse_event_quest_page_strips_option_icon_artifacts_and_condition_quotes(self) -> None:
+        """测试 parse_event_quest_page 会清理选项图标残留并规范任务条件中的引号。"""
+        payload = build_page_payload("有朋自远方来·其一", SAMPLE_EVENT_QUEST_INLINE_OPTION_WIKITEXT, page_id=304)
+
+        result = self.parser.parse_event_quest_page(payload)
+
+        self.assertEqual("有朋自远方来·其零", result.previous_quest)
+        self.assertEqual(
+            ["望舒客栈怎么会突然招厨师？"],
+            result.dialogue[0].dialogue[1].options,
+        )
+        self.assertEqual(
+            ["你是想去问问言笑的情况吗？", "你是想去问问酬劳有多少吧。"],
+            result.dialogue[0].dialogue[3].options,
+        )
 
     def test_extract_page_metadata_raises_for_invalid_payload(self) -> None:
         """
