@@ -13,7 +13,10 @@
       "Bash(uv sync)",
       "Bash(do:*)",
       "Bash(rm:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Read(//c/Users/ZHmso/AppData/Local/Temp/claude/E--Workplace-Learn-project-get-genshin-wiki-event-quests/tasks//**)",
+      "Read(//c/Users/ZHmso/AppData/Local/Temp/claude//**)"
     ]
   }
 }
