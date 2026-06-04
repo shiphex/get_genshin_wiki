@@ -240,6 +240,50 @@ class BookRecord:
 
 
 @dataclass
+class NorthLibraryNode:
+    """Structured node in the North Library encyclopedia tree."""
+
+    kind: str
+    title: str = ""
+    text: str = ""
+    children: list["NorthLibraryNode"] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the node and its descendants for JSON output."""
+        return {
+            "kind": self.kind,
+            "title": self.title,
+            "text": self.text,
+            "children": [child.to_dict() for child in self.children],
+        }
+
+
+@dataclass
+class NorthLibraryRecord:
+    """Structured record for the North Library encyclopedia index page."""
+
+    title: str
+    page_id: int | str | None
+    summary: str
+    categories: list[str] = field(default_factory=list)
+    library_category: str = ""
+    category_candidates: list[str] = field(default_factory=list)
+    nodes: list[NorthLibraryNode] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the North Library record for JSON output."""
+        return {
+            "title": self.title,
+            "page_id": self.page_id,
+            "summary": self.summary,
+            "categories": self.categories,
+            "library_category": self.library_category,
+            "category_candidates": self.category_candidates,
+            "nodes": [node.to_dict() for node in self.nodes],
+        }
+
+
+@dataclass
 class CharacterStoryRecord:
     """角色故事类内容记录。"""
 
@@ -470,6 +514,90 @@ class CharacterRecord:
 
 
 @dataclass
+class ChronicleRecord:
+    """Legacy flat chronicle record kept for compatibility with old helpers."""
+
+    era_name: str
+    year: str
+    major_events: list[str] = field(default_factory=list)
+    faction_changes: list[str] = field(default_factory=list)
+    related_characters: list[str] = field(default_factory=list)
+    background: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the legacy chronicle record for JSON output."""
+        return {
+            "era_name": self.era_name,
+            "year": self.year,
+            "major_events": self.major_events,
+            "faction_changes": self.faction_changes,
+            "related_characters": self.related_characters,
+            "background": self.background,
+        }
+
+
+@dataclass
+class ChronicleItemRecord:
+    """Structured record for one chronicle item within a chapter."""
+
+    title: str
+    content: str = ""
+    entries: list[str] = field(default_factory=list)
+    related_characters: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the chronicle item for JSON output."""
+        return {
+            "title": self.title,
+            "content": self.content,
+            "entries": self.entries,
+            "related_characters": self.related_characters,
+        }
+
+
+@dataclass
+class ChronicleSectionRecord:
+    """Structured record for one chronicle chapter or subchapter."""
+
+    title: str
+    level: int
+    content: str = ""
+    items: list[ChronicleItemRecord] = field(default_factory=list)
+    subsections: list["ChronicleSectionRecord"] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the chronicle section for JSON output."""
+        return {
+            "title": self.title,
+            "level": self.level,
+            "content": self.content,
+            "items": [item.to_dict() for item in self.items],
+            "subsections": [section.to_dict() for section in self.subsections],
+        }
+
+
+@dataclass
+class ChroniclePageRecord:
+    """Structured record for one chronicle page and its chapter tree."""
+
+    title: str
+    intro: str = ""
+    sections: list[ChronicleSectionRecord] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the chronicle page record for JSON output."""
+        return {
+            "title": self.title,
+            "intro": self.intro,
+            "sections": [section.to_dict() for section in self.sections],
+            "categories": self.categories,
+            "page_id": self.page_id,
+        }
+
+
+@dataclass
 class FoodRecord:
     """Structured record for food pages."""
 
@@ -561,6 +689,117 @@ class QuestItemRecord:
             "相关任务": self.related_quest,
             "获取方式": self.obtain_method,
             "内容": self.content,
+        }
+
+
+@dataclass
+class QuestRewardRecord:
+    """Structured reward entry for quest-like pages."""
+
+    name: str
+    amount: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the reward entry for JSON output."""
+        return {
+            "\u540d\u79f0": self.name,
+            "\u6570\u91cf": self.amount,
+        }
+
+
+@dataclass
+class ArchonQuestReference:
+    """Structured quest-chain reference for archon quest pages."""
+
+    title: str
+    chapter: str = ""
+    act: str = ""
+
+    def to_dict(self) -> dict[str, str]:
+        """Serialize the quest reference for JSON output."""
+        return {
+            "\u4efb\u52a1\u540d\u79f0": self.title,
+            "\u7b2c\u51e0\u7ae0": self.chapter,
+            "\u7b2c\u51e0\u5e55": self.act,
+        }
+
+
+@dataclass
+class ArchonQuestDialogue:
+    """Structured dialogue line for archon quest pages."""
+
+    speaker: str
+    text: str
+    dialogue_type: str
+    task_flow: str = ""
+
+    def to_dict(self) -> dict[str, str]:
+        """Serialize the dialogue line for JSON output."""
+        return {
+            "\u8bf4\u8bdd\u8005": self.speaker,
+            "\u5185\u5bb9": self.text,
+            "\u7c7b\u578b": self.dialogue_type,
+            "\u6240\u5c5e\u4efb\u52a1\u6d41\u7a0b": self.task_flow,
+        }
+
+
+@dataclass
+class ArchonQuestRecord:
+    """Structured record for archon quest pages."""
+
+    title: str
+    english_title: str = ""
+    page_type: str = ""
+    chapter: str = ""
+    chapter_name: str = ""
+    act: str = ""
+    act_name: str = ""
+    description: str = ""
+    objectives: list[str] = field(default_factory=list)
+    rewards: list[QuestRewardRecord] = field(default_factory=list)
+    related_npcs: list[str] = field(default_factory=list)
+    region: str = ""
+    version: str = ""
+    series: list[str] = field(default_factory=list)
+    prerequisites: list[ArchonQuestReference] = field(default_factory=list)
+    parallel_quests: list[ArchonQuestReference] = field(default_factory=list)
+    follow_up_quests: list[ArchonQuestReference] = field(default_factory=list)
+    dialogues: list[ArchonQuestDialogue] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def reward_summary(self) -> dict[str, int | str | None]:
+        """Build a compact reward-name to amount mapping."""
+        summary: dict[str, int | str | None] = {}
+        for reward in self.rewards:
+            if reward.name in summary and isinstance(summary[reward.name], int) and isinstance(reward.amount, int):
+                summary[reward.name] = summary[reward.name] + reward.amount
+                continue
+            summary[reward.name] = reward.amount
+        return summary
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the archon quest record for JSON output."""
+        return {
+            "\u4efb\u52a1\u6807\u9898": {
+                "\u4e2d\u6587": self.title,
+            },
+            "\u9875\u9762\u7c7b\u578b": self.page_type,
+            "\u7ae0\u8282": self.chapter,
+            "\u7ae0\u8282\u540d\u79f0": self.chapter_name,
+            "\u5e55": self.act,
+            "\u5e55\u540d\u79f0": self.act_name,
+            "\u63cf\u8ff0": self.description,
+            "\u4efb\u52a1\u6d41\u7a0b": list(self.objectives),
+            "\u76f8\u5173\u89d2\u8272": list(self.related_npcs),
+            "\u4efb\u52a1\u5730\u533a": self.region,
+            "\u7cfb\u5217\u4efb\u52a1": list(self.series),
+            "\u524d\u7f6e\u4efb\u52a1": [item.to_dict() for item in self.prerequisites],
+            "\u5e76\u884c\u4efb\u52a1": [item.to_dict() for item in self.parallel_quests],
+            "\u540e\u7eed\u4efb\u52a1": [item.to_dict() for item in self.follow_up_quests],
+            "\u5bf9\u8bdd": [dialogue.to_dict() for dialogue in self.dialogues],
         }
 
 

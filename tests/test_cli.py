@@ -29,10 +29,15 @@ from get_genshin_wiki.parser import WikiTextParser
 from get_genshin_wiki.storage import JsonFileStore
 from tests.helpers import build_page_payload
 from tests.test_parser import (
+    SAMPLE_ARCHON_ICON_LIST_WIKITEXT,
+    SAMPLE_ARCHON_TEMPLATE_OPTION_WIKITEXT,
+    (
     SAMPLE_BOOK_WIKITEXT,
+    SAMPLE_CHRONICLE_WIKITEXT,
     SAMPLE_EVENT_PAGE_WIKITEXT,
     SAMPLE_EVENT_QUEST_WIKITEXT,
     SPECIALIZED_PAGE_CASES,
+),
 )
 
 # 测试用角色 wikitext
@@ -97,17 +102,27 @@ class FakeClient:
 
     def list_categories(self, prefix: str | None = None) -> list[str]:
         """返回预设分类列表。"""
+        if prefix in {"提瓦特", "公元", "编年"}:
+            return []
         if prefix is None:
             return list(self.categories)
         return [name for name in self.categories if name.startswith(prefix)]
 
     def list_category_members(self, category_name: str) -> list[str]:
         """返回预设分类成员列表。"""
+        if category_name in {"提瓦特编年史", "提瓦特编年史（公元纪）", "公元纪"}:
+            return []
         return list(self.category_members.get(category_name, []))
 
     def fetch_page_payload(self, title: str) -> dict:
         """返回预设页面 payload 并记录请求。"""
         self.page_requests.append(title)
+        if title == "提瓦特编年史（公元纪）":
+            return build_page_payload(title, SAMPLE_CHRONICLE_WIKITEXT, page_id=len(self.page_requests))
+        if title == "提瓦特编年史":
+            return build_page_payload(title, "#重定向 [[提瓦特编年史（公元纪）]]", page_id=len(self.page_requests))
+        if title == "编年史":
+            return build_page_payload(title, "#重定向 [[提瓦特编年史]]", page_id=len(self.page_requests))
         if title in self.page_payloads:
             return self.page_payloads[title]
         return build_page_payload(title, f"{title} 的正文", page_id=len(self.page_requests))
@@ -171,6 +186,20 @@ class CliTests(unittest.TestCase):
         self.assertTrue(self.store.exists("pages", "哥伦比娅"))
         self.assertFalse(self.store.exists("pages", "阿蕾奇诺"))
 
+    def test_crawl_chronicle_pages_falls_back_to_page_probe_and_persists_pages(self) -> None:
+        """测试 crawl chronicle-pages 会回退到页面探测并抓取编年史页面。"""
+        exit_code, output = self.run_cli(["crawl", "chronicle-pages", "--page-limit", "1"])
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("page", output["source_type"])
+        self.assertEqual("", output["category_name"])
+        self.assertEqual(["提瓦特编年史（公元纪）"], output["page_titles"])
+        self.assertEqual(1, len(output["pages"]))
+        self.assertEqual("提瓦特编年史（公元纪）", output["pages"][0]["title"])
+        self.assertEqual(["提瓦特编年史（公元纪）", "提瓦特编年史（公元纪）"], self.client.page_requests)
+        self.assertEqual(1, self.client.allowed_checks)
+        self.assertTrue(self.store.exists("pages", "提瓦特编年史（公元纪）"))
+
     def test_parse_character_reads_page_payload_and_persists_result(self) -> None:
         """
         测试 parse character 命令：
@@ -192,6 +221,53 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("title", output)
         self.assertTrue(self.store.exists("parsed/characters", "哥伦比娅"))
         self.assertFalse(self.store.exists("parsed/character-stories", "哥伦比娅"))
+
+    def test_parse_archon_quest_reads_page_payload_and_persists_result(self) -> None:
+        """测试 parse archon-quest 命令会利用列表页上下文并持久化结果。"""
+        self.store.write("pages", "魔神任务", build_page_payload("魔神任务", SAMPLE_ARCHON_ICON_LIST_WIKITEXT, page_id=9))
+        self.store.write("pages", "鸟瞰风物", build_page_payload("鸟瞰风物", SAMPLE_ARCHON_TEMPLATE_OPTION_WIKITEXT, page_id=10))
+
+        exit_code, output = self.run_cli(["parse", "archon-quest", "鸟瞰风物"])
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("鸟瞰风物", output["任务标题"]["中文"])
+        self.assertEqual("序章", output["章节"])
+        self.assertEqual("捕风的异乡人", output["章节名称"])
+        self.assertEqual("第一幕", output["幕"])
+        self.assertEqual("", output["幕名称"])
+        self.assertEqual("option", output["对话"][2]["类型"])
+        self.assertEqual(["前往低语森林", "寻找安柏"], output["任务流程"])
+        self.assertEqual("", output["对话"][0]["所属任务流程"])
+        self.assertIn("相关角色", output)
+        self.assertNotIn("相关NPC", output)
+        self.assertNotIn("英文", output["任务标题"])
+        self.assertNotIn("任务奖励", output)
+        self.assertNotIn("奖励摘要", output)
+        self.assertNotIn("所属版本", output)
+        self.assertTrue(self.store.exists("parsed/archon-quests", "鸟瞰风物"))
+
+    def test_parse_chronicle_reads_page_payload_and_persists_result(self) -> None:
+        """测试 parse chronicle 命令会输出并持久化编年史结构。"""
+        self.store.write(
+            "pages",
+            "提瓦特编年史（公元纪）",
+            build_page_payload("提瓦特编年史（公元纪）", SAMPLE_CHRONICLE_WIKITEXT, page_id=11),
+        )
+
+        exit_code, output = self.run_cli(["parse", "chronicle", "提瓦特编年史（公元纪）"])
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("提瓦特编年史（公元纪）", output["title"])
+        self.assertEqual("", output["intro"])
+        self.assertEqual(1, len(output["sections"]))
+        self.assertEqual("提瓦特公元纪年", output["sections"][0]["title"])
+        self.assertEqual("公元前", output["sections"][0]["items"][0]["title"])
+        self.assertTrue(self.store.exists("parsed/chronicles", "提瓦特编年史（公元纪）"))
+        return
+        self.assertEqual("提瓦特编年史（公元纪）", output["title"])
+        self.assertEqual(4, len(output["records"]))
+        self.assertEqual("公元前", output["records"][1]["year"])
+        self.assertTrue(self.store.exists("parsed/chronicles", "提瓦特编年史（公元纪）"))
 
     def test_crawl_event_quests_discovers_category_and_fetches_related_event_pages(self) -> None:
         """测试 crawl event-quests 会探测活动任务分类并补抓相关活动主页。"""

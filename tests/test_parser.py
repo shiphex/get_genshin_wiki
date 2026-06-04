@@ -192,6 +192,147 @@ SAMPLE_BOOK_WIKITEXT = """{{书籍|名称=白夜国馆藏|体裁=史书|国家=�
 {{书籍|卷2名=鬼人正传|卷2获取地点=完成「鸣海渚祭」活动获得|卷2描述=讲述了珊瑚宫一段不为人知的历史|卷2内容=第一章内容...}}
 """
 
+SAMPLE_ARCHON_LIST_WIKITEXT = """== 序章：捕风的异乡人 ==
+=== 第一幕：捕风的异乡人 ===
+* [[鸟瞰风物]]
+* [[异常的权柄]]
+
+== 第四章：白露与黑潮的序诗 ==
+=== 第六幕：你存在的时空 ===
+* [[如月长存]]
+"""
+
+SAMPLE_ARCHON_WIKITEXT = """{{任务
+|任务名称=鸟瞰风物
+|任务描述=从坠星山谷启程，你和派蒙走走看看，一路前行。
+|系列任务=捕风的异乡人
+|前置任务=流浪者的足迹
+|后续任务=异常的权柄
+|任务流程=* 前往低语森林
+* 寻找安柏
+|出场人物=安柏、派蒙
+}}
+== 任务剧情 ==
+安柏：前面的区域，之后再来探索吧。
+旅行者：好，我们继续前进。
+选项：我们出发吧。
+风带来了远方的种子。
+派蒙：嘿嘿，冒险才刚开始呢！
+"""
+
+SAMPLE_ARCHON_ICON_LIST_WIKITEXT = """== [[序章]] 捕风的异乡人 ==
+'''本部分会依次解锁并接取'''
+{{图标|任务|蒙德|1|序章 第一幕|捕风的异乡人}}
+{{图标|任务|蒙德|2|序章 第二幕|为了没有眼泪的明天}}
+{{图标|任务|蒙德|3|序章 第三幕|巨龙与自由之歌}}
+
+== [[第一章]] 辞行久远之躯 ==
+'''前3幕任务分别在23级、25级、28级解锁，第四幕在完成世界任务[[迫近的客星]]后解锁'''
+{{图标|任务|璃月|1|第一章 第一幕|浮世浮生千岩间}}
+{{图标|任务|璃月|2|第一章 第二幕|辞行久远之躯}}
+{{图标|任务|璃月|3|第一章 第三幕|迫近的客星}}
+'''[[拾枝者·戴因斯雷布]]'''
+{{图标|任务|蒙德|4|第一章 第四幕|我们终将重逢}}
+"""
+
+SAMPLE_ARCHON_TEMPLATE_OPTION_WIKITEXT = """{{任务
+|任务名称=鸟瞰风物
+|任务名称英文=Bird's Eye View
+|任务描述=从坠星山谷启程，你和派蒙走走看看，一路前行。
+|系列任务=捕风的异乡人
+|前置任务=完成魔神任务 序章·第一幕「[[流浪者的足迹]]」
+|并行任务=序章·第一幕「[[林间相会]]」
+|后续任务=序章·第一幕「[[异常的权柄]]」
+|任务流程=* 前往低语森林
+* 寻找安柏
+|出场人物=安柏、派蒙
+}}
+== 任务剧情 ==
+安柏：前面的区域，之后再来探索吧。
+旅行者：好，我们继续前进。
+{{选项|选项1=我们出发吧。|选择1=*风带来了远方的种子。|选项2=再等等。}}
+派蒙：啊哦，冒险才刚开始呢！
+"""
+
+SAMPLE_ARCHON_MOON_SONG_LIST_WIKITEXT = """== [[第五章]] 炽烈的还魂诗 ==
+{{图标|任务|纳塔|6|第五章 第六幕|你存在的时空}}
+== [[空月之歌]] ==
+{{图标|任务|挪德卡莱|1|空月之歌 序奏|归途}}
+{{图标|任务|挪德卡莱|2|空月之歌 第一幕|雪浪与苍林之舞}}
+"""
+
+SAMPLE_ARCHON_MOON_SONG_QUEST_WIKITEXT = """{{任务
+|任务名称=月亮升起的地方
+|任务描述=月光铺就前路。
+|任务地区=挪德卡莱
+|任务条件=完成魔神任务：空月之歌·序奏「[[归途]]」
+|系列任务=空月之歌,雪浪与苍林之舞
+|前置任务=*[[归途]]
+|任务流程=*踏上新的旅程
+}}
+==任务剧情==
+===踏上新的旅程===
+*派蒙：那我们就出发吧。
+{{剧情选项
+|选项1=走吧。
+|剧情1=*旅行者：嗯。
+}}
+"""
+
+SAMPLE_NORTH_LIBRARY_WIKITEXT = """北陆图书馆导言<br>第二行
+
+=<center>提瓦特</center>=
+一级正文
+==[[提瓦特编年史]]==
+二级正文
+===穿越星海===
+三级正文
+====史莱姆====
+四级正文
+<big>'''时间'''</big>
+项目正文<br>第二行
+*普通条目
+*'''周期'''
+条目正文
+<big>'''{{颜色|火1|火}}'''</big>
+颜色项目正文
+
+[[Category:北陆图书馆]]
+"""
+
+SAMPLE_CHRONICLE_SPEC_WIKITEXT = """=== 太古 ===
+==== 原初 ====
+===== 原初之人 =====
+'''降临之初'''
+*[[法涅斯]]自世界之外降临提瓦特，击败七龙王。
+*建立新的世界秩序与四执政。
+[[尼伯龙根]]率领旧王残余退守深渊，势力此消彼长。
+
+'''约四十年后'''
+*原初之人与龙族再度爆发大战。
+旧日王庭覆灭，提瓦特进入新的统治阶段。
+
+=== 魔神战争时期 ===
+'''约两千年前'''
+*[[巴巴托斯]]与[[摩拉克斯]]在乱世中崛起。
+魔神战争改变了各国势力版图。
+[[Category:提瓦特编年史]]
+"""
+
+SAMPLE_CHRONICLE_WIKITEXT = """{{文章模板
+|文章上级页面=北陆图书馆
+|时间=4.14 21:00
+|是否原创=是
+|作者=陈冰然
+}}
+===提瓦特公元纪年===
+（以鸽子衔枝之年为公元1年）
+*公元前  [[尼伯龙根]]与提瓦特一同诞生。龙族统治着古代提瓦特。
+*公元1年  「第一王座」法涅斯从蛋中诞生，割裂出「原初四影」作为最初的执政。
+*公元41年  七龙王全向法涅斯俯首称臣。龙在枫丹地区的统治崩溃，部分龙族退守暗之外海。
+[[Category:待补充]]
+"""
+
 SAMPLE_EVENT_PAGE_WIKITEXT = """{{活动信息
 |活动名称=「有朋自远方来」
 |开始时间=2023/05/11 10:00
@@ -659,6 +800,130 @@ class WikiTextParserTests(unittest.TestCase):
         self.assertEqual(["闲聊·歌", "下雨的时候"], [item.title for item in result])
         self.assertEqual("我的歌并不为谁而唱。\n但如果有人驻足。", result[0].content)
 
+    def test_parse_chronicle_page_extracts_structured_timeline_records(self) -> None:
+        """测试 parse_chronicle_page 提取公元纪样式的结构化记录。"""
+        payload = build_page_payload("提瓦特编年史（公元纪）", SAMPLE_CHRONICLE_WIKITEXT, page_id=12)
+
+        result = self.parser.parse_chronicle_page(payload).to_dict()
+
+        self.assertEqual("提瓦特编年史（公元纪）", result["title"])
+        self.assertEqual(12, result["page_id"])
+        self.assertEqual(["待补充"], result["categories"])
+        self.assertEqual("", result["intro"])
+        self.assertEqual(1, len(result["sections"]))
+
+        era_section = result["sections"][0]
+        self.assertEqual("提瓦特公元纪年", era_section["title"])
+        self.assertEqual(3, era_section["level"])
+        self.assertEqual("（以鸽子衔枝之年为公元1年）", era_section["content"])
+        self.assertEqual([], era_section["subsections"])
+        self.assertEqual(3, len(era_section["items"]))
+
+        first_item = era_section["items"][0]
+        self.assertEqual("公元前", first_item["title"])
+        self.assertEqual("尼伯龙根与提瓦特一同诞生。龙族统治着古代提瓦特。", first_item["content"])
+        self.assertEqual([], first_item["entries"])
+        self.assertEqual(["尼伯龙根"], first_item["related_characters"])
+
+        second_item = era_section["items"][1]
+        self.assertEqual("公元1年", second_item["title"])
+        self.assertIn("法涅斯从蛋中诞生", second_item["content"])
+        self.assertEqual([], second_item["entries"])
+
+        third_item = era_section["items"][2]
+        self.assertEqual("公元41年", third_item["title"])
+        self.assertIn("七龙王全向法涅斯俯首称臣。", third_item["content"])
+        self.assertEqual([], third_item["entries"])
+        return
+
+        self.assertEqual("提瓦特编年史（公元纪）", result["title"])
+        self.assertEqual(12, result["page_id"])
+        self.assertEqual(["待补充"], result["categories"])
+        self.assertEqual(4, len(result["records"]))
+
+        first_record = result["records"][0]
+        self.assertEqual("提瓦特公元纪年", first_record["era_name"])
+        self.assertEqual("", first_record["year"])
+        self.assertEqual([], first_record["major_events"])
+        self.assertEqual([], first_record["faction_changes"])
+        self.assertEqual([], first_record["related_characters"])
+        self.assertEqual("（以鸽子衔枝之年为公元1年）", first_record["background"])
+
+        second_record = result["records"][1]
+        self.assertEqual("公元前", second_record["year"])
+        self.assertEqual(["尼伯龙根与提瓦特一同诞生。龙族统治着古代提瓦特。"], second_record["major_events"])
+        self.assertEqual(["龙族统治着古代提瓦特。"], second_record["faction_changes"])
+        self.assertEqual(["尼伯龙根"], second_record["related_characters"])
+        self.assertEqual("尼伯龙根与提瓦特一同诞生。龙族统治着古代提瓦特。", second_record["background"])
+
+        third_record = result["records"][2]
+        self.assertEqual("公元1年", third_record["year"])
+        self.assertIn("法涅斯从蛋中诞生", third_record["major_events"][0])
+        self.assertEqual(["「第一王座」法涅斯从蛋中诞生，割裂出「原初四影」作为最初的执政。"], third_record["faction_changes"])
+
+        fourth_record = result["records"][3]
+        self.assertEqual("公元41年", fourth_record["year"])
+        self.assertIn("七龙王全向法涅斯俯首称臣。", fourth_record["major_events"][0])
+        self.assertIn("龙在枫丹地区的统治崩溃，部分龙族退守暗之外海。", fourth_record["faction_changes"])
+
+    def test_parse_chronicle_page_supports_spec_heading_and_bold_item_rules(self) -> None:
+        """测试 parse_chronicle_page 兼容 spec 中定义的标题/项目/条目法则。"""
+        payload = build_page_payload("提瓦特编年史", SAMPLE_CHRONICLE_SPEC_WIKITEXT, page_id=13)
+
+        result = self.parser.parse_chronicle_page(payload).to_dict()
+
+        self.assertEqual("", result["intro"])
+        self.assertEqual(2, len(result["sections"]))
+
+        ancient_section = result["sections"][0]
+        self.assertEqual("太古", ancient_section["title"])
+        self.assertEqual(3, ancient_section["level"])
+        self.assertEqual("", ancient_section["content"])
+        self.assertEqual([], ancient_section["items"])
+        self.assertEqual(1, len(ancient_section["subsections"]))
+
+        origin_section = ancient_section["subsections"][0]
+        self.assertEqual("原初", origin_section["title"])
+        self.assertEqual(4, origin_section["level"])
+        self.assertEqual(1, len(origin_section["subsections"]))
+
+        first_people_section = origin_section["subsections"][0]
+        self.assertEqual("原初之人", first_people_section["title"])
+        self.assertEqual(5, first_people_section["level"])
+        self.assertEqual(2, len(first_people_section["items"]))
+
+        first_item = first_people_section["items"][0]
+        self.assertEqual("降临之初", first_item["title"])
+        self.assertEqual(
+            ["法涅斯自世界之外降临提瓦特，击败七龙王。", "建立新的世界秩序与四执政。"],
+            first_item["entries"],
+        )
+        self.assertIn("法涅斯", first_item["related_characters"])
+
+        second_item = first_people_section["items"][1]
+        self.assertEqual("约四十年后", second_item["title"])
+        self.assertEqual(
+            ["原初之人与龙族再度爆发大战。"],
+            second_item["entries"],
+        )
+        self.assertEqual("旧日王庭覆灭，提瓦特进入新的统治阶段。", second_item["content"])
+
+        archon_war_section = result["sections"][1]
+        self.assertEqual("魔神战争时期", archon_war_section["title"])
+        self.assertEqual(1, len(archon_war_section["items"]))
+        self.assertEqual("约两千年前", archon_war_section["items"][0]["title"])
+        return
+
+        self.assertEqual(3, len(result["records"]))
+        self.assertEqual("太古 / 原初 / 原初之人", result["records"][0]["era_name"])
+        self.assertEqual("降临之初", result["records"][0]["year"])
+        self.assertEqual(
+            ["法涅斯自世界之外降临提瓦特，击败七龙王。", "建立新的世界秩序与四执政。"],
+            result["records"][0]["major_events"],
+        )
+        self.assertEqual("约四十年后", result["records"][1]["year"])
+        self.assertEqual("魔神战争时期", result["records"][2]["era_name"])
+
     def test_parse_character_page_extracts_sections_and_categories_from_realistic_wikitext(self) -> None:
         """
         测试真实页面结构下的章节切换板提取与 payload 分类回退。
@@ -919,6 +1184,152 @@ class WikiTextParserTests(unittest.TestCase):
             },
             boss_domain_result["掉落"],
         )
+
+    def test_parse_archon_quest_list_page_extracts_chapter_act_hierarchy(self) -> None:
+        """测试魔神任务列表页可提取章幕与任务顺序。"""
+        payload = build_page_payload("魔神任务", SAMPLE_ARCHON_ICON_LIST_WIKITEXT, page_id=300)
+
+        entries = self.parser.parse_archon_quest_list_page(payload)
+        context = self.parser.build_archon_series_context(entries)
+
+        self.assertEqual(
+            [
+                "捕风的异乡人",
+                "为了没有眼泪的明天",
+                "巨龙与自由之歌",
+                "浮世浮生千岩间",
+                "辞行久远之躯",
+                "迫近的客星",
+                "拾枝者·戴因斯雷布",
+                "我们终将重逢",
+            ],
+            [entry["title"] for entry in entries],
+        )
+        self.assertEqual("序章", entries[0]["chapter"])
+        self.assertEqual("捕风的异乡人", entries[0]["chapter_name"])
+        self.assertEqual("第一幕", entries[0]["act"])
+        self.assertEqual("第一章", entries[3]["chapter"])
+        self.assertEqual("第三幕", entries[5]["act"])
+        self.assertEqual("", entries[6]["act"])
+        self.assertEqual(("序章", "第一幕", "捕风的异乡人", ""), context["捕风的异乡人"])
+        self.assertEqual(("第一章", "第三幕", "辞行久远之躯", ""), context["迫近的客星"])
+        self.assertEqual(("第一章", "第四幕", "辞行久远之躯", ""), context["我们终将重逢"])
+
+    def test_parse_archon_quest_page_extracts_dialogues_and_series_context(self) -> None:
+        """测试魔神任务页面解析会整合对话与章幕上下文。"""
+        payload = build_page_payload("鸟瞰风物", SAMPLE_ARCHON_TEMPLATE_OPTION_WIKITEXT, page_id=301)
+        series_context = {"捕风的异乡人": ("序章", "第一幕")}
+
+        result = self.parser.parse_archon_quest_page(payload, series_context=series_context)
+        serialized = result.to_dict()
+
+        self.assertEqual("鸟瞰风物", result.title)
+        self.assertEqual("Bird's Eye View", result.english_title)
+        self.assertEqual("序章", result.chapter)
+        self.assertEqual("第一幕", result.act)
+        self.assertEqual("从坠星山谷启程，你和派蒙走走看看，一路前行。", result.description)
+        self.assertEqual(["前往低语森林", "寻找安柏"], result.objectives)
+        self.assertEqual("流浪者的足迹", result.prerequisites[0].title)
+        self.assertEqual("序章", result.prerequisites[0].chapter)
+        self.assertEqual("第一幕", result.prerequisites[0].act)
+        self.assertEqual("林间相会", result.parallel_quests[0].title)
+        self.assertEqual("异常的权柄", result.follow_up_quests[0].title)
+        self.assertEqual(["安柏", "派蒙"], result.related_npcs)
+        self.assertEqual(
+            ["character", "traveler", "option", "narration", "option", "character"],
+            [dialogue.dialogue_type for dialogue in result.dialogues],
+        )
+        self.assertEqual("安柏", result.dialogues[0].speaker)
+        self.assertEqual("我们出发吧。", result.dialogues[2].text)
+        self.assertEqual("风带来了远方的种子。", result.dialogues[3].text)
+        self.assertEqual("再等等。", result.dialogues[4].text)
+        self.assertTrue(all(dialogue.task_flow == "" for dialogue in result.dialogues))
+        self.assertEqual(["前往低语森林", "寻找安柏"], serialized["任务流程"])
+        self.assertEqual("", serialized["对话"][0]["所属任务流程"])
+
+    def test_parse_archon_quest_list_page_handles_kongyuezhige_without_chapter_number(self) -> None:
+        """测试空月之歌不会沿用第五章上下文。"""
+        payload = build_page_payload("魔神任务", SAMPLE_ARCHON_MOON_SONG_LIST_WIKITEXT, page_id=302)
+
+        entries = self.parser.parse_archon_quest_list_page(payload)
+        context = self.parser.build_archon_series_context(entries)
+
+        self.assertEqual(["你存在的时空", "归途", "雪浪与苍林之舞"], [entry["title"] for entry in entries])
+        self.assertEqual("第五章", entries[0]["chapter"])
+        self.assertEqual("空月之歌", entries[1]["chapter"])
+        self.assertEqual("", entries[1]["chapter_name"])
+        self.assertEqual("序奏", entries[1]["act"])
+        self.assertEqual("空月之歌", entries[2]["chapter"])
+        self.assertEqual("第一幕", entries[2]["act"])
+        self.assertEqual(("空月之歌", "第一幕", "", ""), context["雪浪与苍林之舞"])
+
+    def test_parse_archon_quest_page_extracts_nested_dialogues_names_and_renamed_roles(self) -> None:
+        """测试嵌套任务剧情与剧情选项能被解析，并输出章节名称/幕名称/相关角色。"""
+        payload = build_page_payload("月亮升起的地方", SAMPLE_ARCHON_MOON_SONG_QUEST_WIKITEXT, page_id=303)
+        series_context = {
+            "雪浪与苍林之舞": ("空月之歌", "第一幕", "", "雪浪与苍林之舞"),
+            "归途": ("空月之歌", "序奏", "", "归途"),
+        }
+
+        result = self.parser.parse_archon_quest_page(payload, series_context=series_context)
+        serialized = result.to_dict()
+
+        self.assertEqual("空月之歌", result.chapter)
+        self.assertEqual("", result.chapter_name)
+        self.assertEqual("第一幕", result.act)
+        self.assertEqual("雪浪与苍林之舞", result.act_name)
+        self.assertEqual("空月之歌", result.prerequisites[0].chapter)
+        self.assertEqual("序奏", result.prerequisites[0].act)
+        self.assertEqual(["派蒙", "旅行者"], result.related_npcs)
+        self.assertEqual(["character", "option", "traveler"], [dialogue.dialogue_type for dialogue in result.dialogues])
+        self.assertEqual("走吧。", result.dialogues[1].text)
+        self.assertEqual("嗯。", result.dialogues[2].text)
+        self.assertEqual("踏上新的旅程", result.dialogues[0].task_flow)
+        self.assertEqual("踏上新的旅程", result.dialogues[1].task_flow)
+        self.assertEqual("", serialized["章节名称"])
+        self.assertEqual("雪浪与苍林之舞", serialized["幕名称"])
+        self.assertEqual(["派蒙", "旅行者"], serialized["相关角色"])
+        self.assertEqual(["踏上新的旅程"], serialized["任务流程"])
+        self.assertEqual("踏上新的旅程", serialized["对话"][0]["所属任务流程"])
+        self.assertNotIn("相关NPC", serialized)
+
+    def test_parse_north_library_page_builds_hierarchical_nodes(self) -> None:
+        """测试北陆图书馆页面解析会保留标题层级、项目与条目结构。"""
+        payload = build_page_payload("北陆图书馆", SAMPLE_NORTH_LIBRARY_WIKITEXT, page_id=301)
+
+        result = self.parser.parse_north_library_page(payload)
+
+        self.assertEqual("北陆图书馆", result.title)
+        self.assertEqual("北陆图书馆导言\n第二行", result.summary)
+        self.assertEqual(["北陆图书馆"], result.categories)
+        self.assertEqual(1, len(result.nodes))
+
+        first = result.nodes[0]
+        second = first.children[0]
+        third = second.children[0]
+        fourth = third.children[0]
+        item = fourth.children[0]
+        titled_entry = item.children[1]
+        color_item = fourth.children[1]
+
+        self.assertEqual(("一级", "提瓦特", "一级正文"), (first.kind, first.title, first.text))
+        self.assertEqual(("二级", "提瓦特编年史", "二级正文"), (second.kind, second.title, second.text))
+        self.assertEqual(("三级", "穿越星海", "三级正文"), (third.kind, third.title, third.text))
+        self.assertEqual(("四级", "史莱姆", "四级正文"), (fourth.kind, fourth.title, fourth.text))
+        self.assertEqual(("项目", "时间", "项目正文\n第二行"), (item.kind, item.title, item.text))
+        self.assertEqual(("条目", "", "普通条目"), (item.children[0].kind, item.children[0].title, item.children[0].text))
+        self.assertEqual(("条目", "周期", "条目正文"), (titled_entry.kind, titled_entry.title, titled_entry.text))
+        self.assertEqual(("项目", "火", "颜色项目正文"), (color_item.kind, color_item.title, color_item.text))
+
+    def test_parse_north_library_page_falls_back_to_payload_categories(self) -> None:
+        """测试北陆图书馆页面在无分类标记时会回退到 payload 分类。"""
+        payload = build_page_payload("北陆图书馆", SAMPLE_NORTH_LIBRARY_WIKITEXT.replace("[[Category:北陆图书馆]]", ""), page_id=302)
+        page = next(iter(payload["query"]["pages"].values()))
+        page["categories"] = [{"title": "Category:需要帮助"}]
+
+        result = self.parser.parse_north_library_page(payload)
+
+        self.assertEqual(["需要帮助"], result.categories)
 
     def test_parse_event_quest_page_extracts_metadata_and_dialogue(self) -> None:
         """测试 parse_event_quest_page 解析活动任务元数据、流程与对话。"""
