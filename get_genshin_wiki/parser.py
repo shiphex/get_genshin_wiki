@@ -41,6 +41,9 @@ from .models import (
     ArtifactPieceRecord,
     ArtifactSetRecord,
     CharacterRecord,
+    EventQuestDialogueEntry,
+    EventQuestRecord,
+    EventQuestStepRecord,
     MonsterRecord, ParsedPage,
     ParsedSection,
     WeaponRecord,
@@ -111,6 +114,36 @@ _TABBER_LABEL_PATTERN = re.compile(r"(?m)^\d+\s*=\s*$")
 _FILE_LINK_PREFIXES = ("文件:", "File:", "Image:", "Category:", "分类:")
 # 书籍模板关键词
 _BOOK_TEMPLATE_KEYWORDS = ("书籍", "书籍信息", "白夜国馆藏", "千世流樱", "浮世风流", "冒险家")
+_EVENT_QUEST_OPTION_MARKERS = {"★", "☆", "MediaWiki:PlotOptions"}
+_EVENT_QUEST_OPTION_ICON_PATTERN = re.compile(
+    r"^(?:(?:Image|File|文件)\s*:\s*)?剧情选项[-\w\u4e00-\u9fff]*\.(?:png|jpe?g|gif|svg)\s*",
+    re.IGNORECASE,
+)
+_EVENT_QUEST_OPTION_SIZE_PATTERN = re.compile(r"^\d+\s*px\b\s*", re.IGNORECASE)
+_EVENT_QUEST_IGNORED_LINES = {
+    "折叠",
+    "展开",
+    "MediaWiki:fold",
+    "* * *",
+}
+_EVENT_QUEST_SECTION_BOUNDARIES = {
+    "任务相关",
+    "任务条件",
+    "前置任务",
+    "后续任务",
+    "任务流程",
+    "任务剧情",
+    "活动奖励",
+    "奖励",
+    "纪行奖励",
+    "注释",
+    "参考",
+}
+_EVENT_QUEST_REWARD_TOKENS = ("原石", "摩拉", "经验", "精锻", "魔矿", "阅历", "好感")
+_EVENT_QUEST_PLOT_SECTION_PREFIXES = ("任务剧情", "剧情")
+_WIKITEXT_HEADING_PATTERN = re.compile(
+    r"(?m)^(?P<marks>=+)\s*(?P<title>.*?)\s*(?P=marks)\s*$"
+)
 
 # 国家代码映射表
 _COUNTRY_CODE_MAP: dict[str, str] = {
@@ -1172,6 +1205,126 @@ class WikiTextParser:
             templates=parsed_page.templates,
         )
 
+    def parse_event_quest_page(
+        self,
+        payload: dict[str, Any],
+        event_payload: dict[str, Any] | None = None,
+    ) -> EventQuestRecord:
+        """解析活动任务风格的任务页面。"""
+        parsed_page = self.parse_page(payload)
+        main_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("任务地区", "地区", "国家"),
+                ("任务类型", "类型"),
+                ("相关活动", "所属任务", "活动"),
+                ("出场人物", "相关角色"),
+                ("任务描述", "描述", "介绍"),
+                ("时间", "活动时间", "活动期间", "开始时间"),
+            ),
+        )
+        related_event = self._coalesce(
+            self._resolve_value(
+                parsed_page.templates,
+                ("相关活动", "所属任务", "活动"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            self._extract_first_list_item(self._find_section_text(parsed_page.sections, ("所属任务", "相关活动"))),
+        )
+        description = self._coalesce(
+            self._resolve_value(
+                parsed_page.templates,
+                ("任务描述", "描述", "介绍"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            self._extract_event_quest_description(parsed_page.sections),
+        )
+        related_characters = self._extract_link_titles(
+            self._coalesce(
+                self._resolve_raw_value(
+                    parsed_page.templates,
+                    ("出场人物", "相关角色"),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                self._find_section_text(parsed_page.sections, ("出场人物", "相关角色")),
+            )
+        )
+        previous_quest = self._coalesce(
+            self._resolve_value(
+                parsed_page.templates,
+                ("前置任务",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            self._extract_first_list_item(self._find_section_text(parsed_page.sections, ("前置任务",))),
+            self._extract_required_quest(self._find_section_text(parsed_page.sections, ("任务条件",))),
+        )
+        next_quest = self._coalesce(
+            self._resolve_value(
+                parsed_page.templates,
+                ("后续任务",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            self._extract_first_list_item(self._find_section_text(parsed_page.sections, ("后续任务",))),
+        )
+        event_name = related_event
+        event_period = self._resolve_event_period(
+            parsed_page.templates,
+            preferred_params=main_template,
+            wikitext=parsed_page.wikitext,
+        )
+        related_event_description = ""
+        event_list: list[str] = []
+        if event_payload is not None:
+            event_name, event_period, event_list, related_event_description = self._extract_event_page_context(
+                event_payload,
+                fallback_event_name=event_name,
+                fallback_event_period=event_period,
+            )
+        quests = self._extract_event_quest_flow_titles(parsed_page.sections, parsed_page.wikitext)
+        dialogue = self._extract_event_quest_dialogue(parsed_page.sections, quests, parsed_page.wikitext)
+
+        return EventQuestRecord(
+            title=self._resolve_record_title(parsed_page, ("任务名称", "名称"), preferred_params=main_template),
+            page_id=parsed_page.page_id,
+            region=self._resolve_value(
+                parsed_page.templates,
+                ("任务地区", "地区", "国家"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            quest_type=self._resolve_value(
+                parsed_page.templates,
+                ("任务类型", "类型"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            event_list=event_list,
+            event_name=event_name,
+            event_period=event_period,
+            quests=quests,
+            description=description,
+            dialogue=dialogue,
+            version=self._resolve_value(
+                parsed_page.templates,
+                ("所属版本", "版本"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            related_event=related_event,
+            related_event_description=related_event_description,
+            related_characters=related_characters,
+            previous_quest=previous_quest,
+            next_quest=next_quest,
+            categories=parsed_page.categories,
+            sections=parsed_page.sections,
+            templates=parsed_page.templates,
+        )
+
     def parse_book_page(self, payload: dict[str, Any]) -> BookRecord:
         """
         解析原神书籍页面。
@@ -1273,6 +1426,512 @@ class WikiTextParser:
         """解析独立的角色语音页面。"""
         _, _, wikitext = self.extract_page_metadata(payload)
         return self._extract_voice_records_from_wikitext(wikitext)
+
+    def _extract_event_page_context(
+        self,
+        payload: dict[str, Any],
+        *,
+        fallback_event_name: str,
+        fallback_event_period: str,
+    ) -> tuple[str, str, list[str], str]:
+        """提取活动页面上下文信息。"""
+        parsed_page = self.parse_page(payload)
+        main_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("活动名称", "名称"),
+                ("开始时间", "时间", "活动时间", "活动期间"),
+                ("结束时间",),
+                ("活动描述", "描述", "介绍"),
+            ),
+        )
+        event_name = self._coalesce(
+            self._resolve_value(
+                parsed_page.templates,
+                ("活动名称", "名称"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            parsed_page.title,
+            fallback_event_name,
+        )
+        event_period = self._coalesce(
+            self._resolve_event_period(
+                parsed_page.templates,
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            fallback_event_period,
+        )
+        event_description = self._coalesce(
+            self._resolve_value(
+                parsed_page.templates,
+                ("活动描述", "描述", "介绍"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            self._extract_first_non_empty_line(
+                self._find_section_text(parsed_page.sections, ("活动说明", "活动介绍", "简介"))
+            ),
+            parsed_page.summary,
+        )
+        return (
+            event_name,
+            event_period,
+            self._extract_event_page_quest_titles(parsed_page.wikitext),
+            event_description,
+        )
+
+    def _resolve_event_period(
+        self,
+        templates: dict[str, list[dict[str, str]]],
+        *,
+        preferred_params: dict[str, str] | None = None,
+        wikitext: str | None = None,
+    ) -> str:
+        """提取任务或活动的时间区间。"""
+        direct_period = self._resolve_value(
+            templates,
+            ("时间", "活动时间", "活动期间"),
+            preferred_params=preferred_params,
+            wikitext=wikitext,
+        )
+        if direct_period:
+            return direct_period
+        start_time = self._resolve_value(
+            templates,
+            ("开始时间", "开始日期"),
+            preferred_params=preferred_params,
+            wikitext=wikitext,
+        )
+        end_time = self._resolve_value(
+            templates,
+            ("结束时间", "结束日期"),
+            preferred_params=preferred_params,
+            wikitext=wikitext,
+        )
+        if start_time and end_time:
+            return f"{start_time} ~ {end_time}"
+        return start_time or end_time
+
+    def _extract_event_quest_description(self, sections: Sequence[ParsedSection]) -> str:
+        """从任务剧情摘要中提取任务描述。"""
+        plot_text = self._find_section_text(sections, ("任务剧情", "剧情"))
+        for line in self._normalize_text(plot_text).splitlines():
+            cleaned = self._strip_list_marker(line).lstrip("> ").strip()
+            if cleaned:
+                return cleaned
+        return ""
+
+    def _extract_event_page_quest_titles(self, wikitext: str) -> list[str]:
+        """从活动页面提取剧情任务列表。"""
+        raw = self._extract_section_wikitext(wikitext, ("活动剧情", "剧情任务", "任务列表"))
+        if raw:
+            titles = [
+                title
+                for title in self._extract_link_titles(raw)
+                if self._looks_like_quest_title(title)
+            ]
+            if titles:
+                return titles
+            plain_text = self._normalize_plain_text(raw)
+            return [
+                title
+                for title in self._extract_list_items(plain_text, dedupe=True)
+                if self._looks_like_quest_title(title)
+            ]
+        return []
+
+    def _extract_event_quest_flow_titles(
+        self,
+        sections: Sequence[ParsedSection],
+        wikitext: str,
+    ) -> list[str]:
+        """提取任务流程标题列表。"""
+        flow_sections = self._extract_event_quest_flow_sections_from_wikitext(wikitext)
+        if flow_sections:
+            return [title for title, _ in flow_sections]
+        flow_text = self._find_section_text(sections, ("任务流程",))
+        flow_titles = self._extract_list_items(flow_text)
+        if flow_titles:
+            return flow_titles
+        plot_index = next(
+            (
+                index
+                for index, section in enumerate(sections)
+                if self._is_event_quest_plot_section_title(section.title)
+            ),
+            -1,
+        )
+        if plot_index == -1:
+            return []
+        fallback_titles: list[str] = []
+        for section in sections[plot_index + 1:]:
+            title = self._normalize_text(section.title)
+            if not title:
+                continue
+            if title in _EVENT_QUEST_SECTION_BOUNDARIES and fallback_titles:
+                break
+            fallback_titles.append(title)
+        return fallback_titles
+
+    def _extract_event_quest_dialogue(
+        self,
+        sections: Sequence[ParsedSection],
+        quest_titles: Sequence[str],
+        wikitext: str,
+    ) -> list[EventQuestStepRecord]:
+        """按流程提取活动任务对话。"""
+        flow_sections = self._extract_event_quest_flow_sections(sections, quest_titles, wikitext=wikitext)
+        return [
+            EventQuestStepRecord(title=title, dialogue=self._parse_event_quest_dialogue_entries(text))
+            for title, text in flow_sections
+        ]
+
+    def _extract_event_quest_flow_sections(
+        self,
+        sections: Sequence[ParsedSection],
+        quest_titles: Sequence[str],
+        *,
+        wikitext: str = "",
+    ) -> list[tuple[str, str]]:
+        """根据任务流程标题匹配剧情子章节。"""
+        flow_sections = self._extract_event_quest_flow_sections_from_wikitext(wikitext)
+        if flow_sections:
+            return flow_sections
+        if not quest_titles:
+            return []
+        plot_index = next(
+            (
+                index
+                for index, section in enumerate(sections)
+                if self._is_event_quest_plot_section_title(section.title)
+            ),
+            -1,
+        )
+        if plot_index == -1:
+            return [(title, "") for title in quest_titles]
+
+        matched: list[tuple[str, str]] = []
+        expected_index = 0
+        for section in sections[plot_index + 1:]:
+            if expected_index >= len(quest_titles):
+                break
+            title = self._normalize_text(section.title)
+            if not title:
+                continue
+            if title == self._normalize_text(quest_titles[expected_index]):
+                matched.append((quest_titles[expected_index], section.text))
+                expected_index += 1
+                continue
+            if title in _EVENT_QUEST_SECTION_BOUNDARIES and matched:
+                break
+        while expected_index < len(quest_titles):
+            matched.append((quest_titles[expected_index], ""))
+            expected_index += 1
+        return matched
+
+    def _extract_event_quest_flow_sections_from_wikitext(self, wikitext: str) -> list[tuple[str, str]]:
+        """直接从原始 wikitext 中提取任务剧情子章节，保留空流程与重复标题。"""
+        if not wikitext:
+            return []
+        headings = self._iter_wikitext_headings(wikitext)
+        if not headings:
+            return []
+        flow_sections: list[tuple[str, str]] = []
+        for plot_heading in headings:
+            if not self._is_event_quest_plot_section_title(plot_heading["title"]):
+                continue
+            block_end = len(wikitext)
+            for candidate in headings:
+                if candidate["start"] <= plot_heading["start"]:
+                    continue
+                if candidate["level"] <= plot_heading["level"]:
+                    block_end = candidate["start"]
+                    break
+            block_headings = [
+                heading
+                for heading in headings
+                if plot_heading["content_start"] <= heading["start"] < block_end and heading["level"] > plot_heading["level"]
+            ]
+            for index, heading in enumerate(block_headings):
+                next_start = block_end if index + 1 >= len(block_headings) else block_headings[index + 1]["start"]
+                raw_text = wikitext[heading["content_start"]:next_start].strip()
+                flow_sections.append((heading["title"], self._normalize_event_quest_flow_text(raw_text)))
+        return flow_sections
+
+    def _iter_wikitext_headings(self, wikitext: str) -> list[dict[str, int | str]]:
+        """遍历原始 wikitext 标题，保留层级与原始位置。"""
+        headings: list[dict[str, int | str]] = []
+        for match in _WIKITEXT_HEADING_PATTERN.finditer(wikitext):
+            title = self._normalize_text(match.group("title"))
+            if not title:
+                continue
+            headings.append(
+                {
+                    "title": title,
+                    "level": len(match.group("marks")),
+                    "start": match.start(),
+                    "content_start": match.end(),
+                }
+            )
+        return headings
+
+    def _is_event_quest_plot_section_title(self, title: str) -> bool:
+        """判断标题是否属于活动任务的剧情章节。"""
+        normalized = self._normalize_text(title)
+        return any(
+            normalized == prefix or normalized.startswith(f"{prefix}·")
+            for prefix in _EVENT_QUEST_PLOT_SECTION_PREFIXES
+        )
+
+    def _normalize_event_quest_flow_text(self, raw_text: str) -> str:
+        """将任务剧情子章节的原始 wikitext 规范化为对话解析可消费的纯文本。"""
+        if not raw_text:
+            return ""
+        expanded = self._expand_event_quest_wikitext(raw_text)
+        expanded = self._replace_phonetic_templates(expanded, "generic")
+        expanded = self._replace_blackout_templates(expanded, "generic")
+        plain_text = mwparserfromhell.parse(self._normalize_line_breaks(expanded)).strip_code().strip()
+        return self._normalize_text(str(plain_text))
+
+    def _expand_event_quest_wikitext(self, text: str) -> str:
+        """展开活动任务剧情中常见的模板，避免 strip_code 后丢失关键信息。"""
+        expanded = text
+        code = mwparserfromhell.parse(text)
+        for template in code.filter_templates(recursive=True):
+            replacement = self._render_event_quest_template(template)
+            if replacement is None:
+                continue
+            expanded = expanded.replace(str(template), replacement, 1)
+        return expanded
+
+    def _render_event_quest_template(self, template: Any) -> str | None:
+        """将活动任务剧情里的特定模板转为纯文本。"""
+        name = self._normalize_text(str(template.name).strip())
+        if name == "剧情选项":
+            return self._render_event_quest_option_template(template)
+        if name == "任务描述":
+            return self._coalesce(
+                self._template_param_value(template, 1, "1", "描述"),
+                self._template_last_param_value(template),
+            )
+        if name == "折叠":
+            return self._coalesce(
+                self._template_param_value(template, "内容", 2, "2"),
+                self._template_last_param_value(template),
+            )
+        if name == "颜色":
+            return self._coalesce(
+                self._template_param_value(template, "描述", "内容", 2, "2", 3, "3"),
+                self._template_last_param_value(template),
+            )
+        if "人物对话" in name:
+            speaker = self._coalesce(
+                self._template_param_value(template, "角色", 2, "2"),
+                self._template_param_value(template, 1, "1"),
+            )
+            content = self._coalesce(
+                self._template_param_value(template, "内容", 3, "3"),
+                self._template_last_param_value(template),
+            )
+            if speaker and content:
+                return f"{speaker}：{content}"
+            return content
+        if name == "注音":
+            return self._template_param_value(template, 1, "1")
+        return None
+
+    def _render_event_quest_option_template(self, template: Any) -> str:
+        """展开 {{剧情选项}} 模板，保留选项和各分支对白。"""
+        suffixes: set[int] = set()
+        for param in template.params:
+            match = re.fullmatch(r"(?:选项|剧情)(\d+)", str(param.name).strip())
+            if match:
+                suffixes.add(int(match.group(1)))
+        if not suffixes:
+            return ""
+        option_lines: list[str] = []
+        branch_texts: list[str] = []
+        for index in sorted(suffixes):
+            option = self._template_param_value(template, f"选项{index}")
+            if option:
+                option_lines.append(f"* {option}")
+            branch_text = self._template_param_value(template, f"剧情{index}")
+            if branch_text:
+                branch_texts.append(branch_text)
+        parts: list[str] = []
+        if option_lines:
+            parts.append("★")
+            parts.extend(option_lines)
+        parts.extend(branch_texts)
+        return "\n".join(part for part in parts if part).strip()
+
+    def _template_param_value(self, template: Any, *aliases: Any) -> str:
+        """读取模板参数值。"""
+        for alias in aliases:
+            if not template.has(alias):
+                continue
+            return str(template.get(alias).value).strip()
+        return ""
+
+    def _template_last_param_value(self, template: Any) -> str:
+        """读取模板最后一个参数值。"""
+        if not template.params:
+            return ""
+        return str(template.params[-1].value).strip()
+
+    def _parse_event_quest_dialogue_entries(self, text: str) -> list[EventQuestDialogueEntry]:
+        """解析单个任务流程中的对话与旁白。"""
+        normalized = self._normalize_text(text)
+        if not normalized:
+            return []
+        entries: list[EventQuestDialogueEntry] = []
+        pending_options: list[str] = []
+        collecting_options = False
+
+        for raw_line in normalized.splitlines():
+            line = self._strip_list_marker(raw_line).lstrip("> ").strip()
+            if not line:
+                continue
+            option_content, option_artifact = self._clean_event_quest_option_line(line)
+            if line in _EVENT_QUEST_OPTION_MARKERS:
+                collecting_options = True
+                continue
+            if option_artifact:
+                collecting_options = True
+                if option_content:
+                    pending_options.append(option_content)
+                continue
+            if line in _EVENT_QUEST_IGNORED_LINES or line.startswith("额外对话"):
+                if pending_options:
+                    entries.append(EventQuestDialogueEntry(type="选项", options=list(pending_options)))
+                    pending_options.clear()
+                collecting_options = False
+                continue
+            speaker_content = self._split_event_quest_dialogue_line(line)
+            if collecting_options and speaker_content is None:
+                pending_options.append(option_content or line)
+                continue
+            if pending_options:
+                entries.append(EventQuestDialogueEntry(type="选项", options=list(pending_options)))
+                pending_options.clear()
+                collecting_options = False
+            if speaker_content is not None:
+                speaker, content = speaker_content
+                entries.append(
+                    EventQuestDialogueEntry(
+                        type="旅行者" if speaker == "旅行者" else "角色/NPC",
+                        speaker=speaker,
+                        content=content,
+                    )
+                )
+                continue
+            entries.append(EventQuestDialogueEntry(type="旁白", content=line))
+
+        if pending_options:
+            entries.append(EventQuestDialogueEntry(type="选项", options=list(pending_options)))
+        return entries
+
+    def _clean_event_quest_option_line(self, line: str) -> tuple[str, bool]:
+        """移除剧情选项图标残留，仅保留选项文本。"""
+        cleaned = line
+        matched = False
+
+        stripped = _EVENT_QUEST_OPTION_ICON_PATTERN.sub("", cleaned)
+        if stripped != cleaned:
+            cleaned = stripped
+            matched = True
+
+        stripped = _EVENT_QUEST_OPTION_SIZE_PATTERN.sub("", cleaned)
+        if stripped != cleaned:
+            cleaned = stripped
+            matched = True
+
+        return cleaned.strip(), matched or line.startswith("剧情选项")
+
+    def _split_event_quest_dialogue_line(self, line: str) -> tuple[str, str] | None:
+        """解析“角色：内容”格式的对话行。"""
+        match = re.match(r"^([^：]+)：\s*(.+)$", line)
+        if not match:
+            return None
+        speaker = match.group(1).strip()
+        content = match.group(2).strip()
+        if not speaker or not content:
+            return None
+        return speaker, content
+
+    def _extract_link_titles(self, raw: str) -> list[str]:
+        """从原始字段中提取链接标题，回退到普通文本切分。"""
+        if not raw:
+            return []
+        code = mwparserfromhell.parse(self._normalize_text(raw))
+        titles: list[str] = []
+        for wikilink in code.filter_wikilinks(recursive=True):
+            title = self._normalize_plain_text(str(wikilink.title))
+            if not title or title.startswith(_FILE_LINK_PREFIXES):
+                continue
+            titles.append(title)
+        if titles:
+            return self._unique_preserve_order(titles)
+        plain_text = self._normalize_plain_text(raw)
+        return self._extract_list_items(plain_text, dedupe=True)
+
+    def _extract_list_items(self, text: str, *, dedupe: bool = False) -> list[str]:
+        """将章节列表文本按行拆分为有序条目。"""
+        normalized = self._normalize_text(text)
+        items: list[str] = []
+        for line in normalized.splitlines():
+            cleaned = self._strip_list_marker(line).strip()
+            if not cleaned:
+                continue
+            items.append(cleaned)
+        return self._unique_preserve_order(items) if dedupe else items
+
+    def _extract_first_list_item(self, text: str) -> str:
+        """返回列表文本中的第一项。"""
+        items = self._extract_list_items(text)
+        return items[0] if items else ""
+
+    def _extract_required_quest(self, text: str) -> str:
+        """从任务条件文本中提取“完成任务 X”形式的前置任务。"""
+        normalized = self._normalize_text(text)
+        match = re.search(r"完成任务\s*(.+)", normalized)
+        if not match:
+            return ""
+        return self._strip_quotes(self._strip_list_marker(match.group(1)).strip())
+
+    def _strip_list_marker(self, line: str) -> str:
+        """移除列表或引用前缀。"""
+        return re.sub(r"^[>*#\-]+\s*", "", line).strip()
+
+    def _extract_section_wikitext(self, wikitext: str, titles: Sequence[str]) -> str:
+        """从原始 wikitext 中提取指定标题对应的章节。"""
+        for title in titles:
+            for match in _WIKITEXT_HEADING_PATTERN.finditer(wikitext):
+                heading_title = self._normalize_text(match.group("title")).strip()
+                if heading_title != title.strip():
+                    continue
+                level = len(match.group("marks"))
+                start = match.end()
+                end = len(wikitext)
+                for next_match in _WIKITEXT_HEADING_PATTERN.finditer(wikitext, start):
+                    if len(next_match.group("marks")) <= level:
+                        end = next_match.start()
+                        break
+                return wikitext[start:end].strip()
+        return ""
+
+    def _looks_like_quest_title(self, title: str) -> bool:
+        """过滤活动剧情中的奖励条目，仅保留疑似任务标题。"""
+        normalized = self._normalize_plain_text(title)
+        if not normalized:
+            return False
+        if any(token in normalized for token in _EVENT_QUEST_REWARD_TOKENS):
+            return False
+        if re.search(r"[×xX]\s*\d+$", normalized):
+            return False
+        return True
 
     def _select_best_template(
         self,

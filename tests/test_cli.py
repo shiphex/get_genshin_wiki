@@ -28,7 +28,12 @@ from get_genshin_wiki.crawler import WikiCrawler
 from get_genshin_wiki.parser import WikiTextParser
 from get_genshin_wiki.storage import JsonFileStore
 from tests.helpers import build_page_payload
-from tests.test_parser import SAMPLE_BOOK_WIKITEXT, SPECIALIZED_PAGE_CASES
+from tests.test_parser import (
+    SAMPLE_BOOK_WIKITEXT,
+    SAMPLE_EVENT_PAGE_WIKITEXT,
+    SAMPLE_EVENT_QUEST_WIKITEXT,
+    SPECIALIZED_PAGE_CASES,
+)
 
 # 测试用角色 wikitext
 SAMPLE_CHARACTER_WIKITEXT = """{{角色资料|名字=哥伦比娅|称号=空月归乡|所属=挪德卡莱|介绍=于挪德卡莱诞生的「月之少女」。|元素=水|武器=法器|神之眼描述=三相月临|命之座=御月鸽座}}
@@ -79,6 +84,12 @@ class FakeClient:
     def __init__(self) -> None:
         self.allowed_checks = 0  # assert_api_allowed 调用次数
         self.page_requests: list[str] = []  # 请求过的页面列表
+        self.categories = ["角色", "活动事件"]
+        self.category_members = {
+            "角色": ["哥伦比娅", "阿蕾奇诺"],
+            "活动事件": ["有朋自远方来·其二"],
+        }
+        self.page_payloads: dict[str, dict] = {}
 
     def assert_api_allowed(self) -> None:
         """记录 API 权限检查调用。"""
@@ -86,15 +97,19 @@ class FakeClient:
 
     def list_categories(self, prefix: str | None = None) -> list[str]:
         """返回预设分类列表。"""
-        return ["角色"] if prefix is None else [prefix]
+        if prefix is None:
+            return list(self.categories)
+        return [name for name in self.categories if name.startswith(prefix)]
 
     def list_category_members(self, category_name: str) -> list[str]:
         """返回预设分类成员列表。"""
-        return ["哥伦比娅", "阿蕾奇诺"]
+        return list(self.category_members.get(category_name, []))
 
     def fetch_page_payload(self, title: str) -> dict:
         """返回预设页面 payload 并记录请求。"""
         self.page_requests.append(title)
+        if title in self.page_payloads:
+            return self.page_payloads[title]
         return build_page_payload(title, f"{title} 的正文", page_id=len(self.page_requests))
 
 
@@ -177,6 +192,61 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("title", output)
         self.assertTrue(self.store.exists("parsed/characters", "哥伦比娅"))
         self.assertFalse(self.store.exists("parsed/character-stories", "哥伦比娅"))
+
+    def test_crawl_event_quests_discovers_category_and_fetches_related_event_pages(self) -> None:
+        """测试 crawl event-quests 会探测活动任务分类并补抓相关活动主页。"""
+        self.client.page_payloads["有朋自远方来·其二"] = build_page_payload(
+            "有朋自远方来·其二",
+            SAMPLE_EVENT_QUEST_WIKITEXT,
+            page_id=21,
+        )
+        self.client.page_payloads["「有朋自远方来」"] = build_page_payload(
+            "「有朋自远方来」",
+            SAMPLE_EVENT_PAGE_WIKITEXT,
+            page_id=22,
+        )
+
+        exit_code, output = self.run_cli(["crawl", "event-quests"])
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("活动事件", output["category"])
+        self.assertEqual("有朋自远方来·其二", output["quests"][0]["title"])
+        self.assertEqual("「有朋自远方来」", output["events"][0]["title"])
+        self.assertEqual(["有朋自远方来·其二", "「有朋自远方来」"], self.client.page_requests)
+        self.assertEqual(1, self.client.allowed_checks)
+        self.assertTrue(self.store.exists("pages", "有朋自远方来·其二"))
+        self.assertTrue(self.store.exists("pages", "「有朋自远方来」"))
+        self.assertEqual({"category": "活动事件"}, self.store.read("categories", "event-quests"))
+
+    def test_parse_event_quest_uses_related_event_page_and_persists_result(self) -> None:
+        """测试 parse event-quest 会读取已存储的活动主页补全活动列表与活动期间。"""
+        self.store.write(
+            "pages",
+            "有朋自远方来·其二",
+            build_page_payload("有朋自远方来·其二", SAMPLE_EVENT_QUEST_WIKITEXT, page_id=31),
+        )
+        self.store.write(
+            "pages",
+            "「有朋自远方来」",
+            build_page_payload("「有朋自远方来」", SAMPLE_EVENT_PAGE_WIKITEXT, page_id=32),
+        )
+
+        exit_code, output = self.run_cli(["parse", "eventquest", "有朋自远方来·其二"])
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("「有朋自远方来」", output["活动名称"])
+        self.assertEqual("2023/05/11 10:00 ~ 2023/05/22 03:59", output["活动期间"])
+        self.assertEqual("望舒客栈近日迎来了一批来自须弥的客人，你和派蒙决定帮言笑招待他们。", output["所属任务描述"])
+        self.assertEqual(
+            ["有朋自远方来·其一", "有朋自远方来·其二", "有朋自远方来·其三"],
+            output["活动列表"],
+        )
+        self.assertEqual(
+            ["与言笑对话", "为等待已久的须弥一行人上菜"],
+            output["任务列表"],
+        )
+        self.assertEqual(["这声音是…", "他们看起来很饿。"], output["剧情对话"][0]["对话"][2]["选项"])
+        self.assertTrue(self.store.exists("parsed/event-quests", "有朋自远方来·其二"))
 
     def test_parse_specialized_commands_persist_results(self) -> None:
         """测试新增的 7 个 parse 子命令及其默认输出命名空间。"""

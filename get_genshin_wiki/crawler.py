@@ -91,6 +91,26 @@ class WikiCrawler:
             self.store.write("categories", key, categories)
         return categories
 
+    def discover_event_quest_category(self, persist: bool = True) -> str:
+        """
+        探测活动任务所属的实际 Wiki 分类名称。
+
+        当前站点上活动任务成员页位于“活动事件”分类，而“活动任务”是概览页面。
+        """
+        categories = self.client.list_categories(prefix="活动")
+        preferred_names = ("活动事件", "活动任务")
+        category_name = next((name for name in preferred_names if name in categories), "")
+        if not category_name:
+            for name in categories:
+                if "活动" in name and ("事件" in name or "任务" in name):
+                    category_name = name
+                    break
+        if not category_name:
+            raise ValueError("Unable to discover event quest category from wiki categories")
+        if persist:
+            self.store.write("categories", "event-quests", {"category": category_name})
+        return category_name
+
     def crawl_category_members(self, category_name: str, persist: bool = True) -> list[str]:
         """
         抓取指定分类下的成员页面列表。
