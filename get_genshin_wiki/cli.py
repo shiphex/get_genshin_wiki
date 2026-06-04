@@ -60,6 +60,7 @@ CliHandler = Callable[[argparse.Namespace, "CliRuntime"], int]
 _DEFAULT_PARSE_NAMESPACES = {
     "page": "parsed/pages",
     "character": "parsed/characters",
+    "archon-quest": "parsed/archon-quests",
     "weapon": "parsed/weapons",
     "artifact": "parsed/artifacts",
     "monster": "parsed/monsters",
@@ -193,6 +194,18 @@ def build_parser() -> argparse.ArgumentParser:
     parse_character.add_argument("--output-namespace", default=None)
     parse_character.add_argument("--no-persist", action="store_true")
     parse_character.set_defaults(handler=handle_parse_character)
+
+    # parse archon-quest：解析魔神任务页面
+    parse_archon_quest = parse_commands.add_parser(
+        "archon-quest",
+        aliases=["archonquest"],
+        help="Parse a stored archon quest page.",
+    )
+    parse_archon_quest.add_argument("title", help="Archon quest page title")
+    parse_archon_quest.add_argument("--source-namespace", default="pages")
+    parse_archon_quest.add_argument("--output-namespace", default=None)
+    parse_archon_quest.add_argument("--no-persist", action="store_true")
+    parse_archon_quest.set_defaults(handler=handle_parse_archon_quest)
 
     # parse weapon：解析武器页面
     parse_weapon = parse_commands.add_parser("weapon", help="Parse a stored weapon page.")
@@ -439,6 +452,19 @@ def _maybe_load_voice_payload(store: JsonFileStore, namespace: str, title: str) 
     return payload if wikitext else None
 
 
+def _maybe_load_archon_series_context(
+    runtime: CliRuntime,
+    namespace: str,
+) -> dict[str, tuple[str, str, str, str]]:
+    """Load chapter/act context from the stored archon quest index when available."""
+    list_title = "魔神任务"
+    if not runtime.store.exists(namespace, list_title):
+        return {}
+    payload = runtime.store.read(namespace, list_title)
+    entries = runtime.parser.parse_archon_quest_list_page(payload)
+    return runtime.parser.build_archon_series_context(entries)
+
+
 # ========== crawl 命令处理器 ==========
 
 
@@ -534,6 +560,18 @@ def handle_parse_character(args: argparse.Namespace, runtime: CliRuntime) -> int
     result = runtime.parser.parse_character_page(payload, voice_payload=voice_payload).to_storage_dict()
     if not args.no_persist:
         namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["character"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_archon_quest(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse archon-quest 命令：解析魔神任务页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    series_context = _maybe_load_archon_series_context(runtime, args.source_namespace)
+    result = runtime.parser.parse_archon_quest_page(payload, series_context=series_context).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["archon-quest"]
         runtime.store.write(namespace, args.title, result)
     _print_json(result)
     return 0

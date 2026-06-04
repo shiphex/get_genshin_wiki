@@ -145,6 +145,30 @@ class MediaWikiClientTests(unittest.TestCase):
         with self.assertRaises(PageContentNotFoundError):
             client.fetch_page("哥伦比娅")
 
+    def test_fetch_rendered_section_titles_returns_parse_sections(self) -> None:
+        """测试 fetch_rendered_section_titles 从 parse API 提取章节标题。"""
+        client = self.make_client(
+            [
+                FakeResponse(
+                    {
+                        "parse": {
+                            "sections": [
+                                {"line": "简介"},
+                                {"line": "鸟瞰风物"},
+                                {"line": "异常的权柄"},
+                            ]
+                        }
+                    }
+                )
+            ]
+        )
+
+        titles = client.fetch_rendered_section_titles("捕风的异乡人")
+
+        self.assertEqual(["简介", "鸟瞰风物", "异常的权柄"], titles)
+        self.assertEqual("parse", client.session.calls[0]["params"]["action"])
+        self.assertEqual("sections", client.session.calls[0]["params"]["prop"])
+
     def test_request_retries_after_timeout(self) -> None:
         """
         测试请求超时时的自动重试机制。

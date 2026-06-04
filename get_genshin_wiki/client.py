@@ -332,6 +332,29 @@ class MediaWikiClient:
         }
         return self._request(params)
 
+    def fetch_rendered_section_titles(self, title: str) -> list[str]:
+        """
+        获取页面渲染后的章节标题列表。
+
+        使用 MediaWiki parse API 读取渲染后的 section 信息，
+        以便处理由模板展开生成的章节结构。
+        """
+        payload = self._request(
+            {
+                "action": "parse",
+                "page": title,
+                "prop": "sections",
+                "format": "json",
+            }
+        )
+        sections = payload.get("parse", {}).get("sections", [])
+        titles: list[str] = []
+        for section in sections:
+            line = section.get("line", "")
+            if isinstance(line, str) and line.strip():
+                titles.append(line.strip())
+        return titles
+
     def fetch_page(self, title: str) -> WikiPage:
         """
         获取指定页面的结构化数据。

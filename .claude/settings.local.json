@@ -14,7 +14,21 @@
       "Bash(do:*)",
       "Bash(rm:*)",
       "Bash(find:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(git worktree:*)",
+      "Bash(dir /b /s \"e:\\\\Workplace\\\\Learn_project\\\\get_genshin_wiki-archon-quests\\\\*\")",
+      "Bash(dir /b \"e:\\\\Workplace\\\\Learn_project\\\\get_genshin_wiki-archon-quests\\\\refer\")",
+      "Bash(cat > *)",
+      "Bash(data/archon_quests/parsed/archon-quest-index/魔神任务__5135b804eb.json)",
+      "Bash(act_name)",
+      "Bash(data/archon_quests/parsed/archon-quests/)",
+      "Bash(expand_archon_index_entries)",
+      "Bash(tools/batch_archon_quests.py)",
+      "Bash(tools/generate_archon_quest_index.py)",
+      "Bash(git mv *)"
+    ],
+    "additionalDirectories": [
+      "\\tmp"
     ]
   }
 }
