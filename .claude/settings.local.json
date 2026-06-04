@@ -14,6 +14,7 @@
       "Bash(do:*)",
       "Bash(rm:*)",
       "Bash(find:*)",
+      "Bash(git worktree:*)",
       "Bash(dir /b /s \"e:\\\\Workplace\\\\Learn_project\\\\get_genshin_wiki-archon-quests\\\\*\")",
       "Bash(dir /b \"e:\\\\Workplace\\\\Learn_project\\\\get_genshin_wiki-archon-quests\\\\refer\")",
       "Bash(cat > *)",
