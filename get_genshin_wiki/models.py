@@ -240,6 +240,50 @@ class BookRecord:
 
 
 @dataclass
+class NorthLibraryNode:
+    """Structured node in the North Library encyclopedia tree."""
+
+    kind: str
+    title: str = ""
+    text: str = ""
+    children: list["NorthLibraryNode"] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the node and its descendants for JSON output."""
+        return {
+            "kind": self.kind,
+            "title": self.title,
+            "text": self.text,
+            "children": [child.to_dict() for child in self.children],
+        }
+
+
+@dataclass
+class NorthLibraryRecord:
+    """Structured record for the North Library encyclopedia index page."""
+
+    title: str
+    page_id: int | str | None
+    summary: str
+    categories: list[str] = field(default_factory=list)
+    library_category: str = ""
+    category_candidates: list[str] = field(default_factory=list)
+    nodes: list[NorthLibraryNode] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the North Library record for JSON output."""
+        return {
+            "title": self.title,
+            "page_id": self.page_id,
+            "summary": self.summary,
+            "categories": self.categories,
+            "library_category": self.library_category,
+            "category_candidates": self.category_candidates,
+            "nodes": [node.to_dict() for node in self.nodes],
+        }
+
+
+@dataclass
 class CharacterStoryRecord:
     """角色故事类内容记录。"""
 

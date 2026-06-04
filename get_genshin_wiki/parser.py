@@ -306,6 +306,8 @@ from .models import (
     ArchonQuestRecord,
     CharacterRecord,
     MonsterRecord, ParsedPage,
+    NorthLibraryNode,
+    NorthLibraryRecord,
     ParsedSection,
     WeaponRecord,
     FoodRecord,
@@ -408,6 +410,15 @@ _FILE_LINK_PATTERN = re.compile(r"\[\[\s*(?:文件|File|Image)\s*:[^\]]+\]\]", r
 _HTML_TAG_PATTERN = re.compile(r"</?[A-Za-z][^>]*>")
 _TABBER_SEPARATOR_PATTERN = re.compile(r"(?m)^\|-\|\s*$")
 _TABBER_LABEL_PATTERN = re.compile(r"(?m)^\d+\s*=\s*$")
+_NORTH_LIBRARY_BSTYLE_PATTERN = re.compile(r"<bstyle>.*?</bstyle>", re.IGNORECASE | re.DOTALL)
+_NORTH_LIBRARY_RULE_PATTERN = re.compile(r"^\s*-{4,}\s*$")
+_NORTH_LIBRARY_HEADING_PATTERN = re.compile(r"^(={1,4})\s*(.*?)\s*\1\s*$")
+_NORTH_LIBRARY_ENTRY_PATTERN = re.compile(r"^\*+\s*(.*?)\s*$")
+_NORTH_LIBRARY_ITEM_PATTERN = re.compile(r"^\s*(?:<[^>]+>\s*)*'''(.*?)'''(?:\s*</[^>]+>\s*)*$")
+_NORTH_LIBRARY_COLOR_TEMPLATE_PATTERN = re.compile(
+    r"\{\{\s*颜色\s*\|[^{}|]+\|([^{}|]+?)(?:\|[^{}]*)?\s*}}"
+)
+_NORTH_LIBRARY_SIMPLE_TEMPLATE_PATTERN = re.compile(r"\{\{\s*[^{}|]+\|([^{}]+?)\s*}}")
 _FILE_LINK_PREFIXES = ("文件:", "File:", "Image:", "Category:", "分类:")
 # 书籍模板关键词
 _BOOK_TEMPLATE_KEYWORDS = ("书籍", "书籍信息", "白夜国馆藏", "千世流樱", "浮世风流", "冒险家")
@@ -1809,6 +1820,174 @@ class WikiTextParser:
                 if self._is_archon_series_quest_title(title)
             ]
         )
+
+    def parse_north_library_page(self, payload: dict[str, Any]) -> NorthLibraryRecord:
+        """Parse the North Library encyclopedia index page into a nested tree."""
+        title, page_id, wikitext = self.extract_page_metadata(payload)
+        categories = self.parse_categories(wikitext)
+        if not categories:
+            categories = self._extract_payload_categories(payload)
+        summary, nodes = self._build_north_library_tree(wikitext)
+        return NorthLibraryRecord(
+            title=title,
+            page_id=page_id,
+            summary=summary,
+            categories=categories,
+            nodes=nodes,
+        )
+
+    def _build_north_library_tree(self, wikitext: str) -> tuple[str, list[NorthLibraryNode]]:
+        """Build a hierarchical tree from the North Library page wikitext."""
+        sanitized = _CATEGORY_LINK_PATTERN.sub("", wikitext)
+        sanitized = _NORTH_LIBRARY_BSTYLE_PATTERN.sub("", sanitized)
+        sanitized = self._normalize_line_breaks(sanitized)
+
+        root = NorthLibraryNode(kind="root")
+        stack: list[tuple[int, NorthLibraryNode]] = [(0, root)]
+        buffers: dict[int, list[str]] = {id(root): []}
+
+        for raw_line in sanitized.splitlines():
+            line = raw_line.rstrip()
+            stripped = line.strip()
+            if not stripped:
+                self._append_north_library_text(buffers, stack[-1][1], "")
+                continue
+            if _NORTH_LIBRARY_RULE_PATTERN.match(stripped):
+                continue
+
+            heading_match = _NORTH_LIBRARY_HEADING_PATTERN.match(stripped)
+            if heading_match:
+                kind = {
+                    1: "一级",
+                    2: "二级",
+                    3: "三级",
+                    4: "四级",
+                }[len(heading_match.group(1))]
+                title = self._normalize_north_library_title(heading_match.group(2))
+                if title:
+                    node = NorthLibraryNode(kind=kind, title=title)
+                    self._push_north_library_node(stack, buffers, node, self._north_library_depth(kind))
+                    continue
+
+            entry_match = _NORTH_LIBRARY_ENTRY_PATTERN.match(stripped)
+            if entry_match:
+                self._pop_north_library_stack(stack, self._north_library_depth("条目"))
+                entry_content = entry_match.group(1).strip()
+                entry_title = self._extract_north_library_item_title(entry_content)
+                if entry_title:
+                    node = NorthLibraryNode(kind="条目", title=entry_title)
+                    self._push_north_library_node(stack, buffers, node, self._north_library_depth("条目"))
+                else:
+                    entry_text = self._normalize_north_library_text(entry_content)
+                    if entry_text:
+                        stack[-1][1].children.append(NorthLibraryNode(kind="条目", text=entry_text))
+                continue
+
+            item_title = self._extract_north_library_item_title(stripped)
+            if item_title:
+                node = NorthLibraryNode(kind="项目", title=item_title)
+                self._push_north_library_node(stack, buffers, node, self._north_library_depth("项目"))
+                continue
+
+            text = self._normalize_north_library_text(line)
+            if text:
+                self._append_north_library_text(buffers, stack[-1][1], text)
+
+        self._finalize_north_library_buffers(root, buffers)
+        return root.text, root.children
+
+    def _north_library_depth(self, kind: str) -> int:
+        """Map North Library node kinds to a stable nesting depth."""
+        return {
+            "一级": 1,
+            "二级": 2,
+            "三级": 3,
+            "四级": 4,
+            "项目": 5,
+            "条目": 6,
+        }[kind]
+
+    def _push_north_library_node(
+        self,
+        stack: list[tuple[int, NorthLibraryNode]],
+        buffers: dict[int, list[str]],
+        node: NorthLibraryNode,
+        depth: int,
+    ) -> None:
+        """Attach a new node and make it the current text target."""
+        self._pop_north_library_stack(stack, depth)
+        stack[-1][1].children.append(node)
+        stack.append((depth, node))
+        buffers[id(node)] = []
+
+    def _pop_north_library_stack(
+        self,
+        stack: list[tuple[int, NorthLibraryNode]],
+        depth: int,
+    ) -> None:
+        """Pop the stack until the next node becomes the correct parent."""
+        while len(stack) > 1 and stack[-1][0] >= depth:
+            stack.pop()
+
+    def _append_north_library_text(
+        self,
+        buffers: dict[int, list[str]],
+        node: NorthLibraryNode,
+        text: str,
+    ) -> None:
+        """Append a text line while preserving intentional paragraph breaks."""
+        buffer = buffers.setdefault(id(node), [])
+        if text:
+            buffer.append(text)
+            return
+        if buffer and buffer[-1] != "":
+            buffer.append("")
+
+    def _finalize_north_library_buffers(
+        self,
+        node: NorthLibraryNode,
+        buffers: dict[int, list[str]],
+    ) -> None:
+        """Normalize buffered text for a node and all of its descendants."""
+        existing = self._normalize_text(node.text)
+        buffered = self._normalize_text("\n".join(buffers.get(id(node), [])))
+        node.text = self._normalize_text("\n".join(part for part in (existing, buffered) if part))
+        for child in node.children:
+            self._finalize_north_library_buffers(child, buffers)
+
+    def _extract_north_library_item_title(self, raw_text: str) -> str:
+        """Return the title for a bold-only item or bullet title line."""
+        match = _NORTH_LIBRARY_ITEM_PATTERN.match(raw_text)
+        if not match:
+            return ""
+        return self._normalize_north_library_title(match.group(1))
+
+    def _normalize_north_library_title(self, raw_text: str) -> str:
+        """Normalize a heading or project title with targeted template fallbacks."""
+        title = self._normalize_north_library_text(raw_text)
+        if title:
+            return title
+        fallback = _NORTH_LIBRARY_SIMPLE_TEMPLATE_PATTERN.sub(
+            self._replace_north_library_simple_template,
+            raw_text,
+        )
+        if fallback == raw_text:
+            return ""
+        return self._normalize_north_library_text(fallback)
+
+    def _normalize_north_library_text(self, raw_text: str) -> str:
+        """Normalize line-level North Library text with minimal template fallback."""
+        cleaned = _NORTH_LIBRARY_BSTYLE_PATTERN.sub("", raw_text)
+        cleaned = _NORTH_LIBRARY_COLOR_TEMPLATE_PATTERN.sub(
+            lambda match: match.group(1).strip(),
+            cleaned,
+        )
+        return self._normalize_plain_text(cleaned)
+
+    def _replace_north_library_simple_template(self, match: re.Match[str]) -> str:
+        """Fallback for display-only templates that strip_code drops completely."""
+        values = [part.strip() for part in match.group(1).split("|") if part.strip()]
+        return values[-1] if values else ""
 
     def parse_character_story_page(
         self,
