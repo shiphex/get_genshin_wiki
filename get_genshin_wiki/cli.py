@@ -61,6 +61,7 @@ _DEFAULT_PARSE_NAMESPACES = {
     "page": "parsed/pages",
     "chronicle": "parsed/chronicles",
     "character": "parsed/characters",
+    "archon-quest": "parsed/archon-quests",
     "weapon": "parsed/weapons",
     "artifact": "parsed/artifacts",
     "monster": "parsed/monsters",
@@ -72,6 +73,7 @@ _DEFAULT_PARSE_NAMESPACES = {
     "namecard": "parsed/namecards",
     "secret-item": "parsed/secret-items",
     "book": "parsed/books",
+    "north-library": "parsed/north-library",
 }
 
 
@@ -165,6 +167,15 @@ def build_parser() -> argparse.ArgumentParser:
     crawl_category_pages.add_argument("--no-persist", action="store_true")
     crawl_category_pages.set_defaults(handler=handle_crawl_category_pages)
 
+    crawl_north_library = crawl_commands.add_parser(
+        "north-library",
+        help="Fetch, parse, and persist the North Library index page.",
+    )
+    crawl_north_library.add_argument("--title", default="北陆图书馆", help="North Library page title")
+    crawl_north_library.add_argument("--output-namespace", default=None, help="Namespace to write parsed result")
+    crawl_north_library.add_argument("--no-persist", action="store_true")
+    crawl_north_library.set_defaults(handler=handle_crawl_north_library)
+
     # crawl chronicle-pages：探测并抓取提瓦特编年史分类页面
     crawl_chronicle_pages = crawl_commands.add_parser(
         "chronicle-pages",
@@ -201,6 +212,18 @@ def build_parser() -> argparse.ArgumentParser:
     parse_character.add_argument("--output-namespace", default=None)
     parse_character.add_argument("--no-persist", action="store_true")
     parse_character.set_defaults(handler=handle_parse_character)
+
+    # parse archon-quest：解析魔神任务页面
+    parse_archon_quest = parse_commands.add_parser(
+        "archon-quest",
+        aliases=["archonquest"],
+        help="Parse a stored archon quest page.",
+    )
+    parse_archon_quest.add_argument("title", help="Archon quest page title")
+    parse_archon_quest.add_argument("--source-namespace", default="pages")
+    parse_archon_quest.add_argument("--output-namespace", default=None)
+    parse_archon_quest.add_argument("--no-persist", action="store_true")
+    parse_archon_quest.set_defaults(handler=handle_parse_archon_quest)
 
     # parse weapon：解析武器页面
     parse_weapon = parse_commands.add_parser("weapon", help="Parse a stored weapon page.")
@@ -447,6 +470,19 @@ def _maybe_load_voice_payload(store: JsonFileStore, namespace: str, title: str) 
     return payload if wikitext else None
 
 
+def _maybe_load_archon_series_context(
+    runtime: CliRuntime,
+    namespace: str,
+) -> dict[str, tuple[str, str, str, str]]:
+    """Load chapter/act context from the stored archon quest index when available."""
+    list_title = "魔神任务"
+    if not runtime.store.exists(namespace, list_title):
+        return {}
+    payload = runtime.store.read(namespace, list_title)
+    entries = runtime.parser.parse_archon_quest_list_page(payload)
+    return runtime.parser.build_archon_series_context(entries)
+
+
 # ========== crawl 命令处理器 ==========
 
 
@@ -497,6 +533,30 @@ def handle_crawl_category_pages(args: argparse.Namespace, runtime: CliRuntime) -
     return 0
 
 
+def handle_crawl_north_library(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """Handle crawl north-library: probe category, fetch page, parse, and persist JSON."""
+    runtime.client.assert_api_allowed()
+    crawl_result = runtime.crawler.crawl_north_library(args.title, persist=not args.no_persist)
+    payload = crawl_result.pop("payload")
+    record = runtime.parser.parse_north_library_page(payload)
+    record.library_category = crawl_result["category_name"]
+    record.category_candidates = crawl_result["category_candidates"]
+    parsed = record.to_dict()
+
+    response: dict[str, Any] = {
+        **crawl_result,
+        "parsed": parsed,
+    }
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["north-library"]
+        parsed_path = runtime.store.write(namespace, record.title, parsed)
+        response["page_path"] = runtime.store.resolve_path("pages", record.title)
+        response["parsed_path"] = parsed_path
+
+    _print_json(response)
+    return 0
+
+
 def handle_crawl_chronicle_pages(args: argparse.Namespace, runtime: CliRuntime) -> int:
     """处理 crawl chronicle-pages 命令：探测并抓取编年史分类页面。"""
     runtime.client.assert_api_allowed()
@@ -540,6 +600,18 @@ def handle_parse_character(args: argparse.Namespace, runtime: CliRuntime) -> int
     result = runtime.parser.parse_character_page(payload, voice_payload=voice_payload).to_storage_dict()
     if not args.no_persist:
         namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["character"]
+        runtime.store.write(namespace, args.title, result)
+    _print_json(result)
+    return 0
+
+
+def handle_parse_archon_quest(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """处理 parse archon-quest 命令：解析魔神任务页面。"""
+    payload = runtime.store.read(args.source_namespace, args.title)
+    series_context = _maybe_load_archon_series_context(runtime, args.source_namespace)
+    result = runtime.parser.parse_archon_quest_page(payload, series_context=series_context).to_dict()
+    if not args.no_persist:
+        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["archon-quest"]
         runtime.store.write(namespace, args.title, result)
     _print_json(result)
     return 0

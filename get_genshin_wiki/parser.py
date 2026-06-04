@@ -32,14 +32,278 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from typing import Any, Iterable
+from typing import Any, Iterable, Mapping
 
-import mwparserfromhell
+try:
+    import mwparserfromhell
+except ModuleNotFoundError:
+    class _MiniTemplateParam:
+        def __init__(self, name: str, value: str) -> None:
+            self.name = name
+            self.value = value
+
+
+    class _MiniTemplate:
+        def __init__(self, raw: str) -> None:
+            self._raw = raw
+            inner = raw[2:-2]
+            parts = _mini_split_top_level(inner, "|")
+            self.name = parts[0].strip() if parts else ""
+            self.params: list[_MiniTemplateParam] = []
+            positional_index = 1
+            for part in parts[1:]:
+                key, value = _mini_split_param(part)
+                if key is None:
+                    key = str(positional_index)
+                    positional_index += 1
+                self.params.append(_MiniTemplateParam(key.strip(), value.strip()))
+
+        def has(self, key: int | str) -> bool:
+            key_text = str(key).strip()
+            return any(str(param.name).strip() == key_text for param in self.params)
+
+        def get(self, key: int | str) -> _MiniTemplateParam:
+            key_text = str(key).strip()
+            for param in self.params:
+                if str(param.name).strip() == key_text:
+                    return param
+            raise ValueError(f"template parameter not found: {key}")
+
+        def __str__(self) -> str:
+            return self._raw
+
+
+    class _MiniHeading:
+        def __init__(self, title: str) -> None:
+            self.title = title
+
+
+    class _MiniWikiLink:
+        def __init__(self, raw: str) -> None:
+            parts = _mini_split_top_level(raw, "|")
+            self.title = parts[0].strip() if parts else ""
+
+
+    class _MiniSection:
+        def __init__(self, text: str) -> None:
+            self._text = text
+
+        def filter_headings(self) -> list[_MiniHeading]:
+            first_line = self._text.splitlines()[0] if self._text.splitlines() else ""
+            match = re.match(r"^(={2,6})\s*(.*?)\s*\1\s*$", first_line)
+            if not match:
+                return []
+            return [_MiniHeading(match.group(2).strip())]
+
+        def __str__(self) -> str:
+            return self._text
+
+
+    def _mini_protect_raw_blocks(text: str) -> tuple[str, list[str]]:
+        blocks: list[str] = []
+
+        def replacer(match: re.Match[str]) -> str:
+            blocks.append(match.group(0))
+            return f"\x00RAWBLOCK{len(blocks) - 1}\x00"
+
+        protected = re.sub(r"(?is)<tabber\b[^>]*>.*?</tabber>", replacer, text)
+        return protected, blocks
+
+
+    def _mini_restore_raw_blocks(text: str, blocks: list[str]) -> str:
+        restored = text
+        for index, block in enumerate(blocks):
+            restored = restored.replace(f"\x00RAWBLOCK{index}\x00", block)
+        return restored
+
+
+    def _mini_split_top_level(text: str, separator: str) -> list[str]:
+        protected, blocks = _mini_protect_raw_blocks(text)
+        parts: list[str] = []
+        current: list[str] = []
+        template_depth = 0
+        link_depth = 0
+        index = 0
+        while index < len(protected):
+            if protected.startswith("{{", index):
+                template_depth += 1
+                current.append("{{")
+                index += 2
+                continue
+            if protected.startswith("}}", index) and template_depth > 0:
+                template_depth -= 1
+                current.append("}}")
+                index += 2
+                continue
+            if protected.startswith("[[", index):
+                link_depth += 1
+                current.append("[[")
+                index += 2
+                continue
+            if protected.startswith("]]", index) and link_depth > 0:
+                link_depth -= 1
+                current.append("]]")
+                index += 2
+                continue
+            if protected[index] == separator and template_depth == 0 and link_depth == 0:
+                parts.append(_mini_restore_raw_blocks("".join(current), blocks))
+                current = []
+                index += 1
+                continue
+            current.append(protected[index])
+            index += 1
+        parts.append(_mini_restore_raw_blocks("".join(current), blocks))
+        return parts
+
+
+    def _mini_split_param(text: str) -> tuple[str | None, str]:
+        protected, blocks = _mini_protect_raw_blocks(text)
+        template_depth = 0
+        link_depth = 0
+        index = 0
+        while index < len(protected):
+            if protected.startswith("{{", index):
+                template_depth += 1
+                index += 2
+                continue
+            if protected.startswith("}}", index) and template_depth > 0:
+                template_depth -= 1
+                index += 2
+                continue
+            if protected.startswith("[[", index):
+                link_depth += 1
+                index += 2
+                continue
+            if protected.startswith("]]", index) and link_depth > 0:
+                link_depth -= 1
+                index += 2
+                continue
+            if protected[index] == "=" and template_depth == 0 and link_depth == 0:
+                return (
+                    _mini_restore_raw_blocks(protected[:index], blocks),
+                    _mini_restore_raw_blocks(protected[index + 1 :], blocks),
+                )
+            index += 1
+        return None, text
+
+
+    def _mini_find_balanced_spans(text: str, open_token: str, close_token: str) -> list[tuple[int, int]]:
+        spans: list[tuple[int, int]] = []
+        stack: list[int] = []
+        open_size = len(open_token)
+        close_size = len(close_token)
+        index = 0
+        limit = len(text)
+        while index < limit:
+            if text.startswith(open_token, index):
+                stack.append(index)
+                index += open_size
+                continue
+            if text.startswith(close_token, index) and stack:
+                start = stack.pop()
+                spans.append((start, index + close_size))
+                index += close_size
+                continue
+            index += 1
+        return spans
+
+
+    def _mini_render_template(raw: str) -> str:
+        template = _MiniTemplate(raw)
+        name = template.name.strip()
+        if not name:
+            return ""
+        if name.startswith("#"):
+            return ""
+        if name == "!":
+            return "|"
+        if name in {"\u6ce8\u97f3", "\u9ed1\u5e55"}:
+            return template.get(1).value if template.has(1) else ""
+        if name == "\u56fe\u6807":
+            if template.has(2):
+                return template.get(2).value
+            if template.has(1):
+                return template.get(1).value
+            return ""
+        if name == "\u661f\u671f":
+            return template.get(1).value if template.has(1) else ""
+        return ""
+
+
+    def _mini_strip_code(text: str) -> str:
+        cleaned = re.sub(r"<!--.*?-->", "", text, flags=re.DOTALL)
+        cleaned = re.sub(r"<br\s*/?>", "\n", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"<hr\s*/?>", "\n", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"(?m)^(={2,6})\s*(.*?)\s*\1\s*$", r"\2", cleaned)
+
+        guard = 0
+        while "{{" in cleaned and "}}" in cleaned and guard < 2000:
+            spans = _mini_find_balanced_spans(cleaned, "{{", "}}")
+            if not spans:
+                break
+            start, end = spans[0]
+            cleaned = cleaned[:start] + _mini_render_template(cleaned[start:end]) + cleaned[end:]
+            guard += 1
+
+        cleaned = re.sub(
+            r"\[\[\s*(?:File|file|Image|image|\u6587\u4ef6)\s*:[^\]]+\]\]",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        )
+        cleaned = re.sub(r"\[(https?://[^\s\]]+)\s+([^\]]+)\]", r"\2", cleaned)
+        cleaned = re.sub(r"\[(https?://[^\]]+)\]", "", cleaned)
+        cleaned = re.sub(r"\[\[([^\]|]+)\|([^\]]+)\]\]", r"\2", cleaned)
+        cleaned = re.sub(r"\[\[([^\]]+)\]\]", r"\1", cleaned)
+        cleaned = re.sub(r"</?[A-Za-z][^>]*>", "", cleaned)
+        cleaned = cleaned.replace("'''", "").replace("''", "")
+        return cleaned
+
+
+    class _MiniWikiCode:
+        def __init__(self, text: str) -> None:
+            self._text = text
+
+        def filter_templates(self, recursive: bool = True) -> list[_MiniTemplate]:
+            spans = sorted(_mini_find_balanced_spans(self._text, "{{", "}}"), key=lambda item: item[0])
+            return [_MiniTemplate(self._text[start:end]) for start, end in spans]
+
+        def filter_wikilinks(self, recursive: bool = True) -> list[_MiniWikiLink]:
+            spans = sorted(_mini_find_balanced_spans(self._text, "[[", "]]"), key=lambda item: item[0])
+            return [_MiniWikiLink(self._text[start + 2 : end - 2]) for start, end in spans]
+
+        def get_sections(self, include_headings: bool = True, flat: bool = True) -> list[_MiniSection]:
+            heading_pattern = re.compile(r"(?m)^(={2,6})\s*(.*?)\s*\1\s*$")
+            matches = list(heading_pattern.finditer(self._text))
+            if not matches:
+                return [_MiniSection(self._text)]
+            sections: list[_MiniSection] = []
+            if matches[0].start() > 0:
+                sections.append(_MiniSection(self._text[: matches[0].start()]))
+            for index, match in enumerate(matches):
+                section_end = matches[index + 1].start() if index + 1 < len(matches) else len(self._text)
+                sections.append(_MiniSection(self._text[match.start() : section_end]))
+            return sections
+
+        def strip_code(self) -> str:
+            return _mini_strip_code(self._text)
+
+
+    class _MiniMwParserFromHell:
+        @staticmethod
+        def parse(text: str) -> _MiniWikiCode:
+            return _MiniWikiCode(text)
+
+
+    mwparserfromhell = _MiniMwParserFromHell()
 
 from .exceptions import ParsingError
 from .models import (
     ArtifactPieceRecord,
     ArtifactSetRecord,
+    ArchonQuestReference,
+    ArchonQuestDialogue,
+    ArchonQuestRecord,
     BookRecord,
     BookVolume,
     ChronicleRecord,
@@ -47,15 +311,21 @@ from .models import (
     ChroniclePageRecord,
     ChronicleSectionRecord,
     CharacterRecord,
+    MonsterRecord, ParsedPage,
+    NorthLibraryNode,
+    NorthLibraryRecord,
     CharacterStoryRecord,
     CharacterVoiceRecord,
     ConstellationRecord,
     AdventureNotesRecord,
+    ParsedSection,
+    WeaponRecord,
     FoodRecord,
     ItemRecord,
     MaterialRecord,
     MonsterRecord,
     NameCardRecord,
+    QuestRewardRecord,
     ParsedPage,
     ParsedSection,
     QuestItemRecord,
@@ -64,6 +334,41 @@ from .models import (
     WeaponRecord,
     WildlifeRecord,
 )
+
+_ARCHON_ACT_PATTERN = re.compile(r"(第[〇零一二三四五六七八九十百千两\d]+幕|序奏|幕间)")
+_ARCHON_DIALOGUE_SPEAKER_PATTERN = re.compile(r"^[*#:;\s]*([^：:\n]{1,40})[：:]", re.MULTILINE)
+_ARCHON_SPLIT_PATTERN = re.compile(r"[、，,\n]+")
+_ARCHON_LINK_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
+_ARCHON_HEADING_PATTERN = re.compile(r"^(={2,6})\s*(.*?)\s*\1\s*$")
+_ARCHON_DIALOGUE_LINE_PATTERN = re.compile(r"^(?P<speaker>[^：:\n]{1,40})[：:](?P<text>.+)$")
+_ARCHON_OPTION_LINE_PATTERN = re.compile(r"^(?:选项(?:分支)?\d*|分支\d*|选项)\s*[：:]\s*(?P<text>.+)$")
+_ARCHON_CHAPTER_PATTERN = re.compile(r"(序章|间章|第[零〇一二三四五六七八九十百千万两\d]+章|无)")
+_ARCHON_ALT_ACT_PATTERN = re.compile(
+    r"(第[零〇一二三四五六七八九十百千万两\d]+幕|序奏|幕间|月之[零〇一二三四五六七八九十两\d]+|月之一|月之二|月之三|月之四)"
+)
+_ARCHON_SPECIAL_CHAPTERS = {"空月之歌"}
+_ARCHON_TRAVELER_SPEAKERS = {"旅行者", "空", "荧"}
+_ARCHON_QUOTED_TITLE_PATTERN = re.compile(r"[「『“\"]\s*(?P<title>[^」』”\"]+?)\s*[」』”\"]")
+_ARCHON_REFERENCE_CHAPTER_ACT_PATTERN = re.compile(
+    r"(?P<chapter>序章|间章|第[零〇一二三四五六七八九十百千万两\d]+章|无)?"
+    r"(?:\s*[·．•\-—]\s*|\s+)?"
+    r"(?P<act>第[〇零一二三四五六七八九十百千两\d]+幕)?"
+)
+_ARCHON_SERIES_SECTION_EXCLUDES = {
+    "简介",
+    "剧情",
+    "任务剧情",
+    "任务流程",
+    "任务奖励",
+    "奖励",
+    "相关成就",
+    "成就",
+    "出场人物",
+    "登场人物",
+    "相关NPC",
+    "对话",
+    "背景",
+}
 
 # 分类链接匹配正则：[[Category:xxx]] 或 [[分类:xxx]]
 _CATEGORY_PATTERN = re.compile(r"\[\[\s*(?:Category|分类)\s*:\s*([^\]|]+)")
@@ -137,6 +442,15 @@ _FILE_LINK_PATTERN = re.compile(r"\[\[\s*(?:文件|File|Image)\s*:[^\]]+\]\]", r
 _HTML_TAG_PATTERN = re.compile(r"</?[A-Za-z][^>]*>")
 _TABBER_SEPARATOR_PATTERN = re.compile(r"(?m)^\|-\|\s*$")
 _TABBER_LABEL_PATTERN = re.compile(r"(?m)^\d+\s*=\s*$")
+_NORTH_LIBRARY_BSTYLE_PATTERN = re.compile(r"<bstyle>.*?</bstyle>", re.IGNORECASE | re.DOTALL)
+_NORTH_LIBRARY_RULE_PATTERN = re.compile(r"^\s*-{4,}\s*$")
+_NORTH_LIBRARY_HEADING_PATTERN = re.compile(r"^(={1,4})\s*(.*?)\s*\1\s*$")
+_NORTH_LIBRARY_ENTRY_PATTERN = re.compile(r"^\*+\s*(.*?)\s*$")
+_NORTH_LIBRARY_ITEM_PATTERN = re.compile(r"^\s*(?:<[^>]+>\s*)*'''(.*?)'''(?:\s*</[^>]+>\s*)*$")
+_NORTH_LIBRARY_COLOR_TEMPLATE_PATTERN = re.compile(
+    r"\{\{\s*颜色\s*\|[^{}|]+\|([^{}|]+?)(?:\|[^{}]*)?\s*}}"
+)
+_NORTH_LIBRARY_SIMPLE_TEMPLATE_PATTERN = re.compile(r"\{\{\s*[^{}|]+\|([^{}]+?)\s*}}")
 _FILE_LINK_PREFIXES = ("文件:", "File:", "Image:", "Category:", "分类:")
 # 书籍模板关键词
 _BOOK_TEMPLATE_KEYWORDS = ("书籍", "书籍信息", "白夜国馆藏", "千世流樱", "浮世风流", "冒险家")
@@ -1290,6 +1604,435 @@ class WikiTextParser:
             page_id=page_id,
         )
 
+    def parse_archon_quest_page(
+        self,
+        payload: dict[str, Any],
+        *,
+        series_context: Mapping[str, Any] | None = None,
+    ) -> ArchonQuestRecord:
+        """解析魔神任务页面。"""
+        parsed_page = self.parse_page(payload)
+        template_name, main_template = self._select_archon_quest_template(parsed_page.templates)
+        series_context = series_context or {}
+
+        title = self._resolve_record_title(
+            parsed_page,
+            ("任务名称", "系列任务名", "名称"),
+            preferred_params=main_template,
+        )
+        english_title = self._resolve_archon_english_title(
+            parsed_page.templates,
+            preferred_params=main_template,
+            wikitext=parsed_page.wikitext,
+        )
+        description = self._coalesce(
+            self._resolve_value(
+                parsed_page.templates,
+                ("任务描述", "描述"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            parsed_page.summary,
+        )
+        dialogues = self._extract_archon_dialogues(
+            self._resolve_raw_value(
+                parsed_page.templates,
+                ("任务剧情", "剧情", "对话", "任务对话"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            parsed_page.sections,
+            wikitext=parsed_page.wikitext,
+        )
+        series = self._extract_archon_series_chain(
+            self._resolve_raw_value(
+                parsed_page.templates,
+                ("系列任务",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            )
+        )
+        chapter, chapter_name, act, act_name = self._resolve_archon_chapter_act(
+            template_name,
+            main_template,
+            series,
+            series_context,
+            page_title=title,
+            wikitext=parsed_page.wikitext,
+        )
+        objectives = self._extract_archon_objectives(
+            self._resolve_raw_value(
+                parsed_page.templates,
+                ("任务流程",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            parsed_page.sections,
+        )
+        rewards = self._extract_archon_rewards(
+            self._resolve_raw_value(
+                parsed_page.templates,
+                ("奖励",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            )
+        )
+        related_npcs = self._extract_archon_related_npcs(
+            self._resolve_raw_value(
+                parsed_page.templates,
+                ("出场人物",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            parsed_page.sections,
+            dialogues=dialogues,
+        )
+        prerequisites = self._extract_archon_references(
+            self._coalesce(
+                self._resolve_raw_value(
+                    parsed_page.templates,
+                    ("前置任务",),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                self._resolve_raw_value(
+                    parsed_page.templates,
+                    ("任务条件",),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+            )
+            ,
+            series_context=series_context,
+        )
+        parallel_quests = self._extract_archon_references(
+            self._resolve_raw_value(
+                parsed_page.templates,
+                ("并行任务",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            series_context=series_context,
+        )
+        follow_up_quests = self._extract_archon_references(
+            self._resolve_raw_value(
+                parsed_page.templates,
+                ("后续任务",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            series_context=series_context,
+        )
+
+        return ArchonQuestRecord(
+            title=title,
+            english_title=english_title,
+            page_type=template_name,
+            chapter=chapter,
+            chapter_name=chapter_name,
+            act=act,
+            act_name=act_name,
+            description=description,
+            objectives=objectives,
+            rewards=rewards,
+            related_npcs=related_npcs,
+            region=self._resolve_value(
+                parsed_page.templates,
+                ("任务地区",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            version=self._resolve_value(
+                parsed_page.templates,
+                ("所属版本",),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            series=series,
+            prerequisites=prerequisites,
+            parallel_quests=parallel_quests,
+            follow_up_quests=follow_up_quests,
+            dialogues=dialogues,
+            categories=parsed_page.categories,
+            sections=parsed_page.sections,
+            templates=parsed_page.templates,
+            page_id=parsed_page.page_id,
+        )
+    def parse_archon_quest_list_page(self, payload: dict[str, Any]) -> list[dict[str, str]]:
+        """Parse the archon quest index page into ordered quest entries."""
+        _, _, wikitext = self.extract_page_metadata(payload)
+        current_chapter = ""
+        current_chapter_name = ""
+        current_act = ""
+        current_act_name = ""
+        seen: set[str] = set()
+        entries: list[dict[str, str]] = []
+
+        for raw_line in wikitext.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            heading_match = _ARCHON_HEADING_PATTERN.match(line)
+            if heading_match:
+                heading_info = self._extract_archon_heading_parts(heading_match.group(2))
+                if heading_info["chapter"]:
+                    current_chapter = heading_info["chapter"]
+                    current_chapter_name = heading_info["chapter_name"]
+                if heading_info["act"]:
+                    current_act = heading_info["act"]
+                    current_act_name = heading_info["act_name"]
+                elif heading_info["chapter"]:
+                    current_act = ""
+                    current_act_name = ""
+                continue
+
+            for entry in self._extract_archon_icon_entries_from_line(
+                line,
+                current_chapter=current_chapter,
+                current_chapter_name=current_chapter_name,
+                current_act=current_act,
+                current_act_name=current_act_name,
+            ):
+                self._append_archon_list_entry(entries, seen, entry)
+
+            if not current_chapter and not current_act:
+                continue
+
+            for title in self._extract_archon_direct_entry_titles(line):
+                self._append_archon_list_entry(
+                    entries,
+                    seen,
+                    {
+                        "title": title,
+                        "chapter": current_chapter,
+                        "chapter_name": current_chapter_name,
+                        "act": current_act,
+                        "act_name": current_act_name,
+                    },
+                )
+        return entries
+
+    def build_archon_series_context(
+        self,
+        entries: Sequence[Mapping[str, str]],
+    ) -> dict[str, tuple[str, str, str, str]]:
+        """Build a chapter/act/name lookup from list-page quest entries."""
+        context: dict[str, tuple[str, str, str, str]] = {}
+        for entry in entries:
+            chapter = entry.get("chapter", "")
+            act = entry.get("act", "")
+            chapter_name = entry.get("chapter_name", "")
+            act_name = entry.get("act_name", "") or (entry.get("series_title", "") if act else "")
+            for key in self._extract_archon_context_keys(entry):
+                context.setdefault(key, (chapter, act, chapter_name, act_name))
+        return context
+
+    def extract_archon_series_quest_titles(
+        self,
+        wikitext: str,
+        *,
+        rendered_section_titles: Sequence[str] | None = None,
+    ) -> list[str]:
+        """Extract concrete quest-page titles from an archon series/act page."""
+        titles: list[str] = []
+        for raw_line in self._normalize_text(wikitext).splitlines():
+            if "详细任务内容" not in self._normalize_plain_text(raw_line):
+                continue
+            for raw_title in _ARCHON_LINK_PATTERN.findall(raw_line):
+                title = self._normalize_plain_text(raw_title).strip()
+                if self._is_archon_series_quest_title(title):
+                    titles.append(title)
+        if titles:
+            return self._unique_preserve_order(titles)
+
+        for title, raw_text in self._extract_raw_sections(wikitext):
+            normalized_title = self._normalize_plain_text(title).strip()
+            if not self._is_archon_series_quest_title(normalized_title):
+                continue
+            plain_text = self._normalize_plain_text(raw_text)
+            if "详细任务内容" in plain_text or "[[" in raw_text or "{{任务" in raw_text:
+                titles.append(normalized_title)
+        if titles:
+            return self._unique_preserve_order(titles)
+
+        if not rendered_section_titles:
+            return []
+        return self._unique_preserve_order(
+            [
+                self._normalize_plain_text(title).strip()
+                for title in rendered_section_titles
+                if self._is_archon_series_quest_title(title)
+            ]
+        )
+
+    def parse_north_library_page(self, payload: dict[str, Any]) -> NorthLibraryRecord:
+        """Parse the North Library encyclopedia index page into a nested tree."""
+        title, page_id, wikitext = self.extract_page_metadata(payload)
+        categories = self.parse_categories(wikitext)
+        if not categories:
+            categories = self._extract_payload_categories(payload)
+        summary, nodes = self._build_north_library_tree(wikitext)
+        return NorthLibraryRecord(
+            title=title,
+            page_id=page_id,
+            summary=summary,
+            categories=categories,
+            nodes=nodes,
+        )
+
+    def _build_north_library_tree(self, wikitext: str) -> tuple[str, list[NorthLibraryNode]]:
+        """Build a hierarchical tree from the North Library page wikitext."""
+        sanitized = _CATEGORY_LINK_PATTERN.sub("", wikitext)
+        sanitized = _NORTH_LIBRARY_BSTYLE_PATTERN.sub("", sanitized)
+        sanitized = self._normalize_line_breaks(sanitized)
+
+        root = NorthLibraryNode(kind="root")
+        stack: list[tuple[int, NorthLibraryNode]] = [(0, root)]
+        buffers: dict[int, list[str]] = {id(root): []}
+
+        for raw_line in sanitized.splitlines():
+            line = raw_line.rstrip()
+            stripped = line.strip()
+            if not stripped:
+                self._append_north_library_text(buffers, stack[-1][1], "")
+                continue
+            if _NORTH_LIBRARY_RULE_PATTERN.match(stripped):
+                continue
+
+            heading_match = _NORTH_LIBRARY_HEADING_PATTERN.match(stripped)
+            if heading_match:
+                kind = {
+                    1: "一级",
+                    2: "二级",
+                    3: "三级",
+                    4: "四级",
+                }[len(heading_match.group(1))]
+                title = self._normalize_north_library_title(heading_match.group(2))
+                if title:
+                    node = NorthLibraryNode(kind=kind, title=title)
+                    self._push_north_library_node(stack, buffers, node, self._north_library_depth(kind))
+                    continue
+
+            entry_match = _NORTH_LIBRARY_ENTRY_PATTERN.match(stripped)
+            if entry_match:
+                self._pop_north_library_stack(stack, self._north_library_depth("条目"))
+                entry_content = entry_match.group(1).strip()
+                entry_title = self._extract_north_library_item_title(entry_content)
+                if entry_title:
+                    node = NorthLibraryNode(kind="条目", title=entry_title)
+                    self._push_north_library_node(stack, buffers, node, self._north_library_depth("条目"))
+                else:
+                    entry_text = self._normalize_north_library_text(entry_content)
+                    if entry_text:
+                        stack[-1][1].children.append(NorthLibraryNode(kind="条目", text=entry_text))
+                continue
+
+            item_title = self._extract_north_library_item_title(stripped)
+            if item_title:
+                node = NorthLibraryNode(kind="项目", title=item_title)
+                self._push_north_library_node(stack, buffers, node, self._north_library_depth("项目"))
+                continue
+
+            text = self._normalize_north_library_text(line)
+            if text:
+                self._append_north_library_text(buffers, stack[-1][1], text)
+
+        self._finalize_north_library_buffers(root, buffers)
+        return root.text, root.children
+
+    def _north_library_depth(self, kind: str) -> int:
+        """Map North Library node kinds to a stable nesting depth."""
+        return {
+            "一级": 1,
+            "二级": 2,
+            "三级": 3,
+            "四级": 4,
+            "项目": 5,
+            "条目": 6,
+        }[kind]
+
+    def _push_north_library_node(
+        self,
+        stack: list[tuple[int, NorthLibraryNode]],
+        buffers: dict[int, list[str]],
+        node: NorthLibraryNode,
+        depth: int,
+    ) -> None:
+        """Attach a new node and make it the current text target."""
+        self._pop_north_library_stack(stack, depth)
+        stack[-1][1].children.append(node)
+        stack.append((depth, node))
+        buffers[id(node)] = []
+
+    def _pop_north_library_stack(
+        self,
+        stack: list[tuple[int, NorthLibraryNode]],
+        depth: int,
+    ) -> None:
+        """Pop the stack until the next node becomes the correct parent."""
+        while len(stack) > 1 and stack[-1][0] >= depth:
+            stack.pop()
+
+    def _append_north_library_text(
+        self,
+        buffers: dict[int, list[str]],
+        node: NorthLibraryNode,
+        text: str,
+    ) -> None:
+        """Append a text line while preserving intentional paragraph breaks."""
+        buffer = buffers.setdefault(id(node), [])
+        if text:
+            buffer.append(text)
+            return
+        if buffer and buffer[-1] != "":
+            buffer.append("")
+
+    def _finalize_north_library_buffers(
+        self,
+        node: NorthLibraryNode,
+        buffers: dict[int, list[str]],
+    ) -> None:
+        """Normalize buffered text for a node and all of its descendants."""
+        existing = self._normalize_text(node.text)
+        buffered = self._normalize_text("\n".join(buffers.get(id(node), [])))
+        node.text = self._normalize_text("\n".join(part for part in (existing, buffered) if part))
+        for child in node.children:
+            self._finalize_north_library_buffers(child, buffers)
+
+    def _extract_north_library_item_title(self, raw_text: str) -> str:
+        """Return the title for a bold-only item or bullet title line."""
+        match = _NORTH_LIBRARY_ITEM_PATTERN.match(raw_text)
+        if not match:
+            return ""
+        return self._normalize_north_library_title(match.group(1))
+
+    def _normalize_north_library_title(self, raw_text: str) -> str:
+        """Normalize a heading or project title with targeted template fallbacks."""
+        title = self._normalize_north_library_text(raw_text)
+        if title:
+            return title
+        fallback = _NORTH_LIBRARY_SIMPLE_TEMPLATE_PATTERN.sub(
+            self._replace_north_library_simple_template,
+            raw_text,
+        )
+        if fallback == raw_text:
+            return ""
+        return self._normalize_north_library_text(fallback)
+
+    def _normalize_north_library_text(self, raw_text: str) -> str:
+        """Normalize line-level North Library text with minimal template fallback."""
+        cleaned = _NORTH_LIBRARY_BSTYLE_PATTERN.sub("", raw_text)
+        cleaned = _NORTH_LIBRARY_COLOR_TEMPLATE_PATTERN.sub(
+            lambda match: match.group(1).strip(),
+            cleaned,
+        )
+        return self._normalize_plain_text(cleaned)
+
+    def _replace_north_library_simple_template(self, match: re.Match[str]) -> str:
+        """Fallback for display-only templates that strip_code drops completely."""
+        values = [part.strip() for part in match.group(1).split("|") if part.strip()]
+        return values[-1] if values else ""
+
     def parse_character_story_page(
         self,
         payload: dict[str, Any],
@@ -1315,6 +2058,778 @@ class WikiTextParser:
         _, _, wikitext = self.extract_page_metadata(payload)
         return self._extract_voice_records_from_wikitext(wikitext)
 
+    def _select_archon_quest_template(
+        self,
+        templates: dict[str, list[dict[str, str]]],
+    ) -> tuple[str, dict[str, str]]:
+        """Select the most likely archon-quest template from a page."""
+        candidates: list[tuple[int, int, str, dict[str, str]]] = []
+        for name, items in templates.items():
+            normalized_name = self._normalize_plain_text(name)
+            if "多重系列任务" in normalized_name:
+                field_groups = (("系列任务名",), ("任务类型",), ("任务地区",), ("所属版本",))
+                template_type = "多重系列任务"
+            elif "系列任务" in normalized_name:
+                field_groups = (("系列任务名",), ("副标题", "任务章节"), ("任务类型",), ("系列任务",))
+                template_type = "系列任务"
+            elif normalized_name == "任务":
+                field_groups = (("任务名称",), ("任务描述", "描述"), ("奖励",), ("任务流程",), ("系列任务",))
+                template_type = "任务"
+            else:
+                continue
+            for params in items:
+                score = sum(1 for aliases in field_groups if self._value_from_params(params, aliases, plain=False))
+                if score <= 0:
+                    continue
+                candidates.append((score, len(params), template_type, params))
+        if not candidates:
+            return "", {}
+        candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        _, _, template_type, params = candidates[0]
+        return template_type, params
+    def _resolve_archon_chapter_act(
+        self,
+        template_type: str,
+        params: dict[str, str],
+        series: Sequence[str],
+        series_context: Mapping[str, Any],
+        *,
+        page_title: str,
+        wikitext: str,
+    ) -> tuple[str, str, str, str]:
+        """Resolve chapter/act codes and display names across archon quest page types."""
+        mapped_chapter, mapped_act, mapped_chapter_name, mapped_act_name = self._lookup_archon_series_context(
+            series_context,
+            page_title,
+        )
+        if mapped_chapter or mapped_act:
+            return mapped_chapter, mapped_chapter_name, mapped_act, mapped_act_name
+
+        subtitle = self._coalesce(
+            self._value_from_params(params, ("副标题", "任务章节"), plain=True),
+            self._extract_plain_param_from_wikitext(wikitext, ("副标题", "任务章节")),
+        )
+        heading_info = self._extract_archon_heading_parts(subtitle)
+        chapter, act = self._parse_archon_chapter_act_text(subtitle)
+        chapter_name = heading_info["chapter_name"]
+        act_name = heading_info["act_name"]
+        if template_type == "系列任务" and act and not act_name and page_title != chapter:
+            act_name = page_title
+        if chapter or act:
+            return chapter, chapter_name, act, act_name
+
+        if template_type == "多重系列任务":
+            chapter = self._coalesce(
+                self._value_from_params(params, ("系列任务名", "任务章节"), plain=True),
+                page_title,
+            )
+            return chapter, "", "", ""
+
+        if template_type == "系列任务":
+            chapter = self._coalesce(
+                self._value_from_params(params, ("系列任务", "任务章节"), plain=True),
+                series[0] if series else "",
+                page_title,
+            )
+            return chapter, "", "", ""
+
+        for candidate in reversed(series):
+            mapped_chapter, mapped_act, mapped_chapter_name, mapped_act_name = self._lookup_archon_series_context(
+                series_context,
+                candidate,
+            )
+            if mapped_chapter or mapped_act:
+                return mapped_chapter, mapped_chapter_name, mapped_act, mapped_act_name
+
+        if series:
+            fallback_chapter, fallback_act = self._parse_archon_chapter_act_text(series[0])
+            if fallback_chapter or fallback_act:
+                return fallback_chapter, "", fallback_act, series[-1] if len(series) >= 2 else ""
+            if len(series) >= 2:
+                return series[0], "", "", series[-1]
+            return series[0], "", "", ""
+
+        chapter, act = self._parse_archon_chapter_act_text(page_title)
+        return chapter, "", act, ""
+    def _parse_archon_chapter_act_text(self, value: str) -> tuple[str, str]:
+        """Parse strings like '第五章 第六幕' into chapter/act fields."""
+        normalized = re.sub(r"\s+", " ", self._normalize_plain_text(value))
+        if not normalized:
+            return "", ""
+        heading_info = self._extract_archon_heading_parts(normalized)
+        if heading_info["chapter"] or heading_info["act"]:
+            return heading_info["chapter"] or normalized, heading_info["act"]
+        return normalized, ""
+    def _extract_archon_series_chain(self, raw: str) -> list[str]:
+        """Split a raw series field into stable ordered titles."""
+        if not raw:
+            return []
+        normalized = self._normalize_plain_text(raw).strip()
+        heading_info = self._extract_archon_heading_parts(normalized)
+        if heading_info["chapter"] and heading_info["chapter_name"] and not heading_info["act"]:
+            return self._unique_preserve_order([heading_info["chapter"], heading_info["chapter_name"]])
+        parts = [
+            self._normalize_plain_text(chunk).strip()
+            for chunk in _ARCHON_SPLIT_PATTERN.split(normalized)
+        ]
+        return self._unique_preserve_order([part for part in parts if part])
+    def _extract_archon_objectives(
+        self,
+        raw: str,
+        sections: Sequence[ParsedSection],
+    ) -> list[str]:
+        """Extract objectives from template fields first, then fallback to section headings."""
+        objectives = self._extract_archon_list(raw)
+        if objectives:
+            return objectives
+        fallback_titles: list[str] = []
+        for section in sections:
+            title = self._normalize_plain_text(section.title)
+            if title in {"", "简介", "任务剧情", "剧情", "任务流程"}:
+                continue
+            fallback_titles.append(title)
+        return self._unique_preserve_order(fallback_titles)
+    def _extract_archon_rewards(self, raw: str) -> list[QuestRewardRecord]:
+        """Extract structured rewards from repeated 图标 templates."""
+        if not raw:
+            return []
+        rewards: list[QuestRewardRecord] = []
+        code = mwparserfromhell.parse(self._normalize_text(raw))
+        for template in code.filter_templates(recursive=True):
+            if self._normalize_plain_text(str(template.name)) != "图标":
+                continue
+            name = self._normalize_plain_text(str(template.get(1).value)) if template.has(1) else ""
+            amount = self._extract_archon_reward_amount(
+                self._normalize_plain_text(str(template.get(2).value)) if template.has(2) else ""
+            )
+            if not name:
+                continue
+            rewards.append(QuestRewardRecord(name=name, amount=amount))
+        if rewards:
+            return rewards
+        return [
+            QuestRewardRecord(name=item, amount=None)
+            for item in self._extract_archon_list(raw)
+        ]
+    def _extract_archon_reward_amount(self, value: str) -> int | str | None:
+        """Normalize reward amounts into integers when possible."""
+        normalized = self._normalize_plain_text(value).replace(",", "").strip()
+        if not normalized:
+            return None
+        return int(normalized) if normalized.isdigit() else normalized
+    def _extract_archon_related_npcs(
+        self,
+        raw: str,
+        sections: Sequence[ParsedSection],
+        *,
+        dialogues: Sequence[ArchonQuestDialogue] | None = None,
+    ) -> list[str]:
+        """Merge explicit 出场人物 data with dialogue-speaker fallback."""
+        explicit_candidates = self._extract_archon_list(raw)
+        candidates = list(explicit_candidates)
+        if dialogues is not None:
+            fallback_candidates = [
+                dialogue.speaker
+                for dialogue in dialogues
+                if dialogue.speaker and dialogue.dialogue_type in {"character", "traveler"}
+            ]
+        else:
+            fallback_candidates = self._extract_archon_dialogue_speakers(sections)
+        excluded = {"？？？", "???", "描述"}
+        if explicit_candidates:
+            excluded = excluded | {"旅行者", "派蒙"}
+        candidates.extend(
+            speaker
+            for speaker in fallback_candidates
+            if speaker and speaker not in excluded
+        )
+        return self._unique_preserve_order(
+            [item for item in candidates if item and item not in {"？？？", "???", "描述"}]
+        )
+    def _extract_archon_heading_parts(self, value: str) -> dict[str, str]:
+        """Split chapter/act headings into code and display-name fields."""
+        normalized = self._normalize_plain_text(value).strip()
+        chapter_match = _ARCHON_CHAPTER_PATTERN.search(normalized)
+        act_match = _ARCHON_ALT_ACT_PATTERN.search(normalized)
+        chapter = chapter_match.group(1).strip() if chapter_match else ""
+        if not chapter:
+            for special_chapter in _ARCHON_SPECIAL_CHAPTERS:
+                if normalized == special_chapter:
+                    chapter = special_chapter
+                    break
+                if normalized.startswith(special_chapter):
+                    separator = normalized[len(special_chapter):len(special_chapter) + 1]
+                    if separator in {"", " ", "·", "・", "-", "：", ":", "、", "，", ","}:
+                        chapter = special_chapter
+                        break
+        act = act_match.group(1).strip() if act_match else ""
+
+        chapter_name = ""
+        if chapter:
+            chapter_end = chapter_match.end() if chapter_match else len(chapter)
+            chapter_name_end = act_match.start() if act_match and act_match.start() > chapter_end else len(normalized)
+            chapter_name = normalized[chapter_end:chapter_name_end].strip(" ：:·-、，,")
+
+        act_name = normalized[act_match.end():].strip(" ：:·-、，,") if act_match else ""
+        return {
+            "chapter": chapter,
+            "chapter_name": chapter_name,
+            "act": act,
+            "act_name": act_name,
+        }
+
+    def _iter_template_positional_values(self, template: Any) -> list[str]:
+        """Return template positional parameters ordered by position."""
+        positional: list[tuple[int, str]] = []
+        for param in getattr(template, "params", []):
+            name = str(param.name).strip()
+            if not name.isdigit():
+                continue
+            positional.append((int(name), str(param.value).strip()))
+        positional.sort(key=lambda item: item[0])
+        return [value for _, value in positional]
+
+    def _extract_archon_icon_entries_from_line(
+        self,
+        line: str,
+        *,
+        current_chapter: str,
+        current_chapter_name: str,
+        current_act: str,
+        current_act_name: str,
+    ) -> list[dict[str, str]]:
+        """Extract quest entries from 图标 task templates on the index page."""
+        entries: list[dict[str, str]] = []
+        code = mwparserfromhell.parse(line)
+        for template in code.filter_templates(recursive=True):
+            if self._normalize_plain_text(str(template.name)).strip() != "图标":
+                continue
+            positional = self._iter_template_positional_values(template)
+            if len(positional) < 5:
+                continue
+            if self._normalize_plain_text(positional[0]).strip() != "任务":
+                continue
+            heading_info = self._extract_archon_heading_parts(positional[3])
+            title = self._normalize_plain_text(positional[-1]).strip()
+            if not title:
+                continue
+            entries.append(
+                {
+                    "title": title,
+                    "chapter": heading_info["chapter"] or current_chapter,
+                    "chapter_name": current_chapter_name or heading_info["chapter_name"],
+                    "act": heading_info["act"] or current_act,
+                    "act_name": heading_info["act_name"] or current_act_name,
+                }
+            )
+        return entries
+
+    def _append_archon_list_entry(
+        self,
+        entries: list[dict[str, str]],
+        seen: set[str],
+        entry: Mapping[str, str],
+    ) -> None:
+        """Append one normalized archon list entry when it is a real quest page."""
+        title = self._normalize_plain_text(entry.get("title", "")).strip()
+        if (
+            not title
+            or ":" in title
+            or title in seen
+            or title in {"魔神任务", entry.get("chapter", ""), entry.get("act", "")}
+        ):
+            return
+        seen.add(title)
+        entries.append(
+            {
+                "title": title,
+                "chapter": entry.get("chapter", ""),
+                "chapter_name": entry.get("chapter_name", ""),
+                "act": entry.get("act", ""),
+                "act_name": entry.get("act_name", ""),
+                "series_title": entry.get("series_title", ""),
+            }
+        )
+
+    def _extract_archon_direct_entry_titles(self, line: str) -> list[str]:
+        """Extract plain-link quest entries without pulling in contextual prose links."""
+        candidate = re.sub(r"''+", "", line).strip()
+        candidate = candidate.lstrip("*#:;").strip()
+        if not candidate:
+            return []
+        matches = _ARCHON_LINK_PATTERN.findall(candidate)
+        if not matches:
+            return []
+        if not re.fullmatch(r"(?:\[\[[^\]]+\]\]\s*)+", candidate):
+            return []
+        return [self._normalize_plain_text(raw_title).strip() for raw_title in matches]
+
+    def _is_archon_series_quest_title(self, value: str) -> bool:
+        """Return True when a rendered section title looks like a concrete quest page."""
+        normalized = self._normalize_plain_text(value).strip()
+        if not normalized or normalized in _ARCHON_SERIES_SECTION_EXCLUDES:
+            return False
+        heading_info = self._extract_archon_heading_parts(normalized)
+        if heading_info["chapter"] or heading_info["act"]:
+            return False
+        return True
+
+    def _extract_raw_sections(self, wikitext: str) -> list[tuple[str, str]]:
+        """Extract raw section bodies without stripping templates."""
+        sanitized_wikitext = _CATEGORY_LINK_PATTERN.sub("", wikitext)
+        code = mwparserfromhell.parse(sanitized_wikitext)
+        sections: list[tuple[str, str]] = []
+        for index, section in enumerate(code.get_sections(include_headings=True, flat=True)):
+            heading_nodes = section.filter_headings()
+            title = "简介" if index == 0 or not heading_nodes else str(heading_nodes[0].title).strip()
+            raw_text = str(section)
+            if heading_nodes:
+                lines = raw_text.splitlines()
+                raw_text = "\n".join(lines[1:]) if len(lines) > 1 else ""
+            raw_text = raw_text.strip()
+            if raw_text:
+                sections.append((title, raw_text))
+        return sections
+
+    def _extract_archon_context_keys(self, entry: Mapping[str, str]) -> list[str]:
+        """Build stable context keys for one quest index entry."""
+        keys = [
+            entry.get("title", ""),
+            entry.get("series_title", ""),
+            entry.get("chapter_name", ""),
+            entry.get("act_name", ""),
+            " ".join(part for part in (entry.get("chapter", ""), entry.get("act", "")) if part).strip(),
+        ]
+        return [key for key in self._unique_preserve_order(keys) if key]
+    def _extract_archon_dialogues(
+        self,
+        raw: str,
+        sections: Sequence[ParsedSection],
+        *,
+        wikitext: str = "",
+    ) -> list[ArchonQuestDialogue]:
+        """Extract ordered archon-quest dialogue lines from raw fields and sections."""
+        raw_blocks: list[tuple[str, str]] = []
+        plain_blocks: list[tuple[str, str]] = []
+        normalized_raw = self._normalize_text(raw)
+        if normalized_raw:
+            raw_blocks.append(("", normalized_raw))
+
+        for section in sections:
+            title = self._normalize_plain_text(section.title)
+            text = self._normalize_text(section.text)
+            if not text:
+                continue
+            has_dialogue_title = any(keyword in title for keyword in ("剧情", "对话"))
+            has_dialogue_markup = self._archon_block_has_dialogue_markup(text)
+            if has_dialogue_title or has_dialogue_markup:
+                plain_blocks.append((self._resolve_archon_dialogue_task_flow(title), text))
+
+        for title, raw_text in self._extract_raw_sections(wikitext):
+            normalized_title = self._normalize_plain_text(title)
+            normalized_text = self._normalize_text(raw_text)
+            if not normalized_text:
+                continue
+            plain_text = self._normalize_plain_text(raw_text)
+            has_dialogue_title = any(keyword in normalized_title for keyword in ("剧情", "对话"))
+            has_dialogue_markup = self._archon_block_has_dialogue_markup(plain_text) or any(
+                token in normalized_text for token in ("{{选项", "{{剧情选项")
+            )
+            if has_dialogue_title or has_dialogue_markup:
+                raw_blocks.append((self._resolve_archon_dialogue_task_flow(normalized_title), normalized_text))
+
+        dialogues: list[ArchonQuestDialogue] = []
+        seen: set[tuple[str, str, str, str]] = set()
+        seen_blocks: set[tuple[str, str]] = set()
+        for task_flow, block in raw_blocks:
+            block_key = (task_flow, block)
+            if block_key in seen_blocks:
+                continue
+            seen_blocks.add(block_key)
+            self._append_archon_dialogues_from_plain_block(
+                self._normalize_plain_text(self._expand_archon_option_templates(block)),
+                dialogues,
+                seen,
+                task_flow=task_flow,
+            )
+        for task_flow, block in plain_blocks:
+            block_key = (task_flow, block)
+            if block_key in seen_blocks:
+                continue
+            seen_blocks.add(block_key)
+            self._append_archon_dialogues_from_plain_block(block, dialogues, seen, task_flow=task_flow)
+        return dialogues
+
+    def _expand_archon_option_templates(self, raw: str) -> str:
+        """Expand option templates into inline text so dialogue order is preserved."""
+        expanded = self._normalize_text(raw)
+        code = mwparserfromhell.parse(expanded)
+        for template in code.filter_templates(recursive=True):
+            if self._normalize_plain_text(str(template.name)).strip() not in {"选项", "剧情选项"}:
+                continue
+            option_values: dict[str, str] = {}
+            selection_values: dict[str, str] = {}
+            for param in getattr(template, "params", []):
+                name = self._normalize_plain_text(str(param.name)).strip()
+                value = self._normalize_text(str(param.value))
+                if not name or not value:
+                    continue
+                option_match = re.fullmatch(r"选项(\d+)", name)
+                if option_match:
+                    option_values[option_match.group(1)] = value
+                    continue
+                selection_match = re.fullmatch(r"(?:选择|剧情)(\d+)", name)
+                if selection_match:
+                    selection_values[selection_match.group(1)] = value
+            ordered_keys = sorted({*option_values.keys(), *selection_values.keys()}, key=int)
+            replacement_lines: list[str] = []
+            for key in ordered_keys:
+                option_text = option_values.get(key, "").strip()
+                if option_text:
+                    replacement_lines.append(f"选项：{option_text}")
+                selection_text = selection_values.get(key, "")
+                if selection_text:
+                    replacement_lines.append(selection_text)
+            expanded = expanded.replace(str(template), "\n".join(replacement_lines), 1)
+        return expanded
+
+    def _append_archon_dialogues_from_plain_block(
+        self,
+        block: str,
+        dialogues: list[ArchonQuestDialogue],
+        seen: set[tuple[str, str, str, str]],
+        *,
+        task_flow: str = "",
+    ) -> None:
+        """Parse one plain-text dialogue block into structured lines."""
+        for raw_line in self._normalize_text(block).splitlines():
+            self._append_archon_dialogue_line(raw_line, dialogues, seen, task_flow=task_flow)
+
+    def _append_archon_dialogue_line(
+        self,
+        line: str,
+        dialogues: list[ArchonQuestDialogue],
+        seen: set[tuple[str, str, str, str]],
+        *,
+        default_type: str = "narration",
+        task_flow: str = "",
+    ) -> None:
+        """Append one normalized archon dialogue line when it is unique."""
+        line = line.strip().lstrip("*#;").strip()
+        if not line or line in {"----", "<hr>", "<hr/>", "<hr />"}:
+            return
+
+        option_match = _ARCHON_OPTION_LINE_PATTERN.match(line)
+        if option_match:
+            text = self._normalize_plain_text(option_match.group("text")).strip()
+            if text:
+                key = ("", text, "option", task_flow)
+                if key not in seen:
+                    seen.add(key)
+                    dialogues.append(
+                        ArchonQuestDialogue(speaker="", text=text, dialogue_type="option", task_flow=task_flow)
+                    )
+            return
+
+        speaker, text = self._split_archon_dialogue_line(line)
+        if speaker and text:
+            dialogue_type = "traveler" if speaker in _ARCHON_TRAVELER_SPEAKERS else "character"
+            key = (speaker, text, dialogue_type, task_flow)
+            if key not in seen:
+                seen.add(key)
+                dialogues.append(
+                    ArchonQuestDialogue(
+                        speaker=speaker,
+                        text=text,
+                        dialogue_type=dialogue_type,
+                        task_flow=task_flow,
+                    )
+                )
+            return
+
+        narration = self._normalize_plain_text(line).strip()
+        if narration:
+            key = ("", narration, default_type, task_flow)
+            if key not in seen:
+                seen.add(key)
+                dialogues.append(
+                    ArchonQuestDialogue(
+                        speaker="",
+                        text=narration,
+                        dialogue_type=default_type,
+                        task_flow=task_flow,
+                    )
+                )
+
+    def _split_archon_dialogue_line(self, line: str) -> tuple[str, str]:
+        """Split one dialogue line into speaker/text when possible."""
+        match = _ARCHON_DIALOGUE_LINE_PATTERN.match(line)
+        if not match:
+            return "", ""
+        speaker = self._normalize_plain_text(match.group("speaker")).strip()
+        text = self._normalize_plain_text(match.group("text")).strip()
+        return speaker, text
+
+    def _archon_block_has_dialogue_markup(self, text: str) -> bool:
+        """Check whether a block contains dialogue or option lines."""
+        normalized = self._normalize_text(text)
+        plain_text = self._normalize_plain_text(text)
+        return bool(
+            _ARCHON_DIALOGUE_SPEAKER_PATTERN.search(normalized)
+            or re.search(r"^(?:选项(?:分支)?\d*|分支\d*|选项)\s*[：:]", plain_text, re.MULTILINE)
+            or any(token in normalized for token in ("{{选项", "{{剧情选项"))
+        )
+
+    def _resolve_archon_dialogue_task_flow(self, title: str) -> str:
+        """Map dialogue-section titles to their parent task-flow label."""
+        normalized_title = self._normalize_plain_text(title).strip()
+        if normalized_title in {"", "简介", "任务剧情", "剧情", "对话"}:
+            return ""
+        return normalized_title
+
+    def _extract_archon_dialogue_speakers(self, sections: Sequence[ParsedSection]) -> list[str]:
+        """Collect unique named speakers from dialogue sections."""
+        speakers: list[str] = []
+        for section in sections:
+            for match in _ARCHON_DIALOGUE_SPEAKER_PATTERN.findall(section.text):
+                speaker = self._normalize_plain_text(match).strip()
+                if speaker:
+                    speakers.append(speaker)
+        return self._unique_preserve_order(speakers)
+
+    def _resolve_archon_english_title(
+        self,
+        templates: dict[str, list[dict[str, str]]],
+        *,
+        preferred_params: dict[str, str] | None = None,
+        wikitext: str | None = None,
+    ) -> str:
+        """Resolve archon quest english titles across the wiki's inconsistent field names."""
+        explicit = self._resolve_value(
+            templates,
+            ("任务英文名", "系列任务英文名", "英文标题", "英文名", "TitleEN", "titleEN", "EN", "en"),
+            preferred_params=preferred_params,
+            wikitext=wikitext,
+        )
+        if explicit:
+            return explicit
+        if preferred_params:
+            value = self._find_archon_param_value(preferred_params, self._is_archon_english_param)
+            if value:
+                return value
+        for items in templates.values():
+            for params in items:
+                value = self._find_archon_param_value(params, self._is_archon_english_param)
+                if value:
+                    return value
+        return ""
+
+    def _find_archon_param_value(
+        self,
+        params: Mapping[str, str],
+        predicate: Any,
+    ) -> str:
+        """Return the first plain-text template value whose name matches the predicate."""
+        for name, raw_value in params.items():
+            if not predicate(name):
+                continue
+            value = self._normalize_plain_text(raw_value)
+            if value:
+                return value
+        return ""
+
+    def _is_archon_english_param(self, name: str) -> bool:
+        """Check whether a template parameter likely stores an english archon title."""
+        normalized = self._normalize_plain_text(name).replace(" ", "")
+        lowered = normalized.lower()
+        if normalized in {"英文", "英文标题", "英文名"}:
+            return True
+        if "英文" in normalized and any(keyword in normalized for keyword in ("任务", "标题", "名称", "名")):
+            return True
+        return lowered.endswith("en") or lowered in {"en", "titleen", "nameen", "questtitleen"}
+
+    def _extract_archon_references(
+        self,
+        raw: str,
+        *,
+        series_context: Mapping[str, Any],
+    ) -> list[ArchonQuestReference]:
+        """Extract structured quest references for prerequisite/follow-up fields."""
+        references: list[ArchonQuestReference] = []
+        seen: set[tuple[str, str, str]] = set()
+        for chunk in self._split_archon_reference_chunks(raw):
+            reference = self._parse_archon_reference(chunk, series_context=series_context)
+            if reference is None:
+                continue
+            key = (reference.title, reference.chapter, reference.act)
+            if key in seen:
+                continue
+            seen.add(key)
+            references.append(reference)
+        return references
+
+    def _split_archon_reference_chunks(self, raw: str) -> list[str]:
+        """Split raw relation fields into stable chunks while preserving wikilinks."""
+        if not raw:
+            return []
+        chunks: list[str] = []
+        for line in self._normalize_text(raw).splitlines():
+            stripped = line.strip().lstrip("*#:").strip()
+            if not stripped:
+                continue
+            for chunk in self._split_archon_chunks_preserving_links(stripped):
+                cleaned = chunk.strip()
+                if cleaned:
+                    chunks.append(cleaned)
+        if chunks:
+            return chunks
+        return self._split_archon_chunks_preserving_links(self._normalize_text(raw))
+
+    def _parse_archon_reference(
+        self,
+        raw: str,
+        *,
+        series_context: Mapping[str, Any],
+    ) -> ArchonQuestReference | None:
+        """Parse one quest relation into title/chapter/act fields."""
+        plain = self._strip_archon_list_prefix(self._normalize_plain_text(raw).strip())
+        if not plain:
+            return None
+        title = self._extract_archon_reference_title(raw, plain)
+        chapter, act = self._extract_archon_chapter_act_tokens(plain)
+        if not title:
+            title = self._clean_archon_reference_title(plain, chapter=chapter, act=act)
+        if not title:
+            return None
+        mapped_chapter, mapped_act, _, _ = self._lookup_archon_series_context(series_context, title)
+        return ArchonQuestReference(
+            title=title,
+            chapter=chapter or mapped_chapter,
+            act=act or mapped_act,
+        )
+
+    def _extract_archon_reference_title(self, raw: str, plain: str) -> str:
+        """Extract the most likely quest title from one relation chunk."""
+        code = mwparserfromhell.parse(raw)
+        for wikilink in code.filter_wikilinks(recursive=True):
+            title = self._normalize_plain_text(str(wikilink.title)).strip()
+            if title and not title.startswith(_FILE_LINK_PREFIXES):
+                return title
+        quoted_match = _ARCHON_QUOTED_TITLE_PATTERN.search(plain)
+        if quoted_match:
+            return self._normalize_plain_text(quoted_match.group("title")).strip()
+        return self._clean_archon_reference_title(plain, chapter="", act="")
+
+    def _extract_archon_chapter_act_tokens(self, value: str) -> tuple[str, str]:
+        """Extract chapter/act tokens without treating bare page titles as chapters."""
+        normalized = re.sub(r"\s+", " ", self._normalize_plain_text(value)).strip()
+        if not normalized:
+            return "", ""
+        heading_info = self._extract_archon_heading_parts(normalized)
+        if not heading_info["chapter"]:
+            for special_chapter in _ARCHON_SPECIAL_CHAPTERS:
+                if special_chapter in normalized:
+                    heading_info["chapter"] = special_chapter
+                    break
+        return heading_info["chapter"], heading_info["act"]
+
+    def _lookup_archon_series_context(
+        self,
+        series_context: Mapping[str, Any],
+        key: str,
+    ) -> tuple[str, str, str, str]:
+        """Read one context entry while remaining compatible with old 2-tuples."""
+        raw_value = series_context.get(key)
+        if raw_value is None:
+            return "", "", "", ""
+        if isinstance(raw_value, Mapping):
+            return (
+                self._normalize_plain_text(raw_value.get("chapter", "")),
+                self._normalize_plain_text(raw_value.get("act", "")),
+                self._normalize_plain_text(raw_value.get("chapter_name", "")),
+                self._normalize_plain_text(raw_value.get("act_name", "")),
+            )
+        if isinstance(raw_value, Sequence) and not isinstance(raw_value, (str, bytes)):
+            values = list(raw_value)
+            chapter = self._normalize_plain_text(values[0]) if len(values) >= 1 else ""
+            act = self._normalize_plain_text(values[1]) if len(values) >= 2 else ""
+            chapter_name = self._normalize_plain_text(values[2]) if len(values) >= 3 else ""
+            act_name = self._normalize_plain_text(values[3]) if len(values) >= 4 else ""
+            return chapter, act, chapter_name, act_name
+        return "", "", "", ""
+
+    def _split_archon_chunks_preserving_links(self, raw: str) -> list[str]:
+        """Split comma-delimited relation text without breaking wikilink titles."""
+        chunks: list[str] = []
+        current: list[str] = []
+        link_depth = 0
+        index = 0
+        while index < len(raw):
+            pair = raw[index:index + 2]
+            if pair == "[[":
+                link_depth += 1
+                current.append(pair)
+                index += 2
+                continue
+            if pair == "]]" and link_depth > 0:
+                link_depth -= 1
+                current.append(pair)
+                index += 2
+                continue
+            char = raw[index]
+            if link_depth == 0 and char in {"\n", "、", "，", ","}:
+                chunk = "".join(current).strip()
+                if chunk:
+                    chunks.append(chunk)
+                current = []
+                index += 1
+                continue
+            current.append(char)
+            index += 1
+        chunk = "".join(current).strip()
+        if chunk:
+            chunks.append(chunk)
+        return chunks
+
+    def _clean_archon_reference_title(self, value: str, *, chapter: str, act: str) -> str:
+        """Remove contextual chapter/act markers and wrappers from a quest reference."""
+        cleaned = self._strip_archon_list_prefix(value)
+        if chapter:
+            cleaned = cleaned.replace(chapter, "", 1)
+        if act:
+            cleaned = cleaned.replace(act, "", 1)
+        cleaned = re.sub(r"[「」『』“”\"'（）()【】\[\]]", "", cleaned)
+        return cleaned.strip(" ·．•-—:：")
+
+    def _extract_archon_list(self, raw: str) -> list[str]:
+        """Normalize bullet lists and comma-delimited page fields."""
+        if not raw:
+            return []
+        values: list[str] = []
+        for line in self._normalize_text(raw).splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            stripped = stripped.lstrip("*#:").strip()
+            if not stripped:
+                continue
+            for chunk in _ARCHON_SPLIT_PATTERN.split(stripped):
+                cleaned = self._normalize_plain_text(chunk).strip()
+                cleaned = self._strip_archon_list_prefix(cleaned)
+                if cleaned:
+                    values.append(cleaned)
+        if values:
+            return self._unique_preserve_order(values)
+        plain_text = self._normalize_plain_text(raw)
+        parts = [self._strip_archon_list_prefix(chunk.strip()) for chunk in _ARCHON_SPLIT_PATTERN.split(plain_text)]
+        return self._unique_preserve_order([part for part in parts if part])
+    def _strip_archon_list_prefix(self, value: str) -> str:
+        """Remove verbose quest-field prefixes while preserving page names."""
+        cleaned = value.strip().strip("：:")
+        for prefix in ("完成前置任务", "完成魔神任务", "完成任务", "魔神任务", "前置任务"):
+            if cleaned.startswith(prefix):
+                cleaned = cleaned[len(prefix):].strip("：: ")
+        return cleaned
     def _extract_chronicle_records(self, page_title: str, wikitext: str) -> list[ChronicleRecord]:
         """按标题层级、项目时间与条目顺序抽取编年史记录。"""
         records: list[ChronicleRecord] = []
