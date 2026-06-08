@@ -31,7 +31,9 @@
       "Bash(expand_archon_index_entries)",
       "Bash(tools/batch_archon_quests.py)",
       "Bash(tools/generate_archon_quest_index.py)",
-      "Bash(git mv *)"
+      "Bash(git mv *)",
+      "Bash(cd /e/Workplace/Learn_project/get_genshin_wiki-character-quests && uv sync)",
+      "Read(//e/Workplace/Learn_project/get_genshin_wiki-character-quests/**)"
     ],
     "additionalDirectories": [
       "\\tmp"
