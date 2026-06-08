@@ -127,6 +127,66 @@ class WikiCrawler:
             self.store.write("categories", "event-quests", {"category": category_name})
         return category_name
 
+    def discover_character_quest_categories(self, persist: bool = True) -> dict[str, Any]:
+        """
+        探测角色传说任务与部族纪闻对应的实际 Wiki 分类名称。
+
+        当前站点上「传说任务」与「部族纪闻」都存在独立分类，但实现上仍需
+        以候选名和成员数量做一次实际探测，避免把概览页面误当成分类。
+        """
+        preferred_names = ("传说任务", "部族纪闻")
+        prefixes = ("传说", "部族")
+        ordered_candidates: list[str] = []
+        seen: set[str] = set()
+
+        def add_candidate(name: str) -> None:
+            candidate = name.strip()
+            if not candidate or candidate in seen:
+                return
+            seen.add(candidate)
+            ordered_candidates.append(candidate)
+
+        for name in preferred_names:
+            add_candidate(name)
+        for prefix in prefixes:
+            for name in self.client.list_categories(prefix=prefix):
+                if any(token in name for token in ("传说任务", "部族纪闻")):
+                    add_candidate(name)
+
+        category_map = {
+            "传说任务": "",
+            "部族纪闻": "",
+        }
+        probe_results: list[dict[str, Any]] = []
+        for candidate in ordered_candidates:
+            members = self.client.list_category_members(candidate)
+            probe_results.append(
+                {
+                    "category_name": candidate,
+                    "member_count": len(members),
+                }
+            )
+            if len(members) <= 0:
+                continue
+            if "部族纪闻" in candidate and not category_map["部族纪闻"]:
+                category_map["部族纪闻"] = candidate
+                if persist:
+                    self.store.write("category_members", candidate, members)
+                continue
+            if "传说任务" in candidate and not category_map["传说任务"]:
+                category_map["传说任务"] = candidate
+                if persist:
+                    self.store.write("category_members", candidate, members)
+
+        result = {
+            "categories": [name for name in preferred_names if category_map[name]],
+            "category_map": category_map,
+            "probe_results": probe_results,
+        }
+        if persist:
+            self.store.write("categories", "character-quests", result)
+        return result
+
     def crawl_category_members(self, category_name: str, persist: bool = True) -> list[str]:
         """
         抓取指定分类下的成员页面列表。

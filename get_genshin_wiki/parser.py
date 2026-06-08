@@ -306,6 +306,7 @@ from .models import (
     ArchonQuestRecord,
     BookRecord,
     BookVolume,
+    CharacterQuestRecord,
     ChronicleRecord,
     ChronicleItemRecord,
     ChroniclePageRecord,
@@ -484,6 +485,27 @@ _EVENT_QUEST_SECTION_BOUNDARIES = {
 }
 _EVENT_QUEST_REWARD_TOKENS = ("原石", "摩拉", "经验", "精锻", "魔矿", "阅历", "好感")
 _EVENT_QUEST_PLOT_SECTION_PREFIXES = ("任务剧情", "剧情")
+_CHARACTER_QUEST_SECTION_BOUNDARIES = {
+    "任务相关",
+    "任务条件",
+    "前置任务",
+    "后续任务",
+    "系列任务",
+    "任务流程",
+    "任务剧情",
+    "剧情",
+    "任务奖励",
+    "奖励",
+    "注释",
+    "参考",
+}
+_CHARACTER_QUEST_LIST_STOP_TITLES = {"邀约事件", "热点事件"}
+_CHARACTER_QUEST_FILE_HINT_PATTERN = re.compile(
+    r"(?:File|Image|文件)\s*:\s*任务-[^-|\]]+-(?P<name>[^.\]|]+)\.(?:png|jpe?g|gif|svg|webp)",
+    re.IGNORECASE,
+)
+_WIKILINK_TARGET_TEXT_PATTERN = re.compile(r"\[\[([^\]|]+)(?:\|([^\]]+))?\]\]")
+_INLINE_BREAK_SENTINEL = "__INLINE_BR__"
 _WIKITEXT_HEADING_PATTERN = re.compile(
     r"(?m)^(?P<marks>=+)\s*(?P<title>.*?)\s*(?P=marks)\s*$"
 )
@@ -1560,6 +1582,139 @@ class WikiTextParser:
             templates=parsed_page.templates,
         )
 
+    def parse_character_quest_page(
+        self,
+        payload: dict[str, Any],
+        *,
+        series_context: Mapping[str, Any] | None = None,
+    ) -> CharacterQuestRecord:
+        """解析角色传说任务与部族纪闻的具体任务页面。"""
+        parsed_page = self.parse_page(payload)
+        main_template = self._select_best_template_by_fields(
+            parsed_page.templates,
+            (
+                ("任务名称", "名称"),
+                ("任务地区", "地区", "国家"),
+                ("任务类型", "类型"),
+                ("任务描述", "描述", "介绍"),
+                ("出场人物", "相关角色"),
+                ("前置任务",),
+                ("后续任务",),
+            ),
+        )
+        series_context = series_context or {}
+        series_titles = self._extract_character_quest_series_titles(parsed_page)
+        chapter_name = series_titles[0] if series_titles else ""
+        related_quest = series_titles[1] if len(series_titles) > 1 else ""
+        related_activity = self._coalesce(
+            self._resolve_value(
+                parsed_page.templates,
+                ("相关活动", "所属任务", "活动"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            self._extract_first_list_item(self._find_section_text(parsed_page.sections, ("相关活动", "所属任务"))),
+        )
+        context = self._resolve_character_quest_context(
+            series_context,
+            title=self._resolve_record_title(parsed_page, ("任务名称", "名称"), preferred_params=main_template),
+            related_quest=related_quest or related_activity,
+            chapter_name=chapter_name,
+        )
+        description = self._coalesce(
+            self._resolve_value(
+                parsed_page.templates,
+                ("任务描述", "描述", "介绍"),
+                preferred_params=main_template,
+                wikitext=parsed_page.wikitext,
+            ),
+            self._extract_first_non_empty_line(self._find_section_text(parsed_page.sections, ("简介",))),
+            parsed_page.summary,
+        )
+        related_characters = self._extract_link_titles(
+            self._coalesce(
+                self._resolve_raw_value(
+                    parsed_page.templates,
+                    ("出场人物", "相关角色"),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                self._find_section_text(parsed_page.sections, ("出场人物", "相关角色")),
+            )
+        )
+        objectives = self._extract_character_quest_flow_titles(parsed_page.sections, parsed_page.wikitext)
+        dialogues = self._extract_character_quest_dialogues(parsed_page.sections, objectives, parsed_page.wikitext)
+        related_character = self._coalesce(
+            context.get("related_character", "") if context else "",
+            context.get("group_name", "") if context else "",
+            related_characters[0] if related_characters else "",
+        )
+
+        return CharacterQuestRecord(
+            title=self._resolve_record_title(parsed_page, ("任务名称", "名称"), preferred_params=main_template),
+            page_id=parsed_page.page_id,
+            region=self._coalesce(
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("任务地区", "地区", "国家"),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                context.get("region", "") if context else "",
+            ),
+            quest_type=self._coalesce(
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("任务类型", "类型"),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                context.get("quest_type", "") if context else "",
+            ),
+            related_character=related_character,
+            related_characters=related_characters,
+            description=description,
+            chapter_name=self._coalesce(
+                context.get("chapter_name", "") if context else "",
+                chapter_name,
+                related_activity if not related_quest else "",
+            ),
+            act=context.get("act", "") if context else "",
+            act_name=self._coalesce(
+                context.get("act_name", "") if context else "",
+                related_quest,
+            ),
+            related_quest=self._coalesce(
+                related_quest,
+                context.get("act_name", "") if context else "",
+                related_activity,
+            ),
+            previous_quest=self._coalesce(
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("前置任务",),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                self._extract_first_list_item(self._find_section_text(parsed_page.sections, ("前置任务",))),
+                self._extract_required_quest(self._find_section_text(parsed_page.sections, ("任务条件",))),
+            ),
+            next_quest=self._coalesce(
+                self._resolve_value(
+                    parsed_page.templates,
+                    ("后续任务",),
+                    preferred_params=main_template,
+                    wikitext=parsed_page.wikitext,
+                ),
+                self._extract_first_list_item(self._find_section_text(parsed_page.sections, ("后续任务",))),
+            ),
+            objectives=objectives,
+            dialogues=dialogues,
+            categories=parsed_page.categories,
+            sections=parsed_page.sections,
+            templates=parsed_page.templates,
+        )
+
     def parse_event_quest_page(
         self,
         payload: dict[str, Any],
@@ -1978,6 +2133,88 @@ class WikiTextParser:
             act_name = entry.get("act_name", "") or (entry.get("series_title", "") if act else "")
             for key in self._extract_archon_context_keys(entry):
                 context.setdefault(key, (chapter, act, chapter_name, act_name))
+        return context
+
+    def parse_character_quest_list_page(self, payload: dict[str, Any]) -> list[dict[str, str]]:
+        """解析传说任务列表页中的传说任务/部族纪闻入口。"""
+        _, _, wikitext = self.extract_page_metadata(payload)
+        section_wikitext = self._extract_section_wikitext(wikitext, ("传说任务和部族纪闻",)) or wikitext
+        current_region = ""
+        current_group = ""
+        current_quest_type = "传说任务"
+        pending_related_character = ""
+        entries: list[dict[str, str]] = []
+        seen: set[str] = set()
+
+        for raw_line in section_wikitext.splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            heading_match = _WIKITEXT_HEADING_PATTERN.match(line)
+            if heading_match:
+                heading_title = self._normalize_plain_text(heading_match.group("title")).strip()
+                heading_level = len(heading_match.group("marks"))
+                if heading_title in _CHARACTER_QUEST_LIST_STOP_TITLES:
+                    break
+                if heading_level == 3:
+                    current_region = heading_title
+                    current_group = ""
+                    current_quest_type = "传说任务"
+                    continue
+                if heading_level == 4 and heading_title in {"传说任务", "部族纪闻"}:
+                    current_group = ""
+                    current_quest_type = heading_title
+                    continue
+                if heading_level >= 4:
+                    current_group = heading_title
+                    if current_region == "纳塔" and current_quest_type != "传说任务":
+                        current_quest_type = "部族纪闻"
+                    continue
+
+            related_character = self._extract_character_quest_related_character_from_line(line)
+            if related_character:
+                pending_related_character = related_character
+                continue
+
+            entry = self._extract_character_quest_list_entry_from_line(
+                line,
+                region=current_region,
+                quest_type=current_quest_type,
+                group_name=current_group,
+                related_character=pending_related_character,
+            )
+            if entry is None:
+                continue
+            title = entry["title"]
+            if title in seen:
+                pending_related_character = ""
+                continue
+            seen.add(title)
+            entries.append(entry)
+            pending_related_character = ""
+
+        return entries
+
+    def build_character_quest_series_context(
+        self,
+        entries: Sequence[Mapping[str, str]],
+    ) -> dict[str, dict[str, str]]:
+        """Build a chapter/act/region lookup from the character quest list page."""
+        context: dict[str, dict[str, str]] = {}
+        for entry in entries:
+            value = {
+                "title": entry.get("title", ""),
+                "chapter_name": entry.get("chapter_name", ""),
+                "act": entry.get("act", ""),
+                "act_name": entry.get("act_name", ""),
+                "region": entry.get("region", ""),
+                "quest_type": entry.get("quest_type", ""),
+                "group_name": entry.get("group_name", ""),
+                "related_character": entry.get("related_character", ""),
+            }
+            for key in self._extract_character_quest_context_keys(entry):
+                context.setdefault(key, value)
         return context
 
     def extract_archon_series_quest_titles(
@@ -2554,6 +2791,237 @@ class WikiTextParser:
             " ".join(part for part in (entry.get("chapter", ""), entry.get("act", "")) if part).strip(),
         ]
         return [key for key in self._unique_preserve_order(keys) if key]
+
+    def _extract_character_quest_related_character_from_line(self, line: str) -> str:
+        """从列表页图片文件名中提取中心角色/部族提示。"""
+        match = _CHARACTER_QUEST_FILE_HINT_PATTERN.search(line)
+        if not match:
+            return ""
+        return self._strip_quotes(self._clean_field_value(match.group("name"), context="generic"))
+
+    def _normalize_character_quest_title(self, value: str) -> str:
+        """Normalize task/group titles used in character-quest context matching."""
+        normalized = self._strip_quotes(self._clean_field_value(value, context="generic"))
+        for suffix in ("（系列任务）", "(系列任务)", "（任务）", "(任务)"):
+            if normalized.endswith(suffix):
+                return normalized[: -len(suffix)].strip()
+        return normalized
+
+    def _extract_character_quest_related_character_from_image_name(self, value: str) -> str:
+        """Extract a role hint from inline icon-template image names."""
+        normalized = self._normalize_text(value)
+        if not normalized:
+            return ""
+        tail = normalized.rsplit("-", 1)[-1].strip()
+        return self._normalize_character_quest_title(tail)
+
+    def _extract_character_quest_list_entry_from_line(
+        self,
+        line: str,
+        *,
+        region: str,
+        quest_type: str,
+        group_name: str,
+        related_character: str,
+    ) -> dict[str, str] | None:
+        """从列表页的一行双链接文本中提取任务索引信息。"""
+        code = mwparserfromhell.parse(line)
+        for template in code.filter_templates(recursive=False):
+            if self._normalize_plain_text(str(template.name)).strip() != "图标":
+                continue
+            params = [self._normalize_plain_text(str(param.value)).strip() for param in template.params]
+            if len(params) < 5 or params[0] != "任务":
+                continue
+            chapter_text = params[3]
+            title = self._normalize_character_quest_title(params[4])
+            chapter_name, act = self._split_character_quest_chapter_act(chapter_text)
+            if not title or not chapter_name or not act:
+                continue
+            entry_related_character = related_character
+            if len(params) >= 2 and params[1] and params[1] != "自定义":
+                entry_related_character = self._normalize_character_quest_title(params[1])
+            elif len(params) >= 6 and params[5]:
+                image_related_character = self._extract_character_quest_related_character_from_image_name(params[5])
+                if image_related_character:
+                    entry_related_character = image_related_character
+            return {
+                "title": title,
+                "chapter_name": chapter_name,
+                "act": act,
+                "act_name": title,
+                "region": region,
+                "quest_type": quest_type,
+                "group_name": group_name,
+                "related_character": entry_related_character,
+            }
+
+        matches = _WIKILINK_TARGET_TEXT_PATTERN.findall(line)
+        if len(matches) < 2:
+            return None
+        first_target, first_text = matches[0]
+        last_target, last_text = matches[-1]
+        chapter_text = self._clean_field_value(first_text or first_target, context="generic")
+        title = self._normalize_character_quest_title(last_target.split("#", 1)[0])
+        act_name = self._normalize_character_quest_title(last_text or last_target)
+        chapter_name, act = self._split_character_quest_chapter_act(chapter_text)
+        if not title or not chapter_name or not act:
+            return None
+        return {
+            "title": title,
+            "chapter_name": chapter_name,
+            "act": act,
+            "act_name": act_name or title,
+            "region": region,
+            "quest_type": quest_type,
+            "group_name": group_name,
+            "related_character": related_character,
+        }
+
+    def _split_character_quest_chapter_act(self, value: str) -> tuple[str, str]:
+        """拆分 `古闻之章 第一幕` 形式的列表页上下文。"""
+        normalized = self._normalize_plain_text(value).strip()
+        act_match = _ARCHON_ALT_ACT_PATTERN.search(normalized)
+        if not act_match:
+            return normalized, ""
+        chapter_name = normalized[: act_match.start()].strip(" ：:·-、，,")
+        act = act_match.group(1).strip()
+        return chapter_name, act
+
+    def _extract_character_quest_context_keys(self, entry: Mapping[str, str]) -> list[str]:
+        """Build stable context keys for one character-quest list entry."""
+        title = self._normalize_character_quest_title(entry.get("title", ""))
+        act_name = self._normalize_character_quest_title(entry.get("act_name", ""))
+        chapter_name = self._normalize_character_quest_title(entry.get("chapter_name", ""))
+        keys = [
+            title,
+            act_name,
+            chapter_name,
+            " ".join(part for part in (chapter_name, entry.get("act", "")) if part).strip(),
+        ]
+        return [key for key in self._unique_preserve_order(keys) if key]
+
+    def _extract_character_quest_series_titles(self, parsed_page: ParsedPage) -> list[str]:
+        """提取任务页面“系列任务”章节中的章/幕标题。"""
+        candidates = [
+            self._find_section_text(parsed_page.sections, ("系列任务",)),
+            self._resolve_raw_value(parsed_page.templates, ("系列任务",), wikitext=parsed_page.wikitext),
+        ]
+        titles: list[str] = []
+        for raw in candidates:
+            if not raw:
+                continue
+            values = self._extract_link_titles(raw)
+            if not values:
+                values = re.split(r"\s*,\s*", self._normalize_plain_text(raw))
+            expanded_values: list[str] = []
+            for value in values:
+                expanded_values.extend(re.split(r"\s*,\s*", self._normalize_plain_text(value)))
+            titles.extend(
+                normalized
+                for normalized in (self._normalize_character_quest_title(value) for value in expanded_values)
+                if normalized
+            )
+        return self._dedupe(titles)
+
+    def _resolve_character_quest_context(
+        self,
+        series_context: Mapping[str, Any],
+        *,
+        title: str,
+        related_quest: str,
+        chapter_name: str,
+    ) -> dict[str, str]:
+        """按页面标题、所属任务和章名从列表页上下文回填章幕信息。"""
+        candidates = [
+            self._normalize_character_quest_title(related_quest),
+            self._normalize_character_quest_title(title),
+            self._normalize_character_quest_title(chapter_name),
+        ]
+        for key in candidates:
+            normalized = self._normalize_plain_text(key).strip()
+            if not normalized:
+                continue
+            value = series_context.get(normalized)
+            if isinstance(value, dict):
+                return value
+        return {}
+
+    def _extract_character_quest_flow_titles(
+        self,
+        sections: Sequence[ParsedSection],
+        wikitext: str,
+    ) -> list[str]:
+        """提取角色任务页面里的流程标题。"""
+        flow_sections = self._extract_event_quest_flow_sections_from_wikitext(wikitext)
+        if flow_sections:
+            return [title for title, _ in flow_sections]
+        flow_text = self._find_section_text(sections, ("任务流程",))
+        flow_titles = self._extract_list_items(flow_text)
+        if flow_titles:
+            return flow_titles
+        plot_index = next(
+            (
+                index
+                for index, section in enumerate(sections)
+                if self._is_event_quest_plot_section_title(section.title)
+            ),
+            -1,
+        )
+        if plot_index == -1:
+            return []
+        fallback_titles: list[str] = []
+        for section in sections[plot_index + 1 :]:
+            title = self._normalize_text(section.title)
+            if not title:
+                continue
+            if title in _CHARACTER_QUEST_SECTION_BOUNDARIES and fallback_titles:
+                break
+            fallback_titles.append(title)
+        return fallback_titles
+
+    def _extract_character_quest_dialogues(
+        self,
+        sections: Sequence[ParsedSection],
+        flow_titles: Sequence[str],
+        wikitext: str,
+    ) -> list[ArchonQuestDialogue]:
+        """按流程提取角色任务页的平铺对白。"""
+        flow_sections = self._extract_event_quest_flow_sections(sections, flow_titles, wikitext=wikitext)
+        dialogues: list[ArchonQuestDialogue] = []
+        for task_flow, text in flow_sections:
+            for entry in self._parse_event_quest_dialogue_entries(text):
+                if entry.type == "选项":
+                    dialogues.extend(
+                        [
+                            ArchonQuestDialogue(
+                                speaker="",
+                                text=option,
+                                dialogue_type="option",
+                                task_flow=task_flow,
+                            )
+                            for option in entry.options
+                            if option
+                        ]
+                    )
+                    continue
+                dialogue_type = "character"
+                if entry.type == "旅行者":
+                    dialogue_type = "traveler"
+                elif entry.type == "旁白":
+                    dialogue_type = "narration"
+                content = entry.content.strip()
+                if not content:
+                    continue
+                dialogues.append(
+                    ArchonQuestDialogue(
+                        speaker=entry.speaker,
+                        text=content,
+                        dialogue_type=dialogue_type,
+                        task_flow=task_flow,
+                    )
+                )
+        return dialogues
+
     def _extract_archon_dialogues(
         self,
         raw: str,
@@ -3682,10 +4150,12 @@ class WikiTextParser:
         """将任务剧情子章节的原始 wikitext 规范化为对话解析可消费的纯文本。"""
         if not raw_text:
             return ""
-        expanded = self._expand_event_quest_wikitext(raw_text)
+        expanded = _CATEGORY_LINK_PATTERN.sub("", raw_text)
+        expanded = _BR_TAG_PATTERN.sub(_INLINE_BREAK_SENTINEL, expanded)
+        expanded = self._expand_event_quest_wikitext(expanded)
         expanded = self._replace_phonetic_templates(expanded, "generic")
         expanded = self._replace_blackout_templates(expanded, "generic")
-        plain_text = mwparserfromhell.parse(self._normalize_line_breaks(expanded)).strip_code().strip()
+        plain_text = mwparserfromhell.parse(expanded).strip_code().strip()
         return self._normalize_text(str(plain_text))
 
     def _expand_event_quest_wikitext(self, text: str) -> str:
@@ -3794,7 +4264,7 @@ class WikiTextParser:
             if option_artifact:
                 collecting_options = True
                 if option_content:
-                    pending_options.append(option_content)
+                    pending_options.append(option_content.replace(_INLINE_BREAK_SENTINEL, "\n"))
                 continue
             if line in _EVENT_QUEST_IGNORED_LINES or line.startswith("额外对话"):
                 if pending_options:
@@ -3804,7 +4274,7 @@ class WikiTextParser:
                 continue
             speaker_content = self._split_event_quest_dialogue_line(line)
             if collecting_options and speaker_content is None:
-                pending_options.append(option_content or line)
+                pending_options.append((option_content or line).replace(_INLINE_BREAK_SENTINEL, "\n"))
                 continue
             if pending_options:
                 entries.append(EventQuestDialogueEntry(type="选项", options=list(pending_options)))
@@ -3820,7 +4290,7 @@ class WikiTextParser:
                     )
                 )
                 continue
-            entries.append(EventQuestDialogueEntry(type="旁白", content=line))
+            entries.append(EventQuestDialogueEntry(type="旁白", content=line.replace(_INLINE_BREAK_SENTINEL, "\n")))
 
         if pending_options:
             entries.append(EventQuestDialogueEntry(type="选项", options=list(pending_options)))
@@ -3849,7 +4319,7 @@ class WikiTextParser:
         if not match:
             return None
         speaker = match.group(1).strip()
-        content = match.group(2).strip()
+        content = match.group(2).replace(_INLINE_BREAK_SENTINEL, "\n").strip()
         if not speaker or not content:
             return None
         return speaker, content

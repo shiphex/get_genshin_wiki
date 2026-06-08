@@ -35,10 +35,12 @@ class FakeClient:
     def __init__(self) -> None:
         self.page_requests: list[str] = []  # 记录请求过的页面
         self.category_requests: list[str | None] = []  # 记录分类探测请求
-        self.categories = ["角色", "活动事件", "活动页面"]
+        self.categories = ["角色", "活动事件", "活动页面", "传说任务", "部族纪闻"]
         self.category_members = {
             "角色": ["哥伦比娅", "阿蕾奇诺"],
             "活动事件": ["有朋自远方来·其二", "为了没有眼泪的重逢"],
+            "传说任务": ["漩涡之遗", "值得托付之人"],
+            "部族纪闻": ["值得托付之人"],
         }
 
     def list_categories(self, prefix: str | None = None) -> list[str]:
@@ -88,7 +90,7 @@ class WikiCrawlerTests(unittest.TestCase):
         """
         categories = self.crawler.crawl_categories()
 
-        self.assertEqual(["角色", "活动事件", "活动页面"], categories)
+        self.assertEqual(["角色", "活动事件", "活动页面", "传说任务", "部族纪闻"], categories)
         self.assertTrue(self.store.list_keys("categories"))
 
     def test_discover_event_quest_category_prefers_activity_event_category(self) -> None:
@@ -97,6 +99,16 @@ class WikiCrawlerTests(unittest.TestCase):
 
         self.assertEqual("活动事件", category_name)
         self.assertEqual({"category": "活动事件"}, self.store.read("categories", "event-quests"))
+
+    def test_discover_character_quest_categories_persists_detected_category_map(self) -> None:
+        """测试 discover_character_quest_categories 会同时记录传说任务与部族纪闻分类。"""
+        result = self.crawler.discover_character_quest_categories()
+
+        self.assertEqual(["传说任务", "部族纪闻"], result["categories"])
+        self.assertEqual("传说任务", result["category_map"]["传说任务"])
+        self.assertEqual("部族纪闻", result["category_map"]["部族纪闻"])
+        self.assertEqual(result, self.store.read("categories", "character-quests"))
+        self.assertEqual(["漩涡之遗", "值得托付之人"], self.store.read("category_members", "传说任务"))
 
     def test_crawl_page_persists_payload(self) -> None:
         """
