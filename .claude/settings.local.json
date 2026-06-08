@@ -32,6 +32,8 @@
       "Bash(tools/batch_archon_quests.py)",
       "Bash(tools/generate_archon_quest_index.py)",
       "Bash(git mv *)",
+      "Bash(cd /e/Workplace/Learn_project/get_genshin_wiki-character-quests && uv sync)",
+      "Read(//e/Workplace/Learn_project/get_genshin_wiki-character-quests/**)",
       "Bash(export:*)",
       "Read(//tmp/codex-companion/get_genshin_wiki-character-quests-73968f8228bce435/**)",
       "Bash(echo:*)",
