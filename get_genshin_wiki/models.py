@@ -804,6 +804,49 @@ class ArchonQuestRecord:
 
 
 @dataclass
+class CharacterQuestRecord:
+    """Structured record for character-quest and tribal-chronicle task pages."""
+
+    title: str
+    region: str
+    quest_type: str
+    related_character: str = ""
+    related_characters: list[str] = field(default_factory=list)
+    description: str = ""
+    chapter_name: str = ""
+    act: str = ""
+    act_name: str = ""
+    related_quest: str = ""
+    previous_quest: str = ""
+    next_quest: str = ""
+    objectives: list[str] = field(default_factory=list)
+    dialogues: list[ArchonQuestDialogue] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)
+    sections: list[ParsedSection] = field(default_factory=list)
+    templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
+    page_id: int | str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the character quest record for JSON output."""
+        return {
+            "任务名称": self.title,
+            "任务地区": self.region,
+            "任务类型": self.quest_type,
+            "相关角色": self.related_character,
+            "出场人物": list(self.related_characters),
+            "所属章": self.chapter_name,
+            "所属幕": self.act,
+            "所属幕名称": self.act_name,
+            "所属任务": self.related_quest or self.act_name,
+            "前置任务": self.previous_quest,
+            "后续任务": self.next_quest,
+            "任务描述": self.description,
+            "任务流程": list(self.objectives),
+            "对话": [dialogue.to_dict() for dialogue in self.dialogues],
+        }
+
+
+@dataclass
 class ItemRecord:
     """Structured record for general item pages."""
 
