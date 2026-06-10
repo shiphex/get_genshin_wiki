@@ -38,7 +38,13 @@
       "Read(//tmp/codex-companion/get_genshin_wiki-character-quests-73968f8228bce435/**)",
       "Bash(echo:*)",
       "Bash(git check-ignore:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(\"D:/APP/Node/node_global/codex.cmd\":*)",
+      "Bash(\"$HOME/.bashrc\")",
+      "Read(//e/Workplace/Learn_project/get_genshin_wiki/$HOME/**)",
+      "Read(//d/APP/Node/node_global/**)",
+      "Read(//d/APP/Node/node_global/node_modules/@openai/codex/**)",
+      "Bash(git commit:*)"
     ],
     "additionalDirectories": [
       "\\tmp"
