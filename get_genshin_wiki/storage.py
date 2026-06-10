@@ -122,7 +122,7 @@ class JsonFileStore:
         if not normalized:
             normalized = "item"
         # 添加哈希前缀保证唯一性，即使不同 key 规范化后相同也能区分
-        digest = hashlib.sha1(key.encode("utf-8")).hexdigest()[:10]
+        digest = hashlib.sha1(key.encode("utf-8", errors="replace")).hexdigest()[:10]
         return f"{normalized}__{digest}.json"
 
     def resolve_path(self, namespace: str, key: str) -> Path:

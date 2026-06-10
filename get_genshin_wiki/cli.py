@@ -454,7 +454,10 @@ def _load_payload(args: argparse.Namespace) -> Any:
 
 def _print_json(payload: Any) -> None:
     """将对象格式化为 JSON 并打印到 stdout。"""
-    print(json.dumps(payload, ensure_ascii=False, indent=2, default=_json_default))
+    try:
+        print(json.dumps(payload, ensure_ascii=False, indent=2, default=_json_default))
+    except UnicodeEncodeError:
+        print(json.dumps(payload, ensure_ascii=True, indent=2, default=_json_default))
 
 
 def _json_default(value: Any) -> str:
