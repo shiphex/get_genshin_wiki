@@ -1,22 +1,53 @@
 # 项目架构设计
 
-## 1. 目标
+## 1. 项目定位
 
-本项目用于从 `https://wiki.biligame.com/ys/` 获取原神 Wiki 数据，并将原始页面与结构化结果落盘，供后续大模型训练、微调和数据清洗使用。
+本项目用于从 `https://wiki.biligame.com/ys/` 抓取原神 Wiki 页面，并将页面原始 payload 与结构化解析结果落盘到本地 `data/` 目录，供后续训练数据整理、检查与下游消费使用。
 
-核心约束：
+当前仓库已经从“通用骨架”演进为“多数据族并行支持”的实现，重点不再只是角色，而是同时覆盖：
 
-- 遵循 `robots.txt`
-- 通过 `MediaWiki API` 获取分类、分类成员和页面内容
-- 通过 `mwparserfromhell` 解析 WikiText
-- 基础能力与业务解析解耦，便于后续扩展到武器、任务、圣遗物等实体
+- 角色
+- 武器
+- 圣遗物套装
+- 怪物
+- 书籍
+- 食物
+- 野生生物
+- 任务道具
+- 道具
+- 材料
+- 名片
+- 秘境
+- 提瓦特编年史
+- 北陆图书馆
+- 活动任务
+- 魔神任务
+- 角色传说任务 / 部族纪闻
 
-## 2. 目录结构
+“全部数据”在当前语境下，指上面这些已经有代码支持的类型，而不是历史规划中过的全部 Wiki 类别。
+
+## 2. 当前目录结构
 
 ```text
 get_genshin_wiki/
+├─ CLAUDE.md
+├─ README.md
+├─ TODO.md
+├─ main.py
+├─ pyproject.toml
+├─ uv.lock
+├─ data/
+│  ├─ category_members/
+│  ├─ pages/
+│  ├─ parsed/
+│  └─ reports/
 ├─ doc/
-│  └─ project_architecture.md
+│  ├─ guide/
+│  │  ├─ unified_operation_guide.md
+│  │  └─ *.md
+│  ├─ project_architecture.md
+│  ├─ todo_logs.md
+│  └─ worktree_logs/
 ├─ get_genshin_wiki/
 │  ├─ __init__.py
 │  ├─ cli.py
@@ -27,189 +58,237 @@ get_genshin_wiki/
 │  ├─ models.py
 │  ├─ parser.py
 │  └─ storage.py
+├─ refer/
+│  └─ *.py
 ├─ tests/
-│  ├─ helpers.py
-│  ├─ test_client.py
-│  ├─ test_crawler.py
-│  ├─ test_parser.py
-│  └─ test_storage.py
-├─ main.py
-├─ CLAUDE.md
-├─ TODO.md
-└─ pyproject.toml
+│  └─ *.py
+└─ tools/
+   └─ *.py
 ```
 
-## 3. 分层设计
+说明：
 
-### 3.1 基础设施层
+- `doc/guide/` 下保留了分项指南；`doc/guide/unified_operation_guide.md` 是新的统一入口。
+- `doc/worktree_logs/` 记录历史 worktree 的开发日志，适合追溯背景，不应再作为当前命令入口文档。
+- `refer/` 是参考实现与探索脚本，不是生产代码路径。
+
+## 3. 运行时分层
+
+### 3.1 配置与异常
 
 - `config.py`
-  - 默认 API 地址、用户代理、超时、限速参数
+  - 定义默认 API 地址、User-Agent、超时、限流、重试次数、默认 `data/` 根目录。
 - `exceptions.py`
-  - 网络异常、解析异常、`robots.txt` 拒绝等统一异常
-- `models.py`
-  - 页面、解析结果、请求策略等数据模型
-- `storage.py`
-  - 本地 JSON 存储，负责增删查改与文件命名规整
+  - 定义网络失败、页面缺失、`robots.txt` 禁止访问等异常类型。
 
 ### 3.2 平台接入层
 
 - `client.py`
-  - MediaWiki API 访问封装
-  - `robots.txt` 检查
-  - 分页处理
-  - 页面正文抽取
+  - 封装 MediaWiki API 访问。
+  - 负责 `robots.txt` 校验、分页拉取、请求限流、重试、页面原始 payload 获取。
+  - 额外提供 `fetch_rendered_section_titles()`，用于部分任务页的模板展开辅助。
 
-### 3.3 业务编排层
+### 3.3 编排层
 
 - `crawler.py`
-  - 按分类抓取成员
-  - 按标题抓取页面
-  - 将原始数据落盘到本地存储
+  - 将远程抓取与本地持久化组合起来。
+  - 提供通用能力：`crawl_categories`、`crawl_category_members`、`crawl_page`、`crawl_category_pages`。
+  - 提供专项探测/抓取能力：
+    - `discover_event_quest_category`
+    - `discover_character_quest_categories`
+    - `crawl_chronicle_pages`
+    - `crawl_north_library`
 
-### 3.4 数据解析层
+### 3.4 解析层
 
 - `parser.py`
-  - 通用模板聚合
-  - 分类、简介、章节抽取
-  - 角色页面解析
-  - 后续可扩展武器、任务、圣遗物专用解析器
+  - `parse_page()` 提供通用页面解析：标题、摘要、模板、分类、章节。
+  - 在通用解析之上派生实体专用解析：
+    - `parse_character_page`
+    - `parse_weapon_page`
+    - `parse_artifact_set_page`
+    - `parse_monster_page`
+    - `parse_food_page`
+    - `parse_wildlife_page`
+    - `parse_quest_item_page`
+    - `parse_item_page`
+    - `parse_material_page`
+    - `parse_namecard_page`
+    - `parse_secret_item_page`
+    - `parse_book_page`
+    - `parse_chronicle_page`
+    - `parse_event_quest_page`
+    - `parse_archon_quest_page`
+    - `parse_character_quest_page`
+    - `parse_north_library_page`
 
-### 3.5 交互入口层
+### 3.5 存储层
 
-- `cli.py`
-  - 命令行触发分类抓取、页面抓取、解析任务
+- `storage.py`
+  - `JsonFileStore` 是当前唯一持久化实现。
+  - 按命名空间写入 JSON 文件。
+  - 文件名采用 `{规范化标题}__{sha1前10位}.json`，避免中文标题重名与非法字符问题。
+  - 提供 `write/read/update/add/exists/delete/list_keys/resolve_path`。
+
+### 3.6 CLI 与批处理入口
+
 - `main.py`
-  - 统一入口，便于直接运行
+  - 当前最稳妥的统一 CLI 入口，直接转发到 `get_genshin_wiki.cli:main`。
+- `get_genshin_wiki/cli.py`
+  - 提供三组命令：
+    - `crawl`
+    - `parse`
+    - `store`
+- `tools/*.py`
+  - 承担“全量批处理”“索引生成”“验证报告”职责，是当前仓库的重要一等入口，而不是辅助脚本。
 
-## 4. 爬虫模块设计
+## 4. 命令面与能力边界
 
-`client.py` 与 `crawler.py` 共同组成爬虫模块。
+### 4.1 通用 CLI 能力
 
-### 4.1 MediaWikiClient 职责
+`crawl` 子命令：
 
-- 读取并校验 `robots.txt`
-- 发送 API 请求并统一附带请求头
-- 处理 `allcategories` 分页
-- 处理 `categorymembers` 分页
-- 获取指定页面的 `revisions` 内容
-- 将 MediaWiki 原始响应转换为 `WikiPage`
+- `categories`
+- `members`
+- `page`
+- `category-pages`
+- `north-library`
+- `chronicle-pages`
+- `event-quests`
 
-### 4.2 WikiCrawler 职责
+`parse` 子命令：
 
-- 抓取并保存分类列表
-- 抓取并保存分类成员列表
-- 抓取并保存页面原始 JSON
-- 将“远程抓取”与“本地落盘”解耦，便于单测替换 client/store
+- `page`
+- `chronicle`
+- `character`
+- `archon-quest`
+- `event-quest`
+- `weapon`
+- `artifact`
+- `monster`
+- `food`
+- `wildlife`
+- `quest-item`
+- `item`
+- `material`
+- `namecard`
+- `secret-item`
+- `book`
 
-### 4.3 反爬与可靠性策略
+`store` 子命令：
 
-- 默认限速，避免短时间高频请求
-- 请求超时与可配置重试次数
-- 任何线上请求前先检查 `robots.txt`
-- API 返回结构异常时抛出明确异常，不静默吞错
+- `put/query/update/add/delete/exists/list`
 
-## 5. 数据解析模块设计
+### 4.2 批处理脚本
 
-`parser.py` 负责从页面原始 JSON 中提取结构化信息。
+- `tools/crawl_reparse_all.py`
+  - 适用于 `characters/weapons/artifacts/monsters/books/foods/wildlife/quest-items/items/materials/namecards/secret-items`
+  - 负责抓取、重解析、验证，并附带跑测试。
+- `tools/parse_all_categories.py`
+  - 对已存在的本地页面做离线重解析与验证。
+- `tools/crawl_validate_characters.py`
+  - 针对角色的抓取、解析与完整性报告。
+- `tools/batch_archon_quests.py`
+  - 批量抓取并解析魔神任务。
+- `tools/generate_archon_quest_index.py`
+  - 生成魔神任务独立索引。
+- `tools/batch_character_quests.py`
+  - 批量抓取并解析角色传说任务 / 部族纪闻。
+- `tools/generate_character_quest_index.py`
+  - 生成角色传说任务独立索引。
 
-### 5.1 通用解析输出
+### 4.3 当前边界
 
-- 页面标题
-- 原始 WikiText
-- 简介纯文本
-- 所有模板及其参数
-- 页面分类
-- 正文章节列表
+- `character-quest` 目前没有 CLI 级 `parse` 子命令，只能通过批处理脚本或 Python API 解析。
+- 活动任务目前有 `crawl event-quests` 与 `parse event-quest`，但没有专用“全量批解析”脚本。
+- 提瓦特编年史当前有主页面自动探测能力，但“国家/地区编年史全量抓取”仍依赖显式标题列表。
+- 北陆图书馆当前通过 `crawl north-library` 一步完成抓取与解析，没有单独的 `parse north-library` 命令。
 
-### 5.2 角色解析输出
+## 5. 数据流
 
-- 角色标题
-- 角色主信息模板参数
-- 技能/天赋模板参数集合
-- 命座模板参数集合
-- 页面分类
-- 简介与章节文本
+### 5.1 标准实体数据流
 
-### 5.3 设计原则
+适用于武器、圣遗物套装、怪物、书籍、食物、野生生物、任务道具、道具、材料、名片、秘境：
 
-- 先做“通用解析”，再做“实体专用解析”
-- 模板名称匹配使用关键字规则，避免对单一模板名强绑定
-- 保留原始模板结果，避免因为解析规则不足导致信息丢失
+1. `crawl members <分类>`
+2. `crawl category-pages <分类>` 或逐页 `crawl page <标题>`
+3. `parse <类型> <标题>`
+4. 结果写入 `data/parsed/<namespace>/`
 
-## 6. 数据存储设计
+### 5.2 上下文相关数据流
 
-当前阶段采用本地 JSON 文件存储，原因：
+- 角色
+  - 除主页面外，通常还需要 `<角色名>语音` 页面。
+- 魔神任务
+  - 为获得更稳定的章节/幕上下文，通常要保留 `魔神任务` 列表页。
+- 活动任务
+  - 任务页常依赖活动主页补全活动名称、活动期间、活动列表。
+- 角色传说任务 / 部族纪闻
+  - 依赖列表页 `传说任务` 与分类探测结果构造系列上下文。
 
-- 结构简单，便于审计与回放
-- 适合抓取原始数据与解析中间产物
-- 对训练数据预处理友好
+## 6. 存储命名空间
 
-存储命名空间：
+当前仓库会实际使用到的主要命名空间包括：
 
-- `data/categories/`
-  - 分类列表，如全量分类或带前缀的分类结果
-- `data/category_members/`
-  - 分类对应的成员标题列表
-- `data/pages/`
-  - 原始页面 JSON
-- `data/parsed/pages/`
-  - 通用页面解析结果
-- `data/parsed/characters/`
-  - 角色结构化结果
+- `categories/`
+- `category_members/`
+- `pages/`
+- `chronicle_meta/`
+- `parsed/pages/`
+- `parsed/chronicles/`
+- `parsed/characters/`
+- `parsed/archon-quests/`
+- `parsed/archon-quest-index/`
+- `parsed/character-quests/`
+- `parsed/character-quest-index/`
+- `parsed/event-quests/`
+- `parsed/weapons/`
+- `parsed/artifacts/`
+- `parsed/monsters/`
+- `parsed/foods/`
+- `parsed/wildlife/`
+- `parsed/quest-items/`
+- `parsed/items/`
+- `parsed/materials/`
+- `parsed/namecards/`
+- `parsed/secret-items/`
+- `parsed/books/`
+- `parsed/north-library/`
+- `reports/`
 
-文件名使用“原始标题 + 摘要哈希”模式，避免中文标题中的非法文件名字符和重名冲突。
+## 7. 测试与当前状态
 
-`storage.py` 提供以下操作：
+测试分布在：
 
-- `write`
-- `read`
-- `exists`
-- `list_keys`
-- `delete`
+- `tests/test_client.py`
+- `tests/test_crawler.py`
+- `tests/test_parser.py`
+- `tests/test_storage.py`
+- `tests/test_cli.py`
+- `tests/test_batch_*.py`
+- `tests/test_generate_*.py`
 
-这满足“新增、查询、更新、删除”的最小存储需求。后续如需大规模检索，可在此层替换为 SQLite 或对象存储，而不影响上层逻辑。
+当前代码库的测试目标已经从基础 CRUD 扩展到：
 
-## 7. 测试方案
+- CLI 命令行为
+- 专项解析器输出
+- 批处理脚本
+- 索引生成
 
-测试目标：核心模块覆盖率达到 90% 以上。
+按 2026-06-10 在当前仓库执行 `pytest -q` 的结果，测试尚未完全可运行：`tests/test_cli.py` 存在语法错误，进而导致 `tests/test_batch_tools.py` 在收集阶段失败。也就是说，文档应以“测试体系存在，但当前工作树测试并非全绿”来描述现状，而不是继续假定测试已经稳定通过。
 
-测试策略：
+## 8. 当前规范与文档入口
 
-- `test_client.py`
-  - 分类分页
-  - 分类成员分页
-  - 页面正文抽取
-  - `robots.txt` 拒绝场景
-- `test_storage.py`
-  - 写入、读取、删除、列举
-  - 非法文件名规整
-- `test_parser.py`
-  - 通用模板聚合
-  - 分类与章节提取
-  - 角色模板解析
-- `test_crawler.py`
-  - 抓取编排与持久化调用
+- 优先使用 `python main.py` 编写命令示例，避免再写旧 worktree 专用路径。
+- 如需说明全量处理流程，优先引用 `tools/*.py` 的真实能力，而不是假定所有实体都能用同一个批处理脚本。
+- 新增或更新分项能力时，应同步更新：
+  - `doc/guide/unified_operation_guide.md`
+  - `doc/project_architecture.md`
+  - `CLAUDE.md`
 
-测试原则：
+## 9. 已知不一致与后续关注点
 
-- 单测全部使用离线假响应，不依赖真实网络
-- 关键解析逻辑使用接近 MediaWiki 实际结构的 fixture
-- 对边界情况做显式断言：空页面、无模板页面、缺失 revisions、重复模板
-
-## 8. 端到端数据流
-
-1. `MediaWikiClient` 校验 `robots.txt`
-2. 获取分类列表或分类成员
-3. `WikiCrawler` 将原始响应落盘
-4. 获取具体页面原始 JSON
-5. `WikiTextParser` 解析出通用页面结构
-6. `CharacterPageParser` 在通用结果基础上提取角色结构化字段
-7. 将解析结果落盘供后续训练管道消费
-
-## 9. 后续扩展
-
-- 新增武器、任务、圣遗物专用解析器
-- 增加批量抓取入口与断点续抓能力
-- 补充数据去重、清洗与训练样本导出模块
-- 若数据量增大，将 `storage.py` 适配 SQLite/Parquet
+- 旧分项指南中仍残留历史 worktree 路径、旧入口和已过时命令示例。
+- `python -m get_genshin_wiki` 目前不是有效入口，因为仓库内没有 `get_genshin_wiki/__main__.py`。
+- 活动任务、编年史、北陆图书馆在“全量自动化”程度上低于标准实体。
+- `TODO.md` 当前聚焦秘境解析验收，说明项目仍处于持续补齐与校验阶段。
