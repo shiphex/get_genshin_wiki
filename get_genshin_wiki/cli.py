@@ -44,10 +44,36 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
 import requests
+
+from tools.batch_archon_quests import (
+    DEFAULT_LIST_TITLE as _DEFAULT_ARCHON_QUEST_LIST_TITLE,
+    DEFAULT_OUTPUT as _DEFAULT_ARCHON_QUEST_OUTPUT,
+    INDEX_NAMESPACE as _ARCHON_QUEST_INDEX_NAMESPACE,
+    OUTPUT_NAMESPACE as _ARCHON_QUEST_OUTPUT_NAMESPACE,
+    expand_archon_index_entries,
+    load_existing_output as _load_existing_archon_output,
+    write_output as _write_archon_output,
+)
+from tools.batch_character_quests import (
+    DEFAULT_LIST_TITLE as _DEFAULT_CHARACTER_QUEST_LIST_TITLE,
+    DEFAULT_OUTPUT as _DEFAULT_CHARACTER_QUEST_OUTPUT,
+    INDEX_NAMESPACE as _CHARACTER_QUEST_INDEX_NAMESPACE,
+    OUTPUT_NAMESPACE as _CHARACTER_QUEST_OUTPUT_NAMESPACE,
+    build_character_quest_index,
+    discover_character_categories,
+    is_character_quest_series_payload,
+    load_existing_output as _load_existing_character_quest_output,
+    load_or_crawl_category_members,
+    load_or_crawl_page,
+    order_character_records,
+    write_output as _write_character_quest_output,
+)
+from tools.reparse_and_store import ENTITY_CONFIGS
 
 from .client import MediaWikiClient
 from .crawler import WikiCrawler
@@ -78,6 +104,44 @@ _DEFAULT_PARSE_NAMESPACES = {
     "book": "parsed/books",
     "north-library": "parsed/north-library",
 }
+
+_ALL_STANDARD_ENTITY_IDS = (
+    "weapons",
+    "artifacts",
+    "monsters",
+    "books",
+    "foods",
+    "wildlife",
+    "quest-items",
+    "items",
+    "materials",
+    "namecards",
+    "secret-items",
+)
+_ALL_ENTITY_ORDER = (
+    *_ALL_STANDARD_ENTITY_IDS,
+    "characters",
+    "event-quests",
+    "chronicles",
+    "north-library",
+    "archon-quests",
+    "character-quests",
+)
+_ALL_CHRONICLE_TITLES = (
+    "提瓦特编年史（公元纪）",
+    "提瓦特编年史",
+    "蒙德",
+    "璃月",
+    "稻妻",
+    "须弥",
+    "枫丹",
+    "纳塔",
+    "至冬",
+    "坎瑞亚",
+    "白夜国",
+    "星球",
+    "宇宙",
+)
 
 
 @dataclass
@@ -353,6 +417,46 @@ def build_parser() -> argparse.ArgumentParser:
     parse_book.set_defaults(handler=handle_parse_book)
 
     # ========== store 子命令 ==========
+    all_parser = subparsers.add_parser("all", help="Run the full crawl-parse pipeline for one or more entities.")
+    _add_all_common_arguments(all_parser)
+    all_parser.set_defaults(handler=handle_all_everything, resume=False)
+    all_commands = all_parser.add_subparsers(dest="all_target", required=False)
+
+    for entity_id in _ALL_STANDARD_ENTITY_IDS:
+        entity_parser = all_commands.add_parser(entity_id, help=f"Run the full {entity_id} pipeline.")
+        _add_all_common_arguments(entity_parser)
+        entity_parser.set_defaults(handler=handle_all_standard_entity, entity_id=entity_id, resume=False)
+
+    all_characters = all_commands.add_parser("characters", help="Run the full character pipeline, including voice pages.")
+    _add_all_common_arguments(all_characters)
+    all_characters.set_defaults(handler=handle_all_characters, resume=False)
+
+    all_event_quests = all_commands.add_parser(
+        "event-quests",
+        help="Run the full event-quest pipeline, including related event pages.",
+    )
+    _add_all_common_arguments(all_event_quests)
+    all_event_quests.set_defaults(handler=handle_all_event_quests, resume=False)
+
+    all_chronicles = all_commands.add_parser("chronicles", help="Run the full chronicle pipeline.")
+    _add_all_common_arguments(all_chronicles)
+    all_chronicles.set_defaults(handler=handle_all_chronicles, resume=False)
+
+    all_north_library = all_commands.add_parser("north-library", help="Run the North Library pipeline.")
+    _add_all_common_arguments(all_north_library)
+    all_north_library.set_defaults(handler=handle_all_north_library, resume=False)
+
+    all_archon_quests = all_commands.add_parser("archon-quests", help="Run the full archon-quest pipeline.")
+    _add_all_common_arguments(all_archon_quests, include_resume=True)
+    all_archon_quests.set_defaults(handler=handle_all_archon_quests)
+
+    all_character_quests = all_commands.add_parser(
+        "character-quests",
+        help="Run the full character-quest pipeline.",
+    )
+    _add_all_common_arguments(all_character_quests, include_resume=True)
+    all_character_quests.set_defaults(handler=handle_all_character_quests)
+
     store_parser = subparsers.add_parser("store", help="Operate on locally stored JSON data.")
     store_commands = store_parser.add_subparsers(dest="store_action", required=True)
 
@@ -432,6 +536,18 @@ def _add_payload_arguments(parser: argparse.ArgumentParser) -> None:
         type=Path,
         help="Path to a JSON file that contains the payload.",
     )
+
+
+def _add_all_common_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    include_resume: bool = False,
+) -> None:
+    """Add the shared options used by `python main.py all` commands."""
+    parser.add_argument("--page-limit", type=int, default=None, help="Limit the number of pages to process.")
+    parser.add_argument("--no-persist", action="store_true", help="Do not save crawled or parsed results.")
+    if include_resume:
+        parser.add_argument("--resume", action="store_true", help="Reuse existing aggregate output when available.")
 
 
 def _load_payload(args: argparse.Namespace) -> Any:
@@ -537,6 +653,119 @@ def _maybe_load_event_payload(
 # ========== crawl 命令处理器 ==========
 
 
+class _AllHelperCrawler:
+    """Adapter that makes helper modules respect the current persist flag."""
+
+    def __init__(self, runtime: CliRuntime, *, persist: bool) -> None:
+        self.client = runtime.client
+        self._crawler = runtime.crawler
+        self._persist = persist
+
+    def crawl_page(self, title: str, persist: bool = True) -> dict[str, Any]:
+        return self._crawler.crawl_page(title, persist=self._persist)
+
+    def crawl_category_members(self, category_name: str, persist: bool = True) -> list[str]:
+        return self._crawler.crawl_category_members(category_name, persist=self._persist)
+
+    def discover_character_quest_categories(self, persist: bool = True) -> dict[str, Any]:
+        return self._crawler.discover_character_quest_categories(persist=self._persist)
+
+
+def _payload_has_wikitext(payload: dict[str, Any]) -> bool:
+    """Return True when the payload contains non-empty main-slot wikitext."""
+    pages = payload.get("query", {}).get("pages", {})
+    page = next(iter(pages.values()), {})
+    revisions = page.get("revisions", [])
+    if not revisions:
+        return False
+    wikitext = revisions[0].get("slots", {}).get("main", {}).get("*", "")
+    return bool(str(wikitext).strip())
+
+
+def _apply_page_limit(titles: list[str], page_limit: int | None) -> list[str]:
+    """Apply an optional page limit while preserving the original order."""
+    if page_limit is None:
+        return list(titles)
+    return list(titles[:page_limit])
+
+
+def _run_all_title_pipeline(
+    runtime: CliRuntime,
+    *,
+    titles: list[str],
+    output_namespace: str,
+    persist: bool,
+    process_title: Callable[[str], tuple[dict[str, Any], dict[str, Any], dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Run the shared crawl -> parse -> optional store loop used by `all` handlers."""
+    results: list[dict[str, Any]] = []
+    for title in titles:
+        payload, parsed, extra = process_title(title)
+        item = _page_metadata(payload, title)
+        item.update(extra)
+        if persist:
+            item.setdefault("page_path", runtime.store.resolve_path("pages", title))
+            item["parsed_path"] = runtime.store.write(output_namespace, title, parsed)
+        else:
+            item["parsed"] = parsed
+        results.append(item)
+    return results
+
+
+def _resolve_all_standard_config(entity_id: str) -> Any:
+    """Resolve one standard `all` entity against the shared ENTITY_CONFIGS table."""
+    if entity_id not in ENTITY_CONFIGS or entity_id == "characters":
+        raise ValueError(f"unsupported standard entity: {entity_id}")
+    return ENTITY_CONFIGS[entity_id]
+
+
+def _resolve_archon_index_act_name(entry: dict[str, str], record: dict[str, Any]) -> str:
+    """Keep archon index act names aligned with the existing batch tool."""
+    parsed_act_name = str(record.get("幕名称", "") or "")
+    act = str(record.get("幕", "") or entry.get("act", ""))
+    if parsed_act_name:
+        return parsed_act_name
+    if act:
+        return act
+    return entry.get("series_title", "") or entry.get("act_name", "")
+
+
+def _character_quest_record_title(record: dict[str, Any]) -> str:
+    """Extract the stable leaf-task title from a character-quest record."""
+    value = record.get("任务名称", "")
+    return value if isinstance(value, str) else ""
+
+
+def _canonical_character_quest_title(title: str) -> str:
+    """Normalize alternate character-quest page titles to their storage title."""
+    normalized = title.strip()
+    for suffix in ("（系列任务）", "(系列任务)", "（任务）", "(任务)"):
+        if normalized.endswith(suffix):
+            return normalized[: -len(suffix)].strip()
+    return normalized
+
+
+def _summarize_all_entity_result(result: dict[str, Any]) -> dict[str, Any]:
+    """Keep the top-level `python main.py all` output compact."""
+    summary: dict[str, Any] = {
+        "entity": result["entity"],
+        "persist": result["persist"],
+    }
+    for key in (
+        "category",
+        "selected_count",
+        "quest_count",
+        "index_count",
+        "event_page_count",
+        "output_path",
+        "category_name",
+        "title",
+    ):
+        if key in result:
+            summary[key] = result[key]
+    return summary
+
+
 def handle_crawl_categories(args: argparse.Namespace, runtime: CliRuntime) -> int:
     """处理 crawl categories 命令：抓取 Wiki 分类列表。"""
     runtime.client.assert_api_allowed()
@@ -587,24 +816,14 @@ def handle_crawl_category_pages(args: argparse.Namespace, runtime: CliRuntime) -
 def handle_crawl_north_library(args: argparse.Namespace, runtime: CliRuntime) -> int:
     """Handle crawl north-library: probe category, fetch page, parse, and persist JSON."""
     runtime.client.assert_api_allowed()
-    crawl_result = runtime.crawler.crawl_north_library(args.title, persist=not args.no_persist)
-    payload = crawl_result.pop("payload")
-    record = runtime.parser.parse_north_library_page(payload)
-    record.library_category = crawl_result["category_name"]
-    record.category_candidates = crawl_result["category_candidates"]
-    parsed = record.to_dict()
-
-    response: dict[str, Any] = {
-        **crawl_result,
-        "parsed": parsed,
-    }
-    if not args.no_persist:
-        namespace = args.output_namespace or _DEFAULT_PARSE_NAMESPACES["north-library"]
-        parsed_path = runtime.store.write(namespace, record.title, parsed)
-        response["page_path"] = runtime.store.resolve_path("pages", record.title)
-        response["parsed_path"] = parsed_path
-
-    _print_json(response)
+    _print_json(
+        _build_north_library_response(
+            runtime,
+            title=args.title,
+            output_namespace=args.output_namespace,
+            persist=not args.no_persist,
+        )
+    )
     return 0
 
 
@@ -845,6 +1064,475 @@ def handle_parse_book(args: argparse.Namespace, runtime: CliRuntime) -> int:
     return 0
 
 # ========== store 命令处理器 ==========
+
+
+def _build_north_library_response(
+    runtime: CliRuntime,
+    *,
+    title: str,
+    output_namespace: str | None,
+    persist: bool,
+) -> dict[str, Any]:
+    """Run the integrated North Library pipeline and return its structured result."""
+    crawl_result = runtime.crawler.crawl_north_library(title, persist=persist)
+    payload = crawl_result.pop("payload")
+    record = runtime.parser.parse_north_library_page(payload)
+    record.library_category = crawl_result["category_name"]
+    record.category_candidates = crawl_result["category_candidates"]
+    parsed = record.to_dict()
+
+    response: dict[str, Any] = {
+        **crawl_result,
+        "parsed": parsed,
+    }
+    if persist:
+        namespace = output_namespace or _DEFAULT_PARSE_NAMESPACES["north-library"]
+        response["page_path"] = runtime.store.resolve_path("pages", record.title)
+        response["parsed_path"] = runtime.store.write(namespace, record.title, parsed)
+    return response
+
+
+def _run_all_standard_entity(args: argparse.Namespace, runtime: CliRuntime) -> dict[str, Any]:
+    """Run the shared standard-entity pipeline for one category-backed entity."""
+    persist = not args.no_persist
+    runtime.client.assert_api_allowed()
+    config = _resolve_all_standard_config(args.entity_id)
+    parse_method = getattr(runtime.parser, config.parse_method)
+    titles = runtime.crawler.crawl_category_members(config.category, persist=persist)
+    titles = _apply_page_limit(titles, args.page_limit)
+
+    def process_title(title: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        payload = runtime.crawler.crawl_page(title, persist=persist)
+        parsed = parse_method(payload).to_dict()
+        return payload, parsed, {}
+
+    results = _run_all_title_pipeline(
+        runtime,
+        titles=titles,
+        output_namespace=config.output_namespaces[0],
+        persist=persist,
+        process_title=process_title,
+    )
+    return {
+        "entity": config.entity_id,
+        "persist": persist,
+        "category": config.category,
+        "selected_count": len(results),
+        "results": results,
+    }
+
+
+def handle_all_standard_entity(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """Handle `python main.py all <standard-entity>`."""
+    _print_json(_run_all_standard_entity(args, runtime))
+    return 0
+
+
+def _run_all_characters(args: argparse.Namespace, runtime: CliRuntime) -> dict[str, Any]:
+    """Run the character pipeline, including the matching voice page for each title."""
+    persist = not args.no_persist
+    runtime.client.assert_api_allowed()
+    category = ENTITY_CONFIGS["characters"].category
+    titles = runtime.crawler.crawl_category_members(category, persist=persist)
+    titles = _apply_page_limit(titles, args.page_limit)
+
+    def process_title(title: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        payload = runtime.crawler.crawl_page(title, persist=persist)
+        voice_title = f"{title}语音"
+        voice_payload = runtime.crawler.crawl_page(voice_title, persist=persist)
+        parsed = runtime.parser.parse_character_page(
+            payload,
+            voice_payload=voice_payload if _payload_has_wikitext(voice_payload) else None,
+        ).to_storage_dict()
+        extra: dict[str, Any] = {
+            "voice_title": voice_title,
+        }
+        if persist:
+            extra["voice_page_path"] = runtime.store.resolve_path("pages", voice_title)
+        return payload, parsed, extra
+
+    results = _run_all_title_pipeline(
+        runtime,
+        titles=titles,
+        output_namespace=_DEFAULT_PARSE_NAMESPACES["character"],
+        persist=persist,
+        process_title=process_title,
+    )
+    return {
+        "entity": "characters",
+        "persist": persist,
+        "category": category,
+        "selected_count": len(results),
+        "results": results,
+    }
+
+
+def handle_all_characters(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """Handle `python main.py all characters`."""
+    _print_json(_run_all_characters(args, runtime))
+    return 0
+
+
+def _run_all_event_quests(args: argparse.Namespace, runtime: CliRuntime) -> dict[str, Any]:
+    """Run the event-quest pipeline, including related event main pages."""
+    persist = not args.no_persist
+    runtime.client.assert_api_allowed()
+    category_name = runtime.crawler.discover_event_quest_category(persist=persist)
+    titles = runtime.crawler.crawl_category_members(category_name, persist=persist)
+    titles = _apply_page_limit(titles, args.page_limit)
+    event_pages: list[dict[str, Any]] = []
+    event_payloads: dict[str, dict[str, Any]] = {}
+
+    def process_title(title: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        payload = runtime.crawler.crawl_page(title, persist=persist)
+        preview = runtime.parser.parse_event_quest_page(payload)
+        event_title = preview.event_name or preview.related_event or ""
+        if event_title and event_title != preview.title and event_title not in event_payloads:
+            event_payload = runtime.crawler.crawl_page(event_title, persist=persist)
+            event_payloads[event_title] = event_payload
+            page_result = _page_metadata(event_payload, event_title)
+            if persist:
+                page_result["page_path"] = runtime.store.resolve_path("pages", event_title)
+            event_pages.append(page_result)
+        parsed = runtime.parser.parse_event_quest_page(
+            payload,
+            event_payload=event_payloads.get(event_title),
+        ).to_dict()
+        extra = {"event_title": event_title} if event_title else {}
+        return payload, parsed, extra
+
+    results = _run_all_title_pipeline(
+        runtime,
+        titles=titles,
+        output_namespace=_DEFAULT_PARSE_NAMESPACES["event-quest"],
+        persist=persist,
+        process_title=process_title,
+    )
+    return {
+        "entity": "event-quests",
+        "persist": persist,
+        "category": category_name,
+        "selected_count": len(results),
+        "event_page_count": len(event_pages),
+        "results": results,
+        "event_pages": event_pages,
+    }
+
+
+def handle_all_event_quests(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """Handle `python main.py all event-quests`."""
+    _print_json(_run_all_event_quests(args, runtime))
+    return 0
+
+
+def _run_all_chronicles(args: argparse.Namespace, runtime: CliRuntime) -> dict[str, Any]:
+    """Run the hardcoded chronicle title list through crawl + parse."""
+    persist = not args.no_persist
+    runtime.client.assert_api_allowed()
+    titles = _apply_page_limit(list(_ALL_CHRONICLE_TITLES), args.page_limit)
+
+    def process_title(title: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        payload = runtime.crawler.crawl_page(title, persist=persist)
+        parsed = runtime.parser.parse_chronicle_page(payload).to_dict()
+        return payload, parsed, {}
+
+    results = _run_all_title_pipeline(
+        runtime,
+        titles=titles,
+        output_namespace=_DEFAULT_PARSE_NAMESPACES["chronicle"],
+        persist=persist,
+        process_title=process_title,
+    )
+    return {
+        "entity": "chronicles",
+        "persist": persist,
+        "selected_count": len(results),
+        "results": results,
+    }
+
+
+def handle_all_chronicles(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """Handle `python main.py all chronicles`."""
+    _print_json(_run_all_chronicles(args, runtime))
+    return 0
+
+
+def _run_all_north_library(args: argparse.Namespace, runtime: CliRuntime) -> dict[str, Any]:
+    """Run the integrated North Library pipeline behind `python main.py all north-library`."""
+    persist = not args.no_persist
+    runtime.client.assert_api_allowed()
+    response = _build_north_library_response(
+        runtime,
+        title="北陆图书馆",
+        output_namespace=None,
+        persist=persist,
+    )
+    return {
+        "entity": "north-library",
+        "persist": persist,
+        "selected_count": 1,
+        **response,
+    }
+
+
+def handle_all_north_library(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """Handle `python main.py all north-library`."""
+    _print_json(_run_all_north_library(args, runtime))
+    return 0
+
+
+def _run_all_archon_quests(args: argparse.Namespace, runtime: CliRuntime) -> dict[str, Any]:
+    """Run the archon-quest batch flow inside the unified CLI."""
+    persist = not args.no_persist
+    runtime.client.assert_api_allowed()
+    helper_crawler = _AllHelperCrawler(runtime, persist=persist)
+    output_path = runtime.store.root / _DEFAULT_ARCHON_QUEST_OUTPUT.name
+    list_payload = runtime.crawler.crawl_page(_DEFAULT_ARCHON_QUEST_LIST_TITLE, persist=persist)
+    index_entries = runtime.parser.parse_archon_quest_list_page(list_payload)
+    index_entries = expand_archon_index_entries(
+        store=runtime.store,
+        crawler=helper_crawler,
+        parser=runtime.parser,
+        index_entries=index_entries,
+    )
+    index_entries = _apply_page_limit(index_entries, args.page_limit)
+    series_context = runtime.parser.build_archon_series_context(index_entries)
+
+    existing_output = _load_existing_archon_output(output_path) if getattr(args, "resume", False) else {}
+    existing_records = existing_output.get("quests", []) if isinstance(existing_output.get("quests"), list) else []
+    record_by_title = {
+        item.get("任务标题", {}).get("中文", ""): item
+        for item in existing_records
+        if isinstance(item, dict)
+    }
+
+    results: list[dict[str, Any]] = []
+    for entry in index_entries:
+        title = entry["title"]
+        if getattr(args, "resume", False) and title in record_by_title:
+            item: dict[str, Any] = {
+                "title": title,
+                "resumed": True,
+            }
+            if persist and runtime.store.exists(_ARCHON_QUEST_OUTPUT_NAMESPACE, title):
+                item["parsed_path"] = runtime.store.resolve_path(_ARCHON_QUEST_OUTPUT_NAMESPACE, title)
+            elif not persist:
+                item["parsed"] = record_by_title[title]
+            results.append(item)
+            continue
+
+        payload = runtime.crawler.crawl_page(title, persist=persist)
+        record = runtime.parser.parse_archon_quest_page(payload, series_context=series_context).to_dict()
+        item = _page_metadata(payload, title)
+        if persist:
+            item["page_path"] = runtime.store.resolve_path("pages", title)
+            item["parsed_path"] = runtime.store.write(_ARCHON_QUEST_OUTPUT_NAMESPACE, title, record)
+        else:
+            item["parsed"] = record
+        results.append(item)
+        record_by_title[title] = record
+
+    for entry in index_entries:
+        record = record_by_title.get(entry["title"], {})
+        if not isinstance(record, dict):
+            continue
+        entry["act_name"] = _resolve_archon_index_act_name(entry, record)
+
+    ordered_records = [record_by_title[entry["title"]] for entry in index_entries if entry["title"] in record_by_title]
+    if persist:
+        runtime.store.write(_ARCHON_QUEST_INDEX_NAMESPACE, _DEFAULT_ARCHON_QUEST_LIST_TITLE, index_entries)
+        _write_archon_output(
+            output_path,
+            {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "list_title": _DEFAULT_ARCHON_QUEST_LIST_TITLE,
+                "quest_count": len(ordered_records),
+                "index": index_entries,
+                "quests": ordered_records,
+            },
+        )
+
+    response: dict[str, Any] = {
+        "entity": "archon-quests",
+        "persist": persist,
+        "selected_count": len(results),
+        "quest_count": len(ordered_records),
+        "index_count": len(index_entries),
+        "results": results,
+    }
+    if persist:
+        response["output_path"] = str(output_path)
+    return response
+
+
+def handle_all_archon_quests(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """Handle `python main.py all archon-quests`."""
+    _print_json(_run_all_archon_quests(args, runtime))
+    return 0
+
+
+def _run_all_character_quests(args: argparse.Namespace, runtime: CliRuntime) -> dict[str, Any]:
+    """Run the character-quest batch flow inside the unified CLI."""
+    persist = not args.no_persist
+    runtime.client.assert_api_allowed()
+    helper_crawler = _AllHelperCrawler(runtime, persist=persist)
+    output_path = runtime.store.root / _DEFAULT_CHARACTER_QUEST_OUTPUT.name
+    category_probe = discover_character_categories(runtime.store, helper_crawler)
+    category_names = [
+        name
+        for name in category_probe.get("categories", [])
+        if isinstance(name, str) and name
+    ]
+
+    list_payload = runtime.crawler.crawl_page(_DEFAULT_CHARACTER_QUEST_LIST_TITLE, persist=persist)
+    list_entries = runtime.parser.parse_character_quest_list_page(list_payload)
+    series_context = runtime.parser.build_character_quest_series_context(list_entries)
+
+    member_titles: list[str] = []
+    seen_members: set[str] = set()
+    for category_name in category_names:
+        for title in load_or_crawl_category_members(runtime.store, helper_crawler, category_name):
+            if title in seen_members:
+                continue
+            seen_members.add(title)
+            member_titles.append(title)
+
+    existing_output = _load_existing_character_quest_output(output_path) if getattr(args, "resume", False) else {}
+    existing_records = existing_output.get("quests", []) if isinstance(existing_output.get("quests"), list) else []
+    record_by_title = {
+        _character_quest_record_title(item): item
+        for item in existing_records
+        if isinstance(item, dict) and _character_quest_record_title(item)
+    }
+
+    results: list[dict[str, Any]] = []
+    selected_record_titles: list[str] = []
+    selected_record_title_set: set[str] = set()
+    for title in member_titles:
+        if args.page_limit is not None and len(results) >= args.page_limit:
+            break
+
+        canonical_title = _canonical_character_quest_title(title)
+        if getattr(args, "resume", False) and canonical_title in record_by_title:
+            if canonical_title in selected_record_title_set:
+                continue
+            item: dict[str, Any] = {
+                "title": canonical_title,
+                "source_title": title,
+                "resumed": True,
+            }
+            if persist and runtime.store.exists(_CHARACTER_QUEST_OUTPUT_NAMESPACE, canonical_title):
+                item["parsed_path"] = runtime.store.resolve_path(_CHARACTER_QUEST_OUTPUT_NAMESPACE, canonical_title)
+            elif not persist:
+                item["parsed"] = record_by_title[canonical_title]
+            results.append(item)
+            selected_record_titles.append(canonical_title)
+            selected_record_title_set.add(canonical_title)
+            continue
+
+        payload = load_or_crawl_page(runtime.store, helper_crawler, title)
+        if is_character_quest_series_payload(payload):
+            continue
+
+        record = runtime.parser.parse_character_quest_page(payload, series_context=series_context).to_dict()
+        record_title = _character_quest_record_title(record) or canonical_title or title
+        if record_title in selected_record_title_set:
+            continue
+
+        item = _page_metadata(payload, title)
+        if record_title != title:
+            item["parsed_title"] = record_title
+        if persist:
+            item["page_path"] = runtime.store.resolve_path("pages", title)
+            item["parsed_path"] = runtime.store.write(_CHARACTER_QUEST_OUTPUT_NAMESPACE, record_title, record)
+        else:
+            item["parsed"] = record
+        results.append(item)
+        selected_record_titles.append(record_title)
+        selected_record_title_set.add(record_title)
+        record_by_title[record_title] = record
+
+    filtered_records = {
+        title: record_by_title[title]
+        for title in selected_record_titles
+        if title in record_by_title
+    }
+    ordered_records = order_character_records(list_entries, filtered_records)
+    index_entries = build_character_quest_index(list_entries, ordered_records)
+    if persist:
+        runtime.store.write(_CHARACTER_QUEST_INDEX_NAMESPACE, _DEFAULT_CHARACTER_QUEST_LIST_TITLE, index_entries)
+        _write_character_quest_output(
+            output_path,
+            {
+                "generated_at": datetime.now(timezone.utc).isoformat(),
+                "list_title": _DEFAULT_CHARACTER_QUEST_LIST_TITLE,
+                "categories": category_names,
+                "quest_count": len(ordered_records),
+                "index": index_entries,
+                "quests": ordered_records,
+            },
+        )
+
+    response: dict[str, Any] = {
+        "entity": "character-quests",
+        "persist": persist,
+        "selected_count": len(results),
+        "quest_count": len(ordered_records),
+        "index_count": len(index_entries),
+        "results": results,
+    }
+    if persist:
+        response["output_path"] = str(output_path)
+    return response
+
+
+def handle_all_character_quests(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """Handle `python main.py all character-quests`."""
+    _print_json(_run_all_character_quests(args, runtime))
+    return 0
+
+
+def _run_all_entity(entity_id: str, args: argparse.Namespace, runtime: CliRuntime) -> dict[str, Any]:
+    """Dispatch one entity id to its internal `all` runner."""
+    if entity_id in _ALL_STANDARD_ENTITY_IDS:
+        return _run_all_standard_entity(
+            argparse.Namespace(
+                entity_id=entity_id,
+                page_limit=args.page_limit,
+                no_persist=args.no_persist,
+            ),
+            runtime,
+        )
+    if entity_id == "characters":
+        return _run_all_characters(args, runtime)
+    if entity_id == "event-quests":
+        return _run_all_event_quests(args, runtime)
+    if entity_id == "chronicles":
+        return _run_all_chronicles(args, runtime)
+    if entity_id == "north-library":
+        return _run_all_north_library(args, runtime)
+    if entity_id == "archon-quests":
+        return _run_all_archon_quests(args, runtime)
+    if entity_id == "character-quests":
+        return _run_all_character_quests(args, runtime)
+    raise ValueError(f"unsupported all entity: {entity_id}")
+
+
+def handle_all_everything(args: argparse.Namespace, runtime: CliRuntime) -> int:
+    """Handle `python main.py all` with no subcommand."""
+    summaries = [
+        _summarize_all_entity_result(_run_all_entity(entity_id, args, runtime))
+        for entity_id in _ALL_ENTITY_ORDER
+    ]
+    _print_json(
+        {
+            "entity": "all",
+            "persist": not args.no_persist,
+            "page_limit": args.page_limit,
+            "entities": summaries,
+        }
+    )
+    return 0
 
 
 def handle_store_put(args: argparse.Namespace, runtime: CliRuntime) -> int:
