@@ -49,7 +49,7 @@
 - `get_genshin_wiki/storage.py`
   - `JsonFileStore`，负责本地 JSON 命名空间存储。
 - `get_genshin_wiki/cli.py`
-  - `crawl / parse / store` 三组命令。
+  - `crawl / parse / all / store` 四组命令。
 
 ### 运行入口
 
@@ -94,9 +94,9 @@ python main.py ...
 
 ### 全量处理规范
 
-- 标准实体优先使用“抓分类页 + 循环 parse”的显式流程。
-- 魔神任务、角色传说任务 / 部族纪闻优先使用 `tools/*.py` 批处理脚本。
-- 活动任务、编年史、北陆图书馆的自动化程度低于标准实体，写文档时要明确说出当前边界，不要假定有统一批处理入口。
+- 标准实体现在优先使用 `python main.py all <entity>`；保留“抓分类页 + 循环 parse”的显式流程作为调试 / 回归手段。
+- 魔神任务、角色传说任务 / 部族纪闻现在优先使用 `python main.py all archon-quests` 与 `python main.py all character-quests`；CLI 内部仍复用既有 `tools/*.py` 逻辑。
+- 活动任务、编年史、北陆图书馆现在也都有 `python main.py all ...` 统一入口；文档中仍要写清楚它们依赖的额外上下文页或内置标题列表。
 
 ## 文档维护要求
 
@@ -117,9 +117,9 @@ python main.py ...
 
 - `parse character` 会尝试读取本地 `"<角色名>语音"` 页面，但不会自动联网补抓。
 - `parse archon-quest` 在本地存在 `魔神任务` 列表页时，章节/幕上下文更完整。
-- `crawl event-quests` 会补抓关联活动主页，但当前没有专门的活动任务全量批解析脚本。
-- `crawl north-library` 当前是一条“抓取 + 解析 + 持久化”一体命令，没有独立 `parse north-library` 子命令。
-- `character-quest` 当前没有 CLI 级解析子命令，单页调试依赖 Python API。
+- `python main.py all event-quests` 会补抓关联活动主页并完成全量解析；单页调试仍可继续使用 `crawl event-quests` 与 `parse event-quest`。
+- `python main.py all north-library` 与 `crawl north-library` 共用同一条“抓取 + 解析 + 持久化”逻辑；当前仍没有独立 `parse north-library` 子命令。
+- `python main.py all character-quests` 已提供全量入口，但当前仍没有 CLI 级 `parse character-quest` 单页子命令，单页调试依赖 Python API。
 
 ## 当前测试状态
 
