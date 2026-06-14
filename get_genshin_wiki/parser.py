@@ -1649,6 +1649,8 @@ class WikiTextParser:
             context.get("group_name", "") if context else "",
             related_characters[0] if related_characters else "",
         )
+        version_match = re.search(r"\|所属版本\s*=\s*(.+?)(?:\||\n|$)", parsed_page.wikitext)
+        version = self._clean_field_value(version_match.group(1)) if version_match else ""
 
         return CharacterQuestRecord(
             title=self._resolve_record_title(parsed_page, ("任务名称", "名称"), preferred_params=main_template),
@@ -1662,6 +1664,7 @@ class WikiTextParser:
                 ),
                 context.get("region", "") if context else "",
             ),
+            version=version,
             quest_type=self._coalesce(
                 self._resolve_value(
                     parsed_page.templates,

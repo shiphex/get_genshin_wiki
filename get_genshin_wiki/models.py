@@ -810,6 +810,7 @@ class CharacterQuestRecord:
     title: str
     region: str
     quest_type: str
+    version: str = ""
     related_character: str = ""
     related_characters: list[str] = field(default_factory=list)
     description: str = ""
@@ -831,6 +832,7 @@ class CharacterQuestRecord:
         return {
             "任务名称": self.title,
             "任务地区": self.region,
+            "所属版本": self.version,
             "任务类型": self.quest_type,
             "相关角色": self.related_character,
             "出场人物": list(self.related_characters),
