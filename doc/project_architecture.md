@@ -135,9 +135,10 @@ get_genshin_wiki/
 - `main.py`
   - 当前最稳妥的统一 CLI 入口，直接转发到 `get_genshin_wiki.cli:main`。
 - `get_genshin_wiki/cli.py`
-  - 提供三组命令：
+  - 提供四组命令：
     - `crawl`
     - `parse`
+    - `all`
     - `store`
 - `tools/*.py`
   - 承担“全量批处理”“索引生成”“验证报告”职责，是当前仓库的重要一等入口，而不是辅助脚本。
@@ -175,6 +176,26 @@ get_genshin_wiki/
 - `secret-item`
 - `book`
 
+`all` 子命令：
+
+- `weapons`
+- `artifacts`
+- `monsters`
+- `books`
+- `foods`
+- `wildlife`
+- `quest-items`
+- `items`
+- `materials`
+- `namecards`
+- `secret-items`
+- `characters`
+- `event-quests`
+- `chronicles`
+- `north-library`
+- `archon-quests`
+- `character-quests`
+
 `store` 子命令：
 
 - `put/query/update/add/delete/exists/list`
@@ -199,10 +220,10 @@ get_genshin_wiki/
 
 ### 4.3 当前边界
 
-- `character-quest` 目前没有 CLI 级 `parse` 子命令，只能通过批处理脚本或 Python API 解析。
-- 活动任务目前有 `crawl event-quests` 与 `parse event-quest`，但没有专用“全量批解析”脚本。
-- 提瓦特编年史当前有主页面自动探测能力，但“国家/地区编年史全量抓取”仍依赖显式标题列表。
-- 北陆图书馆当前通过 `crawl north-library` 一步完成抓取与解析，没有单独的 `parse north-library` 命令。
+- `character-quest` 目前仍没有 CLI 级 `parse` 子命令，但已经有 `python main.py all character-quests` 统一全量入口。
+- 活动任务现在同时具备 `crawl event-quests` / `parse event-quest` 单页链路，以及 `python main.py all event-quests` 全量入口。
+- 提瓦特编年史现在有 `python main.py all chronicles` 全量入口；其实现仍基于内置标题列表，而不是动态枚举全部国家/地区页。
+- 北陆图书馆现在同时支持 `crawl north-library` 与 `python main.py all north-library`，两者共用同一条抓取 + 解析逻辑；当前仍没有独立 `parse north-library` 命令。
 
 ## 5. 数据流
 
