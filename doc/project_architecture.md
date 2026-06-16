@@ -57,6 +57,7 @@ get_genshin_wiki/
 │  ├─ exceptions.py
 │  ├─ models.py
 │  ├─ parser.py
+│  ├─ progress.py
 │  └─ storage.py
 ├─ refer/
 │  └─ *.py
@@ -130,7 +131,14 @@ get_genshin_wiki/
   - 文件名采用 `{规范化标题}__{sha1前10位}.json`，避免中文标题重名与非法字符问题。
   - 提供 `write/read/update/add/exists/delete/list_keys/resolve_path`。
 
-### 3.6 CLI 与批处理入口
+### 3.6 进度显示层
+
+- `progress.py`
+  - 定义 `all` 命令共享的进度事件模型。
+  - 提供 `NullProgressSink`、`LineProgressSink`、`TerminalProgressSink` 三种实现。
+  - 负责把实时进度写到 `stderr`，并在 ANSI 可用时重绘紧凑仪表盘。
+
+### 3.7 CLI 与批处理入口
 
 - `main.py`
   - 当前最稳妥的统一 CLI 入口，直接转发到 `get_genshin_wiki.cli:main`。
@@ -140,6 +148,7 @@ get_genshin_wiki/
     - `parse`
     - `all`
     - `store`
+  - `all` 命令族会发出进度事件，并将最终 JSON 结果保留在 `stdout`。
 - `tools/*.py`
   - 承担“全量批处理”“索引生成”“验证报告”职责，是当前仓库的重要一等入口，而不是辅助脚本。
 
@@ -195,6 +204,18 @@ get_genshin_wiki/
 - `north-library`
 - `archon-quests`
 - `character-quests`
+
+`all` 共享选项：
+
+- `--page-limit`
+- `--no-persist`
+- `--progress`
+- `--no-progress`
+
+额外说明：
+
+- `--resume` 只存在于 `all archon-quests` 与 `all character-quests`。
+- 进度输出默认只在交互式 `stderr` 上启用；非交互式环境可显式使用 `--progress` 强制切到逐行日志模式。
 
 `store` 子命令：
 

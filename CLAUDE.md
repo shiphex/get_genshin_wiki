@@ -46,6 +46,8 @@
   - 通用抓取编排与专项分类探测。
 - `get_genshin_wiki/parser.py`
   - 通用页面解析与各实体解析器。
+- `get_genshin_wiki/progress.py`
+  - `all` 命令共享的进度事件与 `stderr` 渲染器。
 - `get_genshin_wiki/storage.py`
   - `JsonFileStore`，负责本地 JSON 命名空间存储。
 - `get_genshin_wiki/cli.py`
@@ -97,6 +99,8 @@ python main.py ...
 - 标准实体现在优先使用 `python main.py all <entity>`；保留“抓分类页 + 循环 parse”的显式流程作为调试 / 回归手段。
 - 魔神任务、角色传说任务 / 部族纪闻现在优先使用 `python main.py all archon-quests` 与 `python main.py all character-quests`；CLI 内部仍复用既有 `tools/*.py` 逻辑。
 - 活动任务、编年史、北陆图书馆现在也都有 `python main.py all ...` 统一入口；文档中仍要写清楚它们依赖的额外上下文页或内置标题列表。
+- `all` 系列命令的最终 JSON 必须保留在 `stdout`；进度 UI 或降级日志只允许写到 `stderr`。
+- `all` 系列命令现在支持 `--progress` 与 `--no-progress`；默认只在交互式 `stderr` 上显示仪表盘。
 
 ## 文档维护要求
 
@@ -120,6 +124,7 @@ python main.py ...
 - `python main.py all event-quests` 会补抓关联活动主页并完成全量解析；单页调试仍可继续使用 `crawl event-quests` 与 `parse event-quest`。
 - `python main.py all north-library` 与 `crawl north-library` 共用同一条“抓取 + 解析 + 持久化”逻辑；当前仍没有独立 `parse north-library` 子命令。
 - `python main.py all character-quests` 已提供全量入口，但当前仍没有 CLI 级 `parse character-quest` 单页子命令，单页调试依赖 Python API。
+- `python main.py all archon-quests --resume` 与 `python main.py all character-quests --resume` 的进度输出会标记 `resumed` 项；`character-quests` 还会显示 `skipped` 系列页 / 重复页。
 
 ## 当前测试状态
 

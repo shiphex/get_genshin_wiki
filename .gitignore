@@ -4,6 +4,10 @@ __pycache__/
 
 # Generated output data
 data/
+.tmp/
+
+# pytest
+.pytest_cache/
 
 # Local Claude settings
 .claude/settings.local.json

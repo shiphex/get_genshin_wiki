@@ -13,7 +13,7 @@
 推荐在当前 worktree 根目录执行：
 
 ```powershell
-cd E:\Workplace\Learn_project\get_genshin_wiki-simplify-pipeline
+cd E:\Workplace\Learn_project\get_genshin_wiki-terminal-progress-ui
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e .
@@ -51,7 +51,10 @@ python main.py store --help
 ```powershell
 python main.py all
 python main.py all --page-limit 2
+python main.py all --progress
+python main.py all --no-progress
 python main.py all weapons
+python main.py all weapons --progress
 python main.py all characters
 python main.py all event-quests
 python main.py all chronicles
@@ -64,9 +67,18 @@ python main.py all character-quests --resume
 
 - `python main.py all` 不带子命令时，会按固定顺序跑完全部 17 类实体。
 - 顶层顺序是：`weapons`、`artifacts`、`monsters`、`books`、`foods`、`wildlife`、`quest-items`、`items`、`materials`、`namecards`、`secret-items`、`characters`、`event-quests`、`chronicles`、`north-library`、`archon-quests`、`character-quests`。
-- `--page-limit` 与 `--no-persist` 适用于 `all` 顶层命令和所有 `all <entity>` 子命令。
+- `--page-limit`、`--no-persist`、`--progress` 与 `--no-progress` 适用于 `all` 顶层命令和所有 `all <entity>` 子命令。
 - `--resume` 只存在于 `all archon-quests` 和 `all character-quests`。
 - `python main.py all` 的输出是按实体汇总后的摘要；`python main.py all <entity>` 会返回该实体的详细逐页结果。
+- 进度 UI 默认只会在交互式 `stderr` 上启用；最终 JSON 仍然只写 `stdout`。
+- `--progress` 会强制打开进度输出；当 `stderr` 不是 TTY 或不支持 ANSI 重绘时，会自动退化成逐行 `stderr` 日志。
+- `--no-progress` 会彻底关闭进度输出，适合你想保留干净终端或自行封装脚本的时候。
+- 进度 UI 有三种模式，由 `get_genshin_wiki/progress.py` 中的 `build_progress_sink()` 自动选择：
+  - **终端仪表盘模式（`TerminalProgressSink`）**：交互式 TTY + ANSI 支持时启用，6 行固定面板，实时重绘。使用双列表格布局（字段/内容），中文标签，并附带 `[████░░░░]` 进度条。
+  - **逐行日志模式（`LineProgressSink`）**：强制模式或非 ANSI 交互式 TTY 时启用，每条进度事件一行 `stderr` 输出，包含中文字段名和进度条。
+  - **空操作模式（`NullProgressSink`）**：非交互式或显式禁用时启用，完全不输出。
+- 仪表盘模式显示六行信息：总进度、当前实体、当前项目、最近完成、待处理、运行状态。实体名、阶段名和状态名均使用中文标签（如 `武器`、`解析`、`成功`）。
+- `all archon-quests --resume` / `all character-quests --resume` 会在进度输出里标记 `resumed` 项；`all character-quests` 还会把系列页和重复叶子页标记为 `skipped`。
 
 ## 3. `all` 当前支持的 17 类实体
 
@@ -394,6 +406,8 @@ python main.py store query parsed/character-quest-index "传说任务"
 
 - `python -m get_genshin_wiki` 当前不是有效入口，因为仓库里没有 `get_genshin_wiki/__main__.py`。
 - `all` 顶层命令没有 `--resume`；只有 `all archon-quests` 和 `all character-quests` 支持 `--resume`。
+- `all` 系列命令的进度 UI 永远写到 `stderr`，不会混入最终 JSON。
+- `all` 系列命令默认只在交互式 `stderr` 上显示紧凑仪表盘；如果需要在重定向或 CI 日志里也看到进度，请显式加 `--progress`。
 - `all chronicles` 不是动态发现全部编年史页面，而是使用 `cli.py` 中写死的 13 个标题。
 - `all north-library` 固定处理标题 `北陆图书馆`，也不暴露 `--title` / `--output-namespace`；需要这些参数时请改用 `crawl north-library`。
 - `parse character` 不会自动联网抓取 `"<角色名>语音"`；只有语音页已经在本地时，才会自动加载。
