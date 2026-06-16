@@ -1692,24 +1692,28 @@ class WikiTextParser:
                 context.get("act_name", "") if context else "",
                 related_activity,
             ),
-            previous_quest=self._coalesce(
-                self._resolve_value(
-                    parsed_page.templates,
-                    ("前置任务",),
-                    preferred_params=main_template,
-                    wikitext=parsed_page.wikitext,
-                ),
-                self._extract_first_list_item(self._find_section_text(parsed_page.sections, ("前置任务",))),
-                self._extract_required_quest(self._find_section_text(parsed_page.sections, ("任务条件",))),
+            previous_quest=self._normalize_character_quest_title(
+                self._coalesce(
+                    self._resolve_value(
+                        parsed_page.templates,
+                        ("前置任务",),
+                        preferred_params=main_template,
+                        wikitext=parsed_page.wikitext,
+                    ),
+                    self._extract_first_list_item(self._find_section_text(parsed_page.sections, ("前置任务",))),
+                    self._extract_required_quest(self._find_section_text(parsed_page.sections, ("任务条件",))),
+                )
             ),
-            next_quest=self._coalesce(
-                self._resolve_value(
-                    parsed_page.templates,
-                    ("后续任务",),
-                    preferred_params=main_template,
-                    wikitext=parsed_page.wikitext,
-                ),
-                self._extract_first_list_item(self._find_section_text(parsed_page.sections, ("后续任务",))),
+            next_quest=self._normalize_character_quest_title(
+                self._coalesce(
+                    self._resolve_value(
+                        parsed_page.templates,
+                        ("后续任务",),
+                        preferred_params=main_template,
+                        wikitext=parsed_page.wikitext,
+                    ),
+                    self._extract_first_list_item(self._find_section_text(parsed_page.sections, ("后续任务",))),
+                )
             ),
             objectives=objectives,
             dialogues=dialogues,
@@ -2804,7 +2808,7 @@ class WikiTextParser:
 
     def _normalize_character_quest_title(self, value: str) -> str:
         """Normalize task/group titles used in character-quest context matching."""
-        normalized = self._strip_quotes(self._clean_field_value(value, context="generic"))
+        normalized = self._strip_list_marker(self._strip_quotes(self._clean_field_value(value, context="generic")))
         for suffix in ("（系列任务）", "(系列任务)", "（任务）", "(任务)"):
             if normalized.endswith(suffix):
                 return normalized[: -len(suffix)].strip()
