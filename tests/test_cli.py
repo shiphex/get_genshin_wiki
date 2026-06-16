@@ -20,8 +20,9 @@ import io
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from get_genshin_wiki.cli import CliRuntime, build_parser, main
 from get_genshin_wiki.crawler import WikiCrawler
@@ -31,13 +32,11 @@ from tests.helpers import build_page_payload
 from tests.test_parser import (
     SAMPLE_ARCHON_ICON_LIST_WIKITEXT,
     SAMPLE_ARCHON_TEMPLATE_OPTION_WIKITEXT,
-    (
     SAMPLE_BOOK_WIKITEXT,
     SAMPLE_CHRONICLE_WIKITEXT,
     SAMPLE_EVENT_PAGE_WIKITEXT,
     SAMPLE_EVENT_QUEST_WIKITEXT,
     SPECIALIZED_PAGE_CASES,
-),
 )
 
 # 测试用角色 wikitext
@@ -148,8 +147,12 @@ class CliTests(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def run_cli(self, argv: list[str]) -> tuple[int, object]:
+        exit_code, parsed, _, _ = self.run_cli_capture(argv)
+        return exit_code, parsed
+
+    def run_cli_capture(self, argv: list[str]) -> tuple[int, object, str, str]:
         """
-        执行 CLI 命令并捕获输出。
+        执行 CLI 命令并同时捕获 stdout 与 stderr。
 
         参数
         ----
@@ -158,15 +161,16 @@ class CliTests(unittest.TestCase):
 
         返回
         ----
-        tuple[int, object]
-            (退出码, JSON 解析后的输出)
+        tuple[int, object, str, str]
+            (退出码, JSON 解析后的 stdout, 原始 stdout, 原始 stderr)
         """
         stdout = io.StringIO()
-        with redirect_stdout(stdout):
+        stderr = io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
             exit_code = main(argv, runtime=self.runtime)
-        output = stdout.getvalue().strip()
-        parsed = json.loads(output) if output else None
-        return exit_code, parsed
+        raw_stdout = stdout.getvalue().strip()
+        parsed = json.loads(raw_stdout) if raw_stdout else None
+        return exit_code, parsed, raw_stdout, stderr.getvalue()
 
     def test_crawl_category_pages_respects_limit_and_persists_pages(self) -> None:
         """
@@ -373,6 +377,70 @@ class CliTests(unittest.TestCase):
             build_parser().parse_args(["parse", "character-story", "哥伦比娅"])
 
         self.assertEqual(2, context.exception.code)
+
+    def test_all_weapons_progress_stays_on_stderr_and_keeps_stdout_json(self) -> None:
+        """测试 all weapons 的进度输出只写 stderr，stdout 保持 JSON。"""
+        self.client.category_members["武器"] = ["霜结的誓金枝"]
+        self.client.page_payloads["霜结的誓金枝"] = build_page_payload(
+            "霜结的誓金枝",
+            SAMPLE_WEAPON_WIKITEXT,
+            page_id=61,
+        )
+
+        exit_code, output, raw_stdout, raw_stderr = self.run_cli_capture(
+            ["all", "weapons", "--page-limit", "1", "--progress", "--no-persist"]
+        )
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("weapons", output["entity"])
+        self.assertEqual(1, output["selected_count"])
+        self.assertTrue(raw_stdout.startswith("{"))
+        self.assertNotIn("[武器]", raw_stdout)
+        self.assertIn("[武器] 启动 进度=", raw_stderr)
+        self.assertIn("阶段=解析", raw_stderr)
+        self.assertIn("标题=霜结的誓金枝", raw_stderr)
+        self.assertIn("成功", raw_stderr)
+
+    def test_all_weapons_disables_progress_on_non_interactive_stderr_by_default(self) -> None:
+        """测试非交互式 stderr 下，all weapons 默认不输出进度噪音。"""
+        self.client.category_members["武器"] = ["霜结的誓金枝"]
+        self.client.page_payloads["霜结的誓金枝"] = build_page_payload(
+            "霜结的誓金枝",
+            SAMPLE_WEAPON_WIKITEXT,
+            page_id=62,
+        )
+
+        exit_code, output, _, raw_stderr = self.run_cli_capture(["all", "weapons", "--page-limit", "1", "--no-persist"])
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("weapons", output["entity"])
+        self.assertEqual("", raw_stderr)
+
+    def test_all_top_level_progress_reports_entity_status_on_stderr(self) -> None:
+        """测试 python main.py all 的顶层实体进度会写到 stderr。"""
+        with (
+            patch("get_genshin_wiki.cli._ALL_ENTITY_ORDER", ("weapons", "characters")),
+            patch(
+                "get_genshin_wiki.cli._run_all_entity",
+                side_effect=lambda entity_id, *_: {
+                    "entity": entity_id,
+                    "persist": False,
+                    "selected_count": 1,
+                    "results": [{"title": entity_id}],
+                },
+            ),
+        ):
+            exit_code, output, raw_stdout, raw_stderr = self.run_cli_capture(
+                ["all", "--progress", "--page-limit", "1", "--no-persist"]
+            )
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("all", output["entity"])
+        self.assertEqual(["weapons", "characters"], [item["entity"] for item in output["entities"]])
+        self.assertTrue(raw_stdout.startswith("{"))
+        self.assertIn("[全部任务] 启动 进度=", raw_stderr)
+        self.assertIn("[全部任务] 1/2 开始 阶段=执行 标题=武器", raw_stderr)
+        self.assertIn("[全部任务] 2/2 开始 阶段=执行 标题=角色", raw_stderr)
 
     def test_store_commands_cover_put_query_update_add_and_delete(self) -> None:
         """

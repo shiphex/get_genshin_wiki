@@ -45,6 +45,7 @@ import argparse
 import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from itertools import count
 from pathlib import Path
 from typing import Any, Callable
 
@@ -78,6 +79,17 @@ from tools.reparse_and_store import ENTITY_CONFIGS
 from .client import MediaWikiClient
 from .crawler import WikiCrawler
 from .parser import WikiTextParser
+from .progress import (
+    NullProgressSink,
+    ProgressItemFailed,
+    ProgressItemFinished,
+    ProgressItemStarted,
+    ProgressItemUpdated,
+    ProgressRunFinished,
+    ProgressRunStarted,
+    ProgressSink,
+    build_progress_sink,
+)
 from .storage import JsonFileStore
 
 # CLI 命令处理器类型别名
@@ -142,6 +154,7 @@ _ALL_CHRONICLE_TITLES = (
     "星球",
     "宇宙",
 )
+_PROGRESS_RUN_SEQUENCE = count(1)
 
 
 @dataclass
@@ -157,6 +170,190 @@ class CliRuntime:
     client: MediaWikiClient
     crawler: WikiCrawler
     parser: WikiTextParser
+
+
+def _get_progress_sink(args: argparse.Namespace) -> ProgressSink:
+    sink = getattr(args, "_progress_sink", None)
+    if sink is None:
+        return NullProgressSink()
+    return sink
+
+
+def _copy_progress_context(
+    source: argparse.Namespace,
+    target: argparse.Namespace,
+    *,
+    parent_run_id: str | None = None,
+) -> argparse.Namespace:
+    for name in ("progress", "no_progress", "_progress_sink"):
+        if hasattr(source, name):
+            setattr(target, name, getattr(source, name))
+    if parent_run_id is not None:
+        setattr(target, "_progress_parent_run_id", parent_run_id)
+    elif hasattr(source, "_progress_parent_run_id"):
+        setattr(target, "_progress_parent_run_id", getattr(source, "_progress_parent_run_id"))
+    return target
+
+
+class _ProgressRunController:
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        *,
+        label: str,
+        kind: str,
+        titles: list[str],
+        persist: bool,
+        resume: bool,
+    ) -> None:
+        self._sink = _get_progress_sink(args)
+        self._label = label
+        self._kind = kind
+        self._total = len(titles)
+        self._persist = persist
+        self._page_limit = getattr(args, "page_limit", None)
+        self._started_at = datetime.now(timezone.utc)
+        self._run_id = f"{kind}:{label}:{next(_PROGRESS_RUN_SEQUENCE)}"
+        self._ok_count = 0
+        self._failed_count = 0
+        self._skipped_count = 0
+        self._resumed_count = 0
+        self._finished = False
+        self._sink.run_started(
+            ProgressRunStarted(
+                run_id=self._run_id,
+                parent_run_id=getattr(args, "_progress_parent_run_id", None),
+                label=label,
+                kind=kind,
+                total=self._total,
+                pending_titles=tuple(titles),
+                persist=persist,
+                page_limit=self._page_limit,
+                resume=resume,
+                started_at=self._started_at,
+            )
+        )
+
+    @property
+    def run_id(self) -> str:
+        return self._run_id
+
+    def start_item(self, title: str, *, index: int, phase: str) -> "_ProgressItemController":
+        return _ProgressItemController(
+            run=self,
+            title=title,
+            index=index,
+            phase=phase,
+        )
+
+    def register_status(self, status: str) -> None:
+        if status == "ok":
+            self._ok_count += 1
+        elif status == "failed":
+            self._failed_count += 1
+        elif status == "skipped":
+            self._skipped_count += 1
+        elif status == "resumed":
+            self._resumed_count += 1
+
+    def finish(self, *, status: str) -> None:
+        if self._finished:
+            return
+        self._finished = True
+        self._sink.run_finished(
+            ProgressRunFinished(
+                run_id=self._run_id,
+                label=self._label,
+                kind=self._kind,  # type: ignore[arg-type]
+                status=status,  # type: ignore[arg-type]
+                ok_count=self._ok_count,
+                failed_count=self._failed_count,
+                skipped_count=self._skipped_count,
+                resumed_count=self._resumed_count,
+                finished_at=datetime.now(timezone.utc),
+            )
+        )
+
+
+class _ProgressItemController:
+    def __init__(
+        self,
+        *,
+        run: _ProgressRunController,
+        title: str,
+        index: int,
+        phase: str,
+    ) -> None:
+        self._run = run
+        self._title = title
+        self._index = index
+        self._phase = phase
+        self._started_at = datetime.now(timezone.utc)
+        self._finished = False
+        self._run._sink.item_started(
+            ProgressItemStarted(
+                run_id=self._run.run_id,
+                title=title,
+                phase=phase,
+                index=index,
+                total=self._run._total,
+                started_at=self._started_at,
+            )
+        )
+
+    def update(self, phase: str) -> None:
+        if self._finished:
+            return
+        self._phase = phase
+        self._run._sink.item_updated(
+            ProgressItemUpdated(
+                run_id=self._run.run_id,
+                title=self._title,
+                phase=phase,
+                index=self._index,
+                total=self._run._total,
+                updated_at=datetime.now(timezone.utc),
+            )
+        )
+
+    def finish(self, *, status: str, detail: str = "") -> None:
+        if self._finished:
+            return
+        self._finished = True
+        finished_at = datetime.now(timezone.utc)
+        self._run.register_status(status)
+        self._run._sink.item_finished(
+            ProgressItemFinished(
+                run_id=self._run.run_id,
+                title=self._title,
+                phase=self._phase,
+                index=self._index,
+                total=self._run._total,
+                status=status,  # type: ignore[arg-type]
+                finished_at=finished_at,
+                duration_seconds=(finished_at - self._started_at).total_seconds(),
+                detail=detail,
+            )
+        )
+
+    def fail(self, exc: BaseException) -> None:
+        if self._finished:
+            return
+        self._finished = True
+        finished_at = datetime.now(timezone.utc)
+        self._run.register_status("failed")
+        self._run._sink.item_failed(
+            ProgressItemFailed(
+                run_id=self._run.run_id,
+                title=self._title,
+                phase=self._phase,
+                index=self._index,
+                total=self._run._total,
+                finished_at=finished_at,
+                duration_seconds=(finished_at - self._started_at).total_seconds(),
+                error=str(exc),
+            )
+        )
 
 
 def build_runtime(data_root: Path | None = None) -> CliRuntime:
@@ -546,6 +743,17 @@ def _add_all_common_arguments(
     """Add the shared options used by `python main.py all` commands."""
     parser.add_argument("--page-limit", type=int, default=None, help="Limit the number of pages to process.")
     parser.add_argument("--no-persist", action="store_true", help="Do not save crawled or parsed results.")
+    progress_group = parser.add_mutually_exclusive_group()
+    progress_group.add_argument(
+        "--progress",
+        action="store_true",
+        help="Force progress output on stderr; falls back to line mode when ANSI redraw is unavailable.",
+    )
+    progress_group.add_argument(
+        "--no-progress",
+        action="store_true",
+        help="Disable progress output for this run.",
+    )
     if include_resume:
         parser.add_argument("--resume", action="store_true", help="Reuse existing aggregate output when available.")
 
@@ -692,23 +900,31 @@ def _apply_page_limit(titles: list[str], page_limit: int | None) -> list[str]:
 def _run_all_title_pipeline(
     runtime: CliRuntime,
     *,
+    progress: _ProgressRunController,
     titles: list[str],
     output_namespace: str,
     persist: bool,
-    process_title: Callable[[str], tuple[dict[str, Any], dict[str, Any], dict[str, Any]]],
+    process_title: Callable[[str, "_ProgressItemController"], tuple[dict[str, Any], dict[str, Any], dict[str, Any]]],
 ) -> list[dict[str, Any]]:
     """Run the shared crawl -> parse -> optional store loop used by `all` handlers."""
     results: list[dict[str, Any]] = []
-    for title in titles:
-        payload, parsed, extra = process_title(title)
-        item = _page_metadata(payload, title)
-        item.update(extra)
-        if persist:
-            item.setdefault("page_path", runtime.store.resolve_path("pages", title))
-            item["parsed_path"] = runtime.store.write(output_namespace, title, parsed)
-        else:
-            item["parsed"] = parsed
-        results.append(item)
+    for index, title in enumerate(titles, start=1):
+        item_progress = progress.start_item(title, index=index, phase="crawl")
+        try:
+            payload, parsed, extra = process_title(title, item_progress)
+            item = _page_metadata(payload, title)
+            item.update(extra)
+            if persist:
+                item_progress.update("persist")
+                item.setdefault("page_path", runtime.store.resolve_path("pages", title))
+                item["parsed_path"] = runtime.store.write(output_namespace, title, parsed)
+            else:
+                item["parsed"] = parsed
+            results.append(item)
+            item_progress.finish(status="ok")
+        except Exception as exc:
+            item_progress.fail(exc)
+            raise
     return results
 
 
@@ -1072,10 +1288,13 @@ def _build_north_library_response(
     title: str,
     output_namespace: str | None,
     persist: bool,
+    progress: _ProgressItemController | None = None,
 ) -> dict[str, Any]:
     """Run the integrated North Library pipeline and return its structured result."""
     crawl_result = runtime.crawler.crawl_north_library(title, persist=persist)
     payload = crawl_result.pop("payload")
+    if progress is not None:
+        progress.update("parse")
     record = runtime.parser.parse_north_library_page(payload)
     record.library_category = crawl_result["category_name"]
     record.category_candidates = crawl_result["category_candidates"]
@@ -1086,6 +1305,8 @@ def _build_north_library_response(
         "parsed": parsed,
     }
     if persist:
+        if progress is not None:
+            progress.update("persist")
         namespace = output_namespace or _DEFAULT_PARSE_NAMESPACES["north-library"]
         response["page_path"] = runtime.store.resolve_path("pages", record.title)
         response["parsed_path"] = runtime.store.write(namespace, record.title, parsed)
@@ -1100,19 +1321,37 @@ def _run_all_standard_entity(args: argparse.Namespace, runtime: CliRuntime) -> d
     parse_method = getattr(runtime.parser, config.parse_method)
     titles = runtime.crawler.crawl_category_members(config.category, persist=persist)
     titles = _apply_page_limit(titles, args.page_limit)
+    progress = _ProgressRunController(
+        args,
+        label=config.entity_id,
+        kind="entity",
+        titles=titles,
+        persist=persist,
+        resume=False,
+    )
 
-    def process_title(title: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    def process_title(
+        title: str,
+        item_progress: _ProgressItemController,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         payload = runtime.crawler.crawl_page(title, persist=persist)
+        item_progress.update("parse")
         parsed = parse_method(payload).to_dict()
         return payload, parsed, {}
 
-    results = _run_all_title_pipeline(
-        runtime,
-        titles=titles,
-        output_namespace=config.output_namespaces[0],
-        persist=persist,
-        process_title=process_title,
-    )
+    try:
+        results = _run_all_title_pipeline(
+            runtime,
+            progress=progress,
+            titles=titles,
+            output_namespace=config.output_namespaces[0],
+            persist=persist,
+            process_title=process_title,
+        )
+    except Exception:
+        progress.finish(status="failed")
+        raise
+    progress.finish(status="ok")
     return {
         "entity": config.entity_id,
         "persist": persist,
@@ -1135,11 +1374,24 @@ def _run_all_characters(args: argparse.Namespace, runtime: CliRuntime) -> dict[s
     category = ENTITY_CONFIGS["characters"].category
     titles = runtime.crawler.crawl_category_members(category, persist=persist)
     titles = _apply_page_limit(titles, args.page_limit)
+    progress = _ProgressRunController(
+        args,
+        label="characters",
+        kind="entity",
+        titles=titles,
+        persist=persist,
+        resume=False,
+    )
 
-    def process_title(title: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    def process_title(
+        title: str,
+        item_progress: _ProgressItemController,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         payload = runtime.crawler.crawl_page(title, persist=persist)
+        item_progress.update("crawl-voice")
         voice_title = f"{title}语音"
         voice_payload = runtime.crawler.crawl_page(voice_title, persist=persist)
+        item_progress.update("parse")
         parsed = runtime.parser.parse_character_page(
             payload,
             voice_payload=voice_payload if _payload_has_wikitext(voice_payload) else None,
@@ -1151,13 +1403,19 @@ def _run_all_characters(args: argparse.Namespace, runtime: CliRuntime) -> dict[s
             extra["voice_page_path"] = runtime.store.resolve_path("pages", voice_title)
         return payload, parsed, extra
 
-    results = _run_all_title_pipeline(
-        runtime,
-        titles=titles,
-        output_namespace=_DEFAULT_PARSE_NAMESPACES["character"],
-        persist=persist,
-        process_title=process_title,
-    )
+    try:
+        results = _run_all_title_pipeline(
+            runtime,
+            progress=progress,
+            titles=titles,
+            output_namespace=_DEFAULT_PARSE_NAMESPACES["character"],
+            persist=persist,
+            process_title=process_title,
+        )
+    except Exception:
+        progress.finish(status="failed")
+        raise
+    progress.finish(status="ok")
     return {
         "entity": "characters",
         "persist": persist,
@@ -1180,20 +1438,34 @@ def _run_all_event_quests(args: argparse.Namespace, runtime: CliRuntime) -> dict
     category_name = runtime.crawler.discover_event_quest_category(persist=persist)
     titles = runtime.crawler.crawl_category_members(category_name, persist=persist)
     titles = _apply_page_limit(titles, args.page_limit)
+    progress = _ProgressRunController(
+        args,
+        label="event-quests",
+        kind="entity",
+        titles=titles,
+        persist=persist,
+        resume=False,
+    )
     event_pages: list[dict[str, Any]] = []
     event_payloads: dict[str, dict[str, Any]] = {}
 
-    def process_title(title: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    def process_title(
+        title: str,
+        item_progress: _ProgressItemController,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         payload = runtime.crawler.crawl_page(title, persist=persist)
+        item_progress.update("parse")
         preview = runtime.parser.parse_event_quest_page(payload)
         event_title = preview.event_name or preview.related_event or ""
         if event_title and event_title != preview.title and event_title not in event_payloads:
+            item_progress.update("crawl-event")
             event_payload = runtime.crawler.crawl_page(event_title, persist=persist)
             event_payloads[event_title] = event_payload
             page_result = _page_metadata(event_payload, event_title)
             if persist:
                 page_result["page_path"] = runtime.store.resolve_path("pages", event_title)
             event_pages.append(page_result)
+        item_progress.update("parse")
         parsed = runtime.parser.parse_event_quest_page(
             payload,
             event_payload=event_payloads.get(event_title),
@@ -1201,13 +1473,19 @@ def _run_all_event_quests(args: argparse.Namespace, runtime: CliRuntime) -> dict
         extra = {"event_title": event_title} if event_title else {}
         return payload, parsed, extra
 
-    results = _run_all_title_pipeline(
-        runtime,
-        titles=titles,
-        output_namespace=_DEFAULT_PARSE_NAMESPACES["event-quest"],
-        persist=persist,
-        process_title=process_title,
-    )
+    try:
+        results = _run_all_title_pipeline(
+            runtime,
+            progress=progress,
+            titles=titles,
+            output_namespace=_DEFAULT_PARSE_NAMESPACES["event-quest"],
+            persist=persist,
+            process_title=process_title,
+        )
+    except Exception:
+        progress.finish(status="failed")
+        raise
+    progress.finish(status="ok")
     return {
         "entity": "event-quests",
         "persist": persist,
@@ -1230,19 +1508,37 @@ def _run_all_chronicles(args: argparse.Namespace, runtime: CliRuntime) -> dict[s
     persist = not args.no_persist
     runtime.client.assert_api_allowed()
     titles = _apply_page_limit(list(_ALL_CHRONICLE_TITLES), args.page_limit)
+    progress = _ProgressRunController(
+        args,
+        label="chronicles",
+        kind="entity",
+        titles=titles,
+        persist=persist,
+        resume=False,
+    )
 
-    def process_title(title: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    def process_title(
+        title: str,
+        item_progress: _ProgressItemController,
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
         payload = runtime.crawler.crawl_page(title, persist=persist)
+        item_progress.update("parse")
         parsed = runtime.parser.parse_chronicle_page(payload).to_dict()
         return payload, parsed, {}
 
-    results = _run_all_title_pipeline(
-        runtime,
-        titles=titles,
-        output_namespace=_DEFAULT_PARSE_NAMESPACES["chronicle"],
-        persist=persist,
-        process_title=process_title,
-    )
+    try:
+        results = _run_all_title_pipeline(
+            runtime,
+            progress=progress,
+            titles=titles,
+            output_namespace=_DEFAULT_PARSE_NAMESPACES["chronicle"],
+            persist=persist,
+            process_title=process_title,
+        )
+    except Exception:
+        progress.finish(status="failed")
+        raise
+    progress.finish(status="ok")
     return {
         "entity": "chronicles",
         "persist": persist,
@@ -1261,12 +1557,29 @@ def _run_all_north_library(args: argparse.Namespace, runtime: CliRuntime) -> dic
     """Run the integrated North Library pipeline behind `python main.py all north-library`."""
     persist = not args.no_persist
     runtime.client.assert_api_allowed()
-    response = _build_north_library_response(
-        runtime,
-        title="北陆图书馆",
-        output_namespace=None,
+    progress = _ProgressRunController(
+        args,
+        label="north-library",
+        kind="entity",
+        titles=["北陆图书馆"],
         persist=persist,
+        resume=False,
     )
+    item_progress = progress.start_item("北陆图书馆", index=1, phase="crawl")
+    try:
+        response = _build_north_library_response(
+            runtime,
+            title="北陆图书馆",
+            output_namespace=None,
+            persist=persist,
+            progress=item_progress,
+        )
+    except Exception as exc:
+        item_progress.fail(exc)
+        progress.finish(status="failed")
+        raise
+    item_progress.finish(status="ok")
+    progress.finish(status="ok")
     return {
         "entity": "north-library",
         "persist": persist,
@@ -1297,72 +1610,95 @@ def _run_all_archon_quests(args: argparse.Namespace, runtime: CliRuntime) -> dic
     )
     index_entries = _apply_page_limit(index_entries, args.page_limit)
     series_context = runtime.parser.build_archon_series_context(index_entries)
+    progress = _ProgressRunController(
+        args,
+        label="archon-quests",
+        kind="entity",
+        titles=[entry["title"] for entry in index_entries],
+        persist=persist,
+        resume=getattr(args, "resume", False),
+    )
+    try:
+        existing_output = _load_existing_archon_output(output_path) if getattr(args, "resume", False) else {}
+        existing_records = existing_output.get("quests", []) if isinstance(existing_output.get("quests"), list) else []
+        record_by_title = {
+            item.get("任务标题", {}).get("中文", ""): item
+            for item in existing_records
+            if isinstance(item, dict)
+        }
 
-    existing_output = _load_existing_archon_output(output_path) if getattr(args, "resume", False) else {}
-    existing_records = existing_output.get("quests", []) if isinstance(existing_output.get("quests"), list) else []
-    record_by_title = {
-        item.get("任务标题", {}).get("中文", ""): item
-        for item in existing_records
-        if isinstance(item, dict)
-    }
+        results: list[dict[str, Any]] = []
+        for index, entry in enumerate(index_entries, start=1):
+            title = entry["title"]
+            if getattr(args, "resume", False) and title in record_by_title:
+                item_progress = progress.start_item(title, index=index, phase="resume")
+                item: dict[str, Any] = {
+                    "title": title,
+                    "resumed": True,
+                }
+                if persist and runtime.store.exists(_ARCHON_QUEST_OUTPUT_NAMESPACE, title):
+                    item["parsed_path"] = runtime.store.resolve_path(_ARCHON_QUEST_OUTPUT_NAMESPACE, title)
+                elif not persist:
+                    item["parsed"] = record_by_title[title]
+                results.append(item)
+                item_progress.finish(status="resumed", detail="existing output")
+                continue
 
-    results: list[dict[str, Any]] = []
-    for entry in index_entries:
-        title = entry["title"]
-        if getattr(args, "resume", False) and title in record_by_title:
-            item: dict[str, Any] = {
-                "title": title,
-                "resumed": True,
-            }
-            if persist and runtime.store.exists(_ARCHON_QUEST_OUTPUT_NAMESPACE, title):
-                item["parsed_path"] = runtime.store.resolve_path(_ARCHON_QUEST_OUTPUT_NAMESPACE, title)
-            elif not persist:
-                item["parsed"] = record_by_title[title]
-            results.append(item)
-            continue
+            item_progress = progress.start_item(title, index=index, phase="crawl")
+            try:
+                payload = runtime.crawler.crawl_page(title, persist=persist)
+                item_progress.update("parse")
+                record = runtime.parser.parse_archon_quest_page(payload, series_context=series_context).to_dict()
+                item = _page_metadata(payload, title)
+                if persist:
+                    item_progress.update("persist")
+                    item["page_path"] = runtime.store.resolve_path("pages", title)
+                    item["parsed_path"] = runtime.store.write(_ARCHON_QUEST_OUTPUT_NAMESPACE, title, record)
+                else:
+                    item["parsed"] = record
+                results.append(item)
+                record_by_title[title] = record
+                item_progress.finish(status="ok")
+            except Exception as exc:
+                item_progress.fail(exc)
+                progress.finish(status="failed")
+                raise
 
-        payload = runtime.crawler.crawl_page(title, persist=persist)
-        record = runtime.parser.parse_archon_quest_page(payload, series_context=series_context).to_dict()
-        item = _page_metadata(payload, title)
+        for entry in index_entries:
+            record = record_by_title.get(entry["title"], {})
+            if not isinstance(record, dict):
+                continue
+            entry["act_name"] = _resolve_archon_index_act_name(entry, record)
+
+        ordered_records = [record_by_title[entry["title"]] for entry in index_entries if entry["title"] in record_by_title]
         if persist:
-            item["page_path"] = runtime.store.resolve_path("pages", title)
-            item["parsed_path"] = runtime.store.write(_ARCHON_QUEST_OUTPUT_NAMESPACE, title, record)
-        else:
-            item["parsed"] = record
-        results.append(item)
-        record_by_title[title] = record
+            runtime.store.write(_ARCHON_QUEST_INDEX_NAMESPACE, _DEFAULT_ARCHON_QUEST_LIST_TITLE, index_entries)
+            _write_archon_output(
+                output_path,
+                {
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "list_title": _DEFAULT_ARCHON_QUEST_LIST_TITLE,
+                    "quest_count": len(ordered_records),
+                    "index": index_entries,
+                    "quests": ordered_records,
+                },
+            )
 
-    for entry in index_entries:
-        record = record_by_title.get(entry["title"], {})
-        if not isinstance(record, dict):
-            continue
-        entry["act_name"] = _resolve_archon_index_act_name(entry, record)
-
-    ordered_records = [record_by_title[entry["title"]] for entry in index_entries if entry["title"] in record_by_title]
-    if persist:
-        runtime.store.write(_ARCHON_QUEST_INDEX_NAMESPACE, _DEFAULT_ARCHON_QUEST_LIST_TITLE, index_entries)
-        _write_archon_output(
-            output_path,
-            {
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "list_title": _DEFAULT_ARCHON_QUEST_LIST_TITLE,
-                "quest_count": len(ordered_records),
-                "index": index_entries,
-                "quests": ordered_records,
-            },
-        )
-
-    response: dict[str, Any] = {
-        "entity": "archon-quests",
-        "persist": persist,
-        "selected_count": len(results),
-        "quest_count": len(ordered_records),
-        "index_count": len(index_entries),
-        "results": results,
-    }
-    if persist:
-        response["output_path"] = str(output_path)
-    return response
+        response: dict[str, Any] = {
+            "entity": "archon-quests",
+            "persist": persist,
+            "selected_count": len(results),
+            "quest_count": len(ordered_records),
+            "index_count": len(index_entries),
+            "results": results,
+        }
+        if persist:
+            response["output_path"] = str(output_path)
+        progress.finish(status="ok")
+        return response
+    except Exception:
+        progress.finish(status="failed")
+        raise
 
 
 def handle_all_archon_quests(args: argparse.Namespace, runtime: CliRuntime) -> int:
@@ -1396,94 +1732,119 @@ def _run_all_character_quests(args: argparse.Namespace, runtime: CliRuntime) -> 
                 continue
             seen_members.add(title)
             member_titles.append(title)
+    progress = _ProgressRunController(
+        args,
+        label="character-quests",
+        kind="entity",
+        titles=member_titles,
+        persist=persist,
+        resume=getattr(args, "resume", False),
+    )
+    try:
+        existing_output = _load_existing_character_quest_output(output_path) if getattr(args, "resume", False) else {}
+        existing_records = existing_output.get("quests", []) if isinstance(existing_output.get("quests"), list) else []
+        record_by_title = {
+            _character_quest_record_title(item): item
+            for item in existing_records
+            if isinstance(item, dict) and _character_quest_record_title(item)
+        }
 
-    existing_output = _load_existing_character_quest_output(output_path) if getattr(args, "resume", False) else {}
-    existing_records = existing_output.get("quests", []) if isinstance(existing_output.get("quests"), list) else []
-    record_by_title = {
-        _character_quest_record_title(item): item
-        for item in existing_records
-        if isinstance(item, dict) and _character_quest_record_title(item)
-    }
+        results: list[dict[str, Any]] = []
+        selected_record_titles: list[str] = []
+        selected_record_title_set: set[str] = set()
+        for index, title in enumerate(member_titles, start=1):
+            if args.page_limit is not None and len(results) >= args.page_limit:
+                break
 
-    results: list[dict[str, Any]] = []
-    selected_record_titles: list[str] = []
-    selected_record_title_set: set[str] = set()
-    for title in member_titles:
-        if args.page_limit is not None and len(results) >= args.page_limit:
-            break
-
-        canonical_title = _canonical_character_quest_title(title)
-        if getattr(args, "resume", False) and canonical_title in record_by_title:
-            if canonical_title in selected_record_title_set:
+            canonical_title = _canonical_character_quest_title(title)
+            if getattr(args, "resume", False) and canonical_title in record_by_title:
+                if canonical_title in selected_record_title_set:
+                    continue
+                item: dict[str, Any] = {
+                    "title": canonical_title,
+                    "source_title": title,
+                    "resumed": True,
+                }
+                item_progress = progress.start_item(title, index=index, phase="resume")
+                if persist and runtime.store.exists(_CHARACTER_QUEST_OUTPUT_NAMESPACE, canonical_title):
+                    item["parsed_path"] = runtime.store.resolve_path(_CHARACTER_QUEST_OUTPUT_NAMESPACE, canonical_title)
+                elif not persist:
+                    item["parsed"] = record_by_title[canonical_title]
+                results.append(item)
+                selected_record_titles.append(canonical_title)
+                selected_record_title_set.add(canonical_title)
+                item_progress.finish(status="resumed", detail="existing output")
                 continue
-            item: dict[str, Any] = {
-                "title": canonical_title,
-                "source_title": title,
-                "resumed": True,
-            }
-            if persist and runtime.store.exists(_CHARACTER_QUEST_OUTPUT_NAMESPACE, canonical_title):
-                item["parsed_path"] = runtime.store.resolve_path(_CHARACTER_QUEST_OUTPUT_NAMESPACE, canonical_title)
-            elif not persist:
-                item["parsed"] = record_by_title[canonical_title]
-            results.append(item)
-            selected_record_titles.append(canonical_title)
-            selected_record_title_set.add(canonical_title)
-            continue
 
-        payload = load_or_crawl_page(runtime.store, helper_crawler, title)
-        if is_character_quest_series_payload(payload):
-            continue
+            item_progress = progress.start_item(title, index=index, phase="crawl")
+            try:
+                payload = load_or_crawl_page(runtime.store, helper_crawler, title)
+                if is_character_quest_series_payload(payload):
+                    item_progress.finish(status="skipped", detail="series page")
+                    continue
 
-        record = runtime.parser.parse_character_quest_page(payload, series_context=series_context).to_dict()
-        record_title = _character_quest_record_title(record) or canonical_title or title
-        if record_title in selected_record_title_set:
-            continue
+                item_progress.update("parse")
+                record = runtime.parser.parse_character_quest_page(payload, series_context=series_context).to_dict()
+                record_title = _character_quest_record_title(record) or canonical_title or title
+                if record_title in selected_record_title_set:
+                    item_progress.finish(status="skipped", detail=f"duplicate {record_title}")
+                    continue
 
-        item = _page_metadata(payload, title)
-        if record_title != title:
-            item["parsed_title"] = record_title
+                item = _page_metadata(payload, title)
+                if record_title != title:
+                    item["parsed_title"] = record_title
+                if persist:
+                    item_progress.update("persist")
+                    item["page_path"] = runtime.store.resolve_path("pages", title)
+                    item["parsed_path"] = runtime.store.write(_CHARACTER_QUEST_OUTPUT_NAMESPACE, record_title, record)
+                else:
+                    item["parsed"] = record
+                results.append(item)
+                selected_record_titles.append(record_title)
+                selected_record_title_set.add(record_title)
+                record_by_title[record_title] = record
+                item_progress.finish(status="ok")
+            except Exception as exc:
+                item_progress.fail(exc)
+                progress.finish(status="failed")
+                raise
+
+        filtered_records = {
+            title: record_by_title[title]
+            for title in selected_record_titles
+            if title in record_by_title
+        }
+        ordered_records = order_character_records(list_entries, filtered_records)
+        index_entries = build_character_quest_index(list_entries, ordered_records)
         if persist:
-            item["page_path"] = runtime.store.resolve_path("pages", title)
-            item["parsed_path"] = runtime.store.write(_CHARACTER_QUEST_OUTPUT_NAMESPACE, record_title, record)
-        else:
-            item["parsed"] = record
-        results.append(item)
-        selected_record_titles.append(record_title)
-        selected_record_title_set.add(record_title)
-        record_by_title[record_title] = record
+            runtime.store.write(_CHARACTER_QUEST_INDEX_NAMESPACE, _DEFAULT_CHARACTER_QUEST_LIST_TITLE, index_entries)
+            _write_character_quest_output(
+                output_path,
+                {
+                    "generated_at": datetime.now(timezone.utc).isoformat(),
+                    "list_title": _DEFAULT_CHARACTER_QUEST_LIST_TITLE,
+                    "categories": category_names,
+                    "quest_count": len(ordered_records),
+                    "index": index_entries,
+                    "quests": ordered_records,
+                },
+            )
 
-    filtered_records = {
-        title: record_by_title[title]
-        for title in selected_record_titles
-        if title in record_by_title
-    }
-    ordered_records = order_character_records(list_entries, filtered_records)
-    index_entries = build_character_quest_index(list_entries, ordered_records)
-    if persist:
-        runtime.store.write(_CHARACTER_QUEST_INDEX_NAMESPACE, _DEFAULT_CHARACTER_QUEST_LIST_TITLE, index_entries)
-        _write_character_quest_output(
-            output_path,
-            {
-                "generated_at": datetime.now(timezone.utc).isoformat(),
-                "list_title": _DEFAULT_CHARACTER_QUEST_LIST_TITLE,
-                "categories": category_names,
-                "quest_count": len(ordered_records),
-                "index": index_entries,
-                "quests": ordered_records,
-            },
-        )
-
-    response: dict[str, Any] = {
-        "entity": "character-quests",
-        "persist": persist,
-        "selected_count": len(results),
-        "quest_count": len(ordered_records),
-        "index_count": len(index_entries),
-        "results": results,
-    }
-    if persist:
-        response["output_path"] = str(output_path)
-    return response
+        response: dict[str, Any] = {
+            "entity": "character-quests",
+            "persist": persist,
+            "selected_count": len(results),
+            "quest_count": len(ordered_records),
+            "index_count": len(index_entries),
+            "results": results,
+        }
+        if persist:
+            response["output_path"] = str(output_path)
+        progress.finish(status="ok")
+        return response
+    except Exception:
+        progress.finish(status="failed")
+        raise
 
 
 def handle_all_character_quests(args: argparse.Namespace, runtime: CliRuntime) -> int:
@@ -1495,12 +1856,17 @@ def handle_all_character_quests(args: argparse.Namespace, runtime: CliRuntime) -
 def _run_all_entity(entity_id: str, args: argparse.Namespace, runtime: CliRuntime) -> dict[str, Any]:
     """Dispatch one entity id to its internal `all` runner."""
     if entity_id in _ALL_STANDARD_ENTITY_IDS:
-        return _run_all_standard_entity(
+        entity_args = _copy_progress_context(
+            args,
             argparse.Namespace(
                 entity_id=entity_id,
                 page_limit=args.page_limit,
                 no_persist=args.no_persist,
+                resume=False,
             ),
+        )
+        return _run_all_standard_entity(
+            entity_args,
             runtime,
         )
     if entity_id == "characters":
@@ -1520,10 +1886,37 @@ def _run_all_entity(entity_id: str, args: argparse.Namespace, runtime: CliRuntim
 
 def handle_all_everything(args: argparse.Namespace, runtime: CliRuntime) -> int:
     """Handle `python main.py all` with no subcommand."""
-    summaries = [
-        _summarize_all_entity_result(_run_all_entity(entity_id, args, runtime))
-        for entity_id in _ALL_ENTITY_ORDER
-    ]
+    progress = _ProgressRunController(
+        args,
+        label="all",
+        kind="top",
+        titles=list(_ALL_ENTITY_ORDER),
+        persist=not args.no_persist,
+        resume=False,
+    )
+    summaries: list[dict[str, Any]] = []
+    try:
+        for index, entity_id in enumerate(_ALL_ENTITY_ORDER, start=1):
+            item_progress = progress.start_item(entity_id, index=index, phase="run")
+            child_args = _copy_progress_context(
+                args,
+                argparse.Namespace(
+                    page_limit=args.page_limit,
+                    no_persist=args.no_persist,
+                    progress=getattr(args, "progress", False),
+                    no_progress=getattr(args, "no_progress", False),
+                    resume=False,
+                ),
+                parent_run_id=progress.run_id,
+            )
+            result = _run_all_entity(entity_id, child_args, runtime)
+            summaries.append(_summarize_all_entity_result(result))
+            item_progress.finish(status="ok", detail=f"selected={result.get('selected_count', 0)}")
+    except Exception as exc:
+        item_progress.fail(exc)
+        progress.finish(status="failed")
+        raise
+    progress.finish(status="ok")
     _print_json(
         {
             "entity": "all",
@@ -1617,6 +2010,15 @@ def main(argv: list[str] | None = None, runtime: CliRuntime | None = None) -> in
         命令退出码，0 表示成功
     """
     args = build_parser().parse_args(argv)
+    if args.command == "all":
+        setattr(
+            args,
+            "_progress_sink",
+            build_progress_sink(
+                force=getattr(args, "progress", False),
+                disabled=getattr(args, "no_progress", False),
+            ),
+        )
     active_runtime = runtime or build_runtime(args.data_root)
     handler: CliHandler = args.handler
     return handler(args, active_runtime)
