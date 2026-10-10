@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import socket
+import sys
+from types import ModuleType
 from pathlib import Path
 from unittest.mock import patch
 
@@ -374,4 +376,17 @@ def test_offline_guard_blocks_direct_http_and_dns():
             requests.get("https://example.invalid")
         with pytest.raises(RuntimeError, match="forbidden"):
             socket.getaddrinfo("example.invalid", 443)
+
+
+def test_unknown_sources_remain_unresolved_with_model_sdks_forbidden():
+    class ForbiddenSDK(ModuleType):
+        def __getattr__(self, name):
+            raise AssertionError("model access forbidden")
+
+    poisoned = {name: ForbiddenSDK(name) for name in ("openai", "anthropic", "litellm", "transformers")}
+    with patch.dict(sys.modules, poisoned):
+        result = recover("==任务剧情==\n===场景===\n{{未知剧情模板|不能补写的原文}}\n{{:未缓存来源}}")
+    assert result["units"] == []
+    assert any("不能补写的原文" in issue["raw"] for issue in result["issues"])
+    assert any(issue["status"] == "needs_source" for issue in result["issues"])
 
