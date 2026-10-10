@@ -157,6 +157,67 @@ def test_cached_plain_template_consumption_excludes_documentation():
     assert any(d["status"] == "consumed" for d in result["dependencies"])
 
 
+def test_cached_template_visibility_is_applied_before_business_extraction():
+    provider = build_page_payload("模板:旁白", "<onlyinclude>真实旁白。</onlyinclude><noinclude>{{任务|任务剧情=*派蒙：填写示例。}}</noinclude>", page_id=8)
+    resolver = lambda title: [{"raw_file": "pages/provider.json", "payload": provider}] if title == "模板:旁白" else []
+    result = recover("==任务剧情==\n===场景===\n{{旁白}}", resolver=resolver)
+    assert any(u["text"] == "真实旁白。" for u in result["units"])
+    assert not any("填写示例" in u["text"] for u in result["units"])
+    provider = build_page_payload("模板:旁白", "<onlyinclude>{{任务|任务剧情=*派蒙：真实正文。}}</onlyinclude>{{任务|任务剧情=*派蒙：不应转入正文。}}", page_id=8)
+    result = recover("==任务剧情==\n===场景===\n{{旁白}}", resolver=resolver)
+    assert [u["text"] for u in result["units"]] == ["真实正文。"]
+    assert recover('<noinclude>{{任务|任务剧情=*派蒙：填写示例。}}</noinclude>')["units"] == []
+
+
+def test_repeated_provider_consumption_retains_all_scene_and_branch_contexts():
+    provider = build_page_payload("模板:旁白", "<onlyinclude>原文旁白。</onlyinclude>", page_id=8)
+    resolver = lambda title: [{"raw_file": "pages/provider.json", "payload": provider}] if title == "模板:旁白" else []
+    result = recover("==任务剧情==\n===甲场景===\n{{旁白}}\n===乙场景===\n{{旁白}}", resolver=resolver)
+    assert len(result["units"]) == 1
+    assert len({c["scene_id"] for c in result["units"][0]["consumed_by"]}) == 2
+    result = recover("==任务剧情==\n===场景===\n{{剧情选项|选项1=甲|剧情1={{旁白}}|选项2=乙|剧情2={{旁白}}}}", resolver=resolver)
+    unit = next(u for u in result["units"] if u["text"] == "原文旁白。")
+    assert {c["branch_path"][0]["label"] for c in unit["consumed_by"]} == {"甲", "乙"}
+
+
+def test_inline_display_audit_separates_visible_style_and_unknown_arguments():
+    from get_genshin_wiki.recovery.audit import audit_page
+    from get_genshin_wiki.recovery.source import SourcePage
+
+    text = "==任务剧情==\n===场景===\n*派蒙：{{颜色|红|正文|未知=隐藏中文}}"
+    page = SourcePage.from_payload(build_page_payload("测试任务", text, page_id=7), "pages/test.json")
+    result = recover(text)
+    assert result["units"][0]["text"] == "正文"
+    candidates = audit_page(page, result["regions"], result["units"])
+    assert next(c for c in candidates if c["text"] == "正文")["disposition"] == "exported"
+    assert next(c for c in candidates if c["text"] == "红")["disposition"] == "metadata"
+    assert next(c for c in candidates if c["text"] == "隐藏中文")["disposition"] == "unsupported"
+    assert any(i["rule"] == "unsupported_display_argument" for i in result["issues"])
+
+
+def test_fold_unknown_argument_stays_unsupported():
+    from get_genshin_wiki.recovery.audit import audit_page
+    from get_genshin_wiki.recovery.source import SourcePage
+
+    text = "==任务剧情==\n===场景===\n{{折叠|标题=普通标题|内容=*派蒙：正文。|未支持剧情=隐藏中文}}"
+    page = SourcePage.from_payload(build_page_payload("测试任务", text, page_id=7), "pages/test.json")
+    result = recover(text)
+    candidates = audit_page(page, result["regions"], result["units"])
+    assert next(c for c in candidates if c["text"] == "隐藏中文")["disposition"] == "unsupported"
+    assert any(i["rule"] == "unsupported_fold_argument" for i in result["issues"])
+
+
+def test_scene_title_unknown_display_argument_stays_in_source_inventory():
+    from get_genshin_wiki.recovery.audit import audit_page
+    from get_genshin_wiki.recovery.source import SourcePage
+
+    text = "==任务剧情==\n==={{颜色|红|场景|未知=场景隐藏中文}}===\n*派蒙：正文。"
+    page = SourcePage.from_payload(build_page_payload("测试任务", text, page_id=7), "pages/test.json")
+    result = recover(text)
+    candidates = audit_page(page, result["regions"], result["units"])
+    assert next(c for c in candidates if c["text"] == "场景隐藏中文")["disposition"] == "unsupported"
+
+
 def test_character_dialogue_template_keeps_explicit_speaker():
     result = recover("==任务剧情==\n===对话===\n{{人物对话|角色={{颜色|蓝|派蒙}}|内容=你好。}}")
     unit = next(u for u in result["units"] if u["text"] == "你好。")

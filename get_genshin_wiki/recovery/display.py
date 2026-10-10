@@ -77,3 +77,69 @@ def display_text(raw: str, *, unknown: list[str] | None = None) -> str:
 def replay_unit(wikitext: str, unit: dict) -> str:
     source = unit["source"]
     return display_text(wikitext[source["start"]:source["end"]])
+
+
+def display_projection(raw: str, start: int):
+    """Positive evidence for visible leaves, separate from the replay envelope."""
+    from .source import nodes_with_spans, tag_contents, template_params
+
+    visible, metadata, unsupported = [], [], []
+
+    def walk(fragment, base):
+        for node, left, right in nodes_with_spans(fragment, base):
+            if isinstance(node, (Text, HTMLEntity)):
+                visible.append((left, right))
+            elif isinstance(node, Comment):
+                metadata.append((left, right))
+            elif isinstance(node, Tag):
+                name = str(node.tag).lower()
+                if name in DISPLAY_TAGS:
+                    contents, content_start = tag_contents(node, left)
+                    walk(contents, content_start)
+                else:
+                    metadata.append((left, right))
+            elif isinstance(node, Wikilink):
+                title = str(node.title)
+                if title.lower().startswith(("file:", "image:", "category:", "文件:", "分类:")):
+                    metadata.append((left, right))
+                elif node.text is None:
+                    walk(title, left + 2)
+                else:
+                    metadata.append((left + 2, left + 2 + len(title)))
+                    walk(str(node.text), left + 3 + len(title))
+            elif isinstance(node, ExternalLink):
+                if node.title is not None:
+                    label = str(node.title)
+                    label_start = right - (1 if node.brackets else 0) - len(label)
+                    walk(label, label_start)
+                else:
+                    visible.append((left, right))
+            elif isinstance(node, Template):
+                name = str(node.name).strip()
+                selected = display_param(node)
+                if selected is None and name in {"图标", "icon"} and node.has("1"):
+                    selected = node.get("1")
+                if name in {"玩家名", "旅行者名字", "NICKNAME"}:
+                    visible.append((left, right))
+                    continue
+                if name in {"!", "切换板"}:
+                    metadata.append((left, right))
+                    continue
+                known = {"颜色": {"1"}, "注音": {"2"}, "图标": {"2", "3"}, "icon": {"2", "3"},
+                         "任务描述": set(), "黑幕": set()}.get(name, set())
+                if name.startswith("#tag:"):
+                    known = {"style", "class", "id", "color", "size", "align", "width", "height"}
+                for param, (key, value, value_start, value_end) in zip(node.params, template_params(node, left)):
+                    if param is selected:
+                        walk(value, value_start)
+                    elif key in known:
+                        metadata.append((value_start, value_end))
+                    else:
+                        unsupported.append((value_start, value_end, name, key))
+            elif isinstance(node, Heading):
+                walk(str(node.title), left + node.level)
+            else:
+                unsupported.append((left, right, type(node).__name__, ""))
+
+    walk(raw, start)
+    return visible, metadata, unsupported

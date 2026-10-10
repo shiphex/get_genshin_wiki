@@ -108,7 +108,7 @@ def disposition_segments(regions):
 def audit_page(page: SourcePage, regions: list[dict], units: list[dict]):
     ranges = list(regions)
     for unit in units:
-        ranges.append({"source": unit["source"], "disposition": "exported"})
+        ranges.extend({"source": source, "disposition": "exported"} for source in unit.get("text_spans", [unit["source"]]))
         if unit.get("speaker_source"):
             ranges.append({"source": unit["speaker_source"], "disposition": "metadata"})
     starts, states = disposition_segments(ranges)
@@ -117,7 +117,9 @@ def audit_page(page: SourcePage, regions: list[dict], units: list[dict]):
         role = candidate["role"]
         intrinsic = None
         reason = "source_range_reconciliation"
-        if role in {"template_name", "parameter_name", "heading", "link_target"}:
+        if any(c.get("tag") == "noinclude" for c in candidate["context"]):
+            intrinsic, reason = "non_story", "template_documentation"
+        elif role in {"template_name", "parameter_name", "heading", "link_target"}:
             intrinsic, reason = "metadata", "source_structure"
         elif role in {"comment", "style", "reference"}:
             intrinsic, reason = "non_story", "wiki_annotation_or_style"

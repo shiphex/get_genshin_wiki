@@ -32,6 +32,8 @@ uv run --offline --no-project -- "E:/Workplace/Learn_project/get_genshin_wiki/.v
 
 `source` 保存页面 ID、完整标题、输入相对文件名、WikiText SHA-256、已有 revision ID，以及原始解码字符串中的 `[start, end)` 字符范围。缺 revision ID 保持 null。`speaker_source` 单独保留说话者原文；`consumed_by` 保留同一个来源被其他页面消费的上下文。ID 和排序由来源身份及位置确定，不用时间或随机值。
 
+`source` 是重放原文的完整范围；`text_spans` 是实际参与可见文字的叶节点范围，独立校验器按它们统计导出证据，不能把颜色名和未渲染参数计成正文。`display_status=partial` 表示显示模板仍有未知参数；参数源块保留在问题清单。场景另保存 `title_source`。
+
 `branch_path=[]` 是已确认的线性归属，`null` 是未解决归属。每一层选择/tab/条件记录组 ID、选项 ID、原文标签及可重放的来源范围。未明确的连接、性别、角色姓名不会补写。旧数组仍可兼容使用；下游必须从权威 JSONL 按来源、场景、分支和消费上下文切分。
 
 ## 校验和限制
@@ -42,6 +44,7 @@ uv run --offline --no-project -- "E:/Workplace/Learn_project/get_genshin_wiki/.v
 - 媒体引用和未缓存依赖无法推算缺失正文长度，必须查看缺来源清单；不能用图片文件名推断图片文字。
 - 已确认显示规则包括颜色、注音、明确 HTML 包装、折叠/折叠框、人物对话及剧情参数。未知模板原块保留；带参数的未知缓存模板不会猜测绑定关系。
 - 缓存模板只在明确剧情消费上下文中提取可支持的正文，排除 noinclude 文档、样式和脚本；无关联示例不生成剧情。
+- 缓存消费先应用 onlyinclude/noinclude 可见性，再提取业务内容；重复消费合并全部场景和分支上下文。无业务消费者的模板页仍留在源清单中，不直接当作游戏正文。
 - `data/` 沿用 Git 忽略规则。派生数据留在本地，提交代码、测试、文档、spec 和短报告；不切换现有 RAG。
 
 运行测试：`python -m pytest -q`。真实测试页面是冻结快照的 19 份原始 payload 副本，输入原件不参与修改；测试对它们的文件和 WikiText 哈希逐项核对。

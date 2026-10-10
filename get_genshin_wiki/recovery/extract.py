@@ -6,7 +6,7 @@ from typing import Any, Callable
 
 from mwparserfromhell.nodes import Heading, Tag, Template, Text
 
-from .display import DISPLAY_TAGS, display_param, display_text
+from .display import DISPLAY_TAGS, display_param, display_projection, display_text
 from .source import SourcePage, nodes_with_spans, stable_id, tag_contents, template_params
 
 Resolver = Callable[[str], list[dict[str, Any]]]
@@ -31,6 +31,7 @@ class RecoveryExtractor:
         self.issues: list[dict] = []
         self.dependencies: list[dict] = []
         self.regions: list[dict] = []
+        self.character_owner = False
 
     def mark(self, start, end, disposition, reason):
         self.regions.append({"source": self.page.source(start, end), "disposition": disposition, "reason": reason})
@@ -41,7 +42,7 @@ class RecoveryExtractor:
         self.issues.append(item)
         self.mark(start, end, status, rule)
 
-    def scene(self, title, start, end, *, chapter="", parent_id=None, body_type="dialogue"):
+    def scene(self, title, start, end, *, chapter="", parent_id=None, body_type="dialogue", title_source=None):
         unknown = []
         cleaned = display_text(title, unknown=unknown)
         result = {"scene_id": stable_id("scene", self.page.identity, start, end), "title": cleaned,
@@ -50,13 +51,24 @@ class RecoveryExtractor:
         if unknown:
             self.issue("unknown_scene_display", start, end)
         self.mark(start, end, "metadata", "scene_structure")
+        title_source = title_source or self.page.source(start, end)
+        result["title_source"] = title_source
+        if title_source["start"] < title_source["end"]:
+            left, right = title_source["start"], title_source["end"]
+            _, _, unsupported = display_projection(self.page.text[left:right], left)
+            for arg_start, arg_end, template_name, parameter in unsupported:
+                self.issue("unsupported_display_argument", arg_start, arg_end, template=template_name, parameter=parameter)
         return result
 
-    def run(self):
+    def run(self, *, transcluded=False):
         if self.page.missing:
             self.issue("missing_page", 0, len(self.page.text), "needs_source")
         elif not self.page.text:
             self.mark(0, 0, "metadata", "legitimate_empty_page")
+        elif transcluded:
+            self.transcluded_text()
+        elif self.page.title.startswith(("模板:", "Template:")):
+            self.issue("template_requires_consumer", 0, len(self.page.text))
         else:
             redirect = REDIRECT.match(self.page.text)
             if redirect:
@@ -64,11 +76,18 @@ class RecoveryExtractor:
                 self.mark(0, redirect.end(), "metadata", "redirect_mapping")
             else:
                 self.walk_root(self.page.text)
-                import mwparserfromhell
-                templates = mwparserfromhell.parse(self.page.text).filter_templates()
-                if any(str(t.name).strip() in {"角色", "角色资料", "角色/信息", "角色/故事"} for t in templates) and not self.page.title.endswith("语音"):
+                if self.character_owner and not self.page.title.endswith("语音"):
                     self.dependency(self.page.title + "语音", "character_voice", 0, 0)
-        self.units = list({u["unit_id"]: u for u in self.units}.values())
+        merged = {}
+        for unit in self.units:
+            existing = merged.get(unit["unit_id"])
+            if existing is None:
+                merged[unit["unit_id"]] = unit
+            else:
+                for consumer in unit.get("consumed_by", []):
+                    if consumer not in existing.setdefault("consumed_by", []):
+                        existing["consumed_by"].append(consumer)
+        self.units = list(merged.values())
         return {"source": self.page.source(), "units": self.units, "scenes": self.scenes,
                 "issues": self.issues, "dependencies": self.dependencies, "regions": self.regions}
 
@@ -96,9 +115,8 @@ class RecoveryExtractor:
                 self.issue("missing_dependency", start, end, "needs_source", target_title=title)
             else:
                 worker = RecoveryExtractor(self.parser, provider, self.resolve_page, self.visited)
-                child = worker.run()
-                if not child["units"] and scene is not None and kind in {"template", "transclusion"}:
-                    child = worker.transcluded_text()
+                consume_body = scene is not None and kind in {"template", "transclusion"}
+                child = worker.run(transcluded=consume_body)
                 record["status"] = "consumed" if child["units"] else "unresolved"
                 record["unit_ids"] = [u["unit_id"] for u in child["units"]]
                 for unit in child["units"]:
@@ -116,8 +134,19 @@ class RecoveryExtractor:
     def transcluded_text(self):
         """Render only an explicitly consumed, argument-free cached body."""
         scene = self.scene(self.page.title, 0, 0)
-        onlyinclude = [(node, start) for node, start, _ in nodes_with_spans(self.page.text)
-                       if isinstance(node, Tag) and str(node.tag).lower() == "onlyinclude"]
+        onlyinclude = []
+
+        def collect(raw, base):
+            for node, start, _ in nodes_with_spans(raw, base):
+                if isinstance(node, Tag):
+                    name = str(node.tag).lower()
+                    if name == "onlyinclude":
+                        onlyinclude.append((node, start))
+                    elif name not in {"noinclude", "style", "script"} and node.contents:
+                        contents, content_start = tag_contents(node, start)
+                        collect(contents, content_start)
+
+        collect(self.page.text, 0)
         if onlyinclude:
             for node, start in onlyinclude:
                 self.walk_container(node, start, scene, [], "dialogue")
@@ -143,7 +172,10 @@ class RecoveryExtractor:
             buffer, buffer_start = "", None
 
         for node, start, end in nodes_with_spans(raw):
-            if isinstance(node, Heading):
+            if isinstance(node, Tag) and str(node.tag).lower() in {"noinclude", "style", "script"}:
+                flush()
+                self.mark(start, end, "non_story", "documentation_or_style")
+            elif isinstance(node, Heading):
                 flush()
                 title = display_text(str(node.title))
                 self.mark(start, end, "metadata", "heading")
@@ -176,6 +208,8 @@ class RecoveryExtractor:
     def business_template(self, template, start, end, *, branch=(), parent_scene=None):
         branch = None if branch is None else list(branch)
         name = str(template.name).strip()
+        if name in {"角色", "角色资料", "角色/信息"}:
+            self.character_owner = True
         params = list(template_params(template, start))
         by_name = {p[0]: p for p in params}
         if name == "剧情":
@@ -200,15 +234,20 @@ class RecoveryExtractor:
         for key, value, value_start, value_end in params:
             text_type = None
             label = key
+            label_source = None
             if VOICE.fullmatch(name):
                 if key == "语音内容":
                     text_type = "voice"
-                    label = display_text(by_name.get("语音类型", ("", key))[1])
+                    label_param = by_name.get("语音类型")
+                    label = label_param[1] if label_param else key
+                    label_source = self.page.source(label_param[2], label_param[3]) if label_param else None
             elif name == "书籍":
                 volume = re.fullmatch(r"卷(\d+)(内容|描述)", key)
                 if volume:
                     text_type = "book" if volume.group(2) == "内容" else "description"
-                    label = display_text(by_name.get("卷" + volume.group(1) + "名", ("", key))[1])
+                    label_param = by_name.get("卷" + volume.group(1) + "名")
+                    label = label_param[1] if label_param else key
+                    label_source = self.page.source(label_param[2], label_param[3]) if label_param else None
             elif name == "角色/故事":
                 if re.fullmatch(r"角色详细|角色故事\d+|冒险笔记内容|其他故事\d*", key):
                     text_type = "story"
@@ -219,7 +258,7 @@ class RecoveryExtractor:
             elif key in {"任务描述", "介绍", "描述", "故事", "内容", "神之眼描述"} or re.fullmatch(r"(?:时之沙|死之羽|理之冠|生之花|空之杯)(?:描述|故事)", key):
                 text_type = "story" if key.endswith("故事") else "description"
             if text_type:
-                scene = self.scene(label, value_start, value_start, body_type=text_type, parent_id=parent_scene["scene_id"] if parent_scene else None)
+                scene = self.scene(label, value_start, value_start, body_type=text_type, parent_id=parent_scene["scene_id"] if parent_scene else None, title_source=label_source)
                 self.walk_prose(value, value_start, scene, branch, text_type)
             else:
                 if VOICE.fullmatch(name) and (key == "语音类型" or key.startswith("语音文件") or key in {"语音内容日语", "语音内容英语", "语音内容韩语"}):
@@ -345,18 +384,31 @@ class RecoveryExtractor:
         if re.fullmatch(r"[-_=★\s]+", rendered):
             return
         source = self.page.source(start, start + len(raw))
+        visible, metadata, unsupported = display_projection(raw, start)
+        for left, right in metadata:
+            self.mark(left, right, "metadata", "display_presentation")
+        for left, right, template_name, parameter in unsupported:
+            self.issue("unsupported_display_argument", left, right, template=template_name, parameter=parameter)
         source_kind = "wiki_editorial" if wiki_annotation else "unknown" if kind == "description" else "game_excerpt"
         unit = {"unit_id": stable_id("unit", self.page.identity, source["wikitext_sha256"], start, start + len(raw), kind),
                 "type": kind, "text": rendered, "speaker": speaker, "scene_id": scene["scene_id"] if scene else None,
                 "speaker_status": "not_applicable" if speaker is None else speaker_status,
                 "branch_path": branch, "branch_status": "unresolved" if branch is None else "resolved",
                 "source": source, "source_kind": source_kind}
+        unit["text_spans"] = [self.page.source(left, right) for left, right in visible]
+        unit["display_status"] = "partial" if unsupported else "resolved"
         if speaker_source:
             unit["speaker_source"] = speaker_source
+            _, speaker_metadata, speaker_unknown = display_projection(self.page.text[speaker_source["start"]:speaker_source["end"]], speaker_source["start"])
+            for left, right in speaker_metadata:
+                self.mark(left, right, "metadata", "speaker_display_presentation")
+            for left, right, template_name, parameter in speaker_unknown:
+                self.issue("unsupported_display_argument", left, right, template=template_name, parameter=parameter)
         self.units.append(unit)
         if scene:
             scene["empty"] = False
-        self.mark(start, start + len(raw), "exported", "text_unit")
+        for left, right in visible:
+            self.mark(left, right, "exported", "visible_text_leaf")
 
     def template(self, node, start, end, scene, branch, kind, outside=False):
         name = str(node.name).strip()
@@ -400,7 +452,10 @@ class RecoveryExtractor:
                 self.walk_prose(selected[1], selected[2], scene, path, kind)
                 for param in params:
                     if param != selected:
-                        self.mark(param[2], param[3], "metadata", "fold_display_metadata")
+                        if param[0] in {"标题", "折叠", "1", "展开", "宽度", "样式", "class", "style"}:
+                            self.mark(param[2], param[3], "metadata", "fold_display_metadata")
+                        else:
+                            self.issue("unsupported_fold_argument", param[2], param[3], parameter=param[0])
             else:
                 self.issue("unsupported_fold_shape", start, end)
         elif "人物对话" in name:
