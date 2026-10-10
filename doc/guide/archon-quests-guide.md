@@ -6,7 +6,7 @@
 
 ```bash
 # 激活虚拟环境
-cd E:\Workplace\Learn_project\get_genshin_wiki-archon-quests
+# 从仓库根目录执行；环境准备见统一操作指南
 .\.venv\Scripts\Activate.ps1
 ```
 

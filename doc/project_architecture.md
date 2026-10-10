@@ -1,5 +1,7 @@
 # 项目架构设计
 
+对应发布版本：V2.2.0。操作入口以 [统一指南](guide/unified_operation_guide.md) 和 [离线恢复指南](guide/snapshot_recovery_guide.md) 为准。
+
 ## 1. 项目定位
 
 本项目用于从 `https://wiki.biligame.com/ys/` 抓取原神 Wiki 页面，并将页面原始 payload 与结构化解析结果落盘到本地 `data/` 目录，供后续训练数据整理、检查与下游消费使用。
@@ -40,12 +42,15 @@ get_genshin_wiki/
 │  ├─ category_members/
 │  ├─ pages/
 │  ├─ parsed/
+│  ├─ recovery/
 │  └─ reports/
 ├─ doc/
 │  ├─ guide/
 │  │  ├─ unified_operation_guide.md
 │  │  └─ *.md
 │  ├─ project_architecture.md
+│  ├─ reports/
+│  ├─ releases/
 │  ├─ todo_logs.md
 │  └─ worktree_logs/
 ├─ get_genshin_wiki/
@@ -57,6 +62,7 @@ get_genshin_wiki/
 │  ├─ exceptions.py
 │  ├─ models.py
 │  ├─ parser.py
+│  ├─ recovery/
 │  └─ storage.py
 ├─ refer/
 │  └─ *.py
@@ -217,6 +223,8 @@ get_genshin_wiki/
   - 批量抓取并解析角色传说任务 / 部族纪闻。
 - `tools/generate_character_quest_index.py`
   - 生成角色传说任务独立索引。
+- `tools/recover_snapshot.py`
+  - 只读加载冻结页面和缓存依赖，生成新的来源、场景、分支、候选节点和问题清单；不创建在线抓取运行时。
 
 ### 4.3 当前边界
 
@@ -296,12 +304,12 @@ get_genshin_wiki/
 - 批处理脚本
 - 索引生成
 
-按 2026-06-10 在当前仓库执行 `pytest -q` 的结果，测试尚未完全可运行：`tests/test_cli.py` 存在语法错误，进而导致 `tests/test_batch_tools.py` 在收集阶段失败。也就是说，文档应以“测试体系存在，但当前工作树测试并非全绿”来描述现状，而不是继续假定测试已经稳定通过。
+V2.2.0 已修复原有 CLI 测试的导入语法错误。发布验证基线为 122 passed / 18 subtests passed，包含 19 份真实冻结页面、来源位置、分支、缓存可见性、独立候选节点清单与离线边界测试；当前结果以实际执行 `python -m pytest -q` 为准。
 
 ## 8. 当前规范与文档入口
 
 - 优先使用 `python main.py` 编写命令示例，避免再写旧 worktree 专用路径。
-- 如需说明全量处理流程，优先引用 `tools/*.py` 的真实能力，而不是假定所有实体都能用同一个批处理脚本。
+- 如需说明在线全量处理流程，优先使用 `python main.py all <entity>`，并解释各实体不同的上下文依赖；冻结来源恢复使用独立的离线入口。
 - 新增或更新分项能力时，应同步更新：
   - `doc/guide/unified_operation_guide.md`
   - `doc/project_architecture.md`
@@ -309,12 +317,16 @@ get_genshin_wiki/
 
 ## 9. 已知不一致与后续关注点
 
-- 旧分项指南中仍残留历史 worktree 路径、旧入口和已过时命令示例。
+- 历史 worktree 日志只记录当时实现，当前操作以统一指南和对应分项指南为准。
 - `python -m get_genshin_wiki` 目前不是有效入口，因为仓库内没有 `get_genshin_wiki/__main__.py`。
-- 活动任务、编年史、北陆图书馆在“全量自动化”程度上低于标准实体。
+- 活动任务、编年史、北陆图书馆已有 `all` 入口，但分别依赖关联主页、内置标题列表和固定入口页，并非动态覆盖全部 Wiki 页面。
 - `TODO.md` 当前聚焦秘境解析验收，说明项目仍处于持续补齐与校验阶段。
 ## 来源追踪与离线恢复
 
 `get_genshin_wiki/recovery/` 提供原文节点偏移、确定性显示规则、场景/分支提取、业务兼容投影及独立候选节点校验。`WikiTextParser.recover_page` 是来源提取 API；任务业务解析器复用该提取后生成兼容数组。
 
 `tools/recover_snapshot.py` 只读加载冻结 payload 和本地依赖，使用 JsonFileStore 写新的派生目录。权威文本为 `text_units.jsonl`，其字符范围基于原始解码 WikiText；独立校验器不调用被测正文提取逻辑。接口与边界见 [离线恢复指南](guide/snapshot_recovery_guide.md)。
+
+角色任务的业务模型保留展示名称，并增加 `source_title`、`page_id`。存储、聚合、resume 与索引按完整原标题及身份处理，组索引提供 `task_refs`，旧汇总缺少身份时需重新解析。
+
+离线输出和既有 raw / parsed 分开保存；已导出单元可重放不代表所有原文都已支持。未知节点、缺依赖、媒体文字和未解决分支仍进入机器清单，不调用模型猜测或补写。

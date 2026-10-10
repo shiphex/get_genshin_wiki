@@ -2,6 +2,8 @@
 
 ## 项目目标
 
+当前发布版本：`2.2.0`。版本元数据与锁文件保持一致，发布说明见 `doc/releases/V2.2.0.md`。
+
 本项目用于抓取并解析 bilibili 原神 Wiki（`https://wiki.biligame.com/ys/`）的数据，输出原始页面 payload 与结构化 JSON，供后续数据清洗、检索、训练和验证使用。
 
 当前仓库已经不是单一“角色解析器”，而是一个多数据族抓取与解析仓库。已落地支持的范围包括：
@@ -30,6 +32,8 @@
 - 架构说明：`doc/project_architecture.md`
 - 分项指南：`doc/guide/*.md`
 - 历史开发记录：`doc/worktree_logs/*.md`
+- 冻结快照恢复：`doc/guide/snapshot_recovery_guide.md`
+- 发布说明：`doc/releases/*.md`
 
 说明：
 
@@ -50,6 +54,8 @@
   - `JsonFileStore`，负责本地 JSON 命名空间存储。
 - `get_genshin_wiki/cli.py`
   - `crawl / parse / all / store` 四组命令。
+- `get_genshin_wiki/recovery/`
+  - 来源定位、可见文字证据、场景与分支提取、兼容投影及独立校验。
 
 ### 运行入口
 
@@ -80,10 +86,7 @@ python main.py ...
 - 该写法不依赖额外的 console script 安装。
 - 仓库当前没有 `get_genshin_wiki/__main__.py`，因此不应再写 `python -m get_genshin_wiki ...`。
 
-如果明确已经 `pip install -e .`，则可以使用：
-
-- `python -m get_genshin_wiki.cli ...`
-- `get-genshin-wiki ...`
+环境准备使用 `uv sync --frozen --group dev`，再激活 `.venv`；也可使用 `uv run python main.py ...`。当前项目为源码运行的 virtual project，uv sync 不安装项目 console script，不应将其写成默认可用入口。
 
 ### 存储规范
 
@@ -91,6 +94,8 @@ python main.py ...
 - 分类成员统一进入 `data/category_members/`
 - 解析结果统一进入 `data/parsed/<namespace>/`
 - 文件名格式统一为 `{规范化标题}__{sha1前10位}.json`
+- 角色任务使用完整原页面标题作存储键，保留 `source_title`、`page_id`，任务名称只用于展示；缺少身份的旧汇总需重解析。
+- 离线恢复使用新的 `data/recovery/<实验目录>/`，保留权威文本单元和未知节点，不覆盖现有数据。
 
 ### 全量处理规范
 
@@ -124,6 +129,8 @@ python main.py ...
 ## 当前测试状态
 
 本分支已修复 `tests/test_cli.py` 的无效 import 括号，恢复完整测试收集，并新增冻结来源恢复测试。当前状态必须以实际执行 `python -m pytest -q` 为准；最终验收记录见 `doc/reports/snapshot_recovery_2026-10-10.md`。
+
+V2.2.0 的验证基线为 122 passed / 18 subtests passed。文档更新不能自动将历史 TODO 或未支持规则标为已验收。
 
 ## 冻结快照恢复
 

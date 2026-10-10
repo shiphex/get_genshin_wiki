@@ -1,5 +1,7 @@
 # Feature Spec: 冻结快照剧情恢复
 
+> 历史记录：本功能已完成，并通过 PR #15 合并到 develop/v2.2。下文保留实验当时的基线、路径、限制与验收记录；当前使用见离线恢复指南。
+
 ## 分支资讯
 
 - 分支：`feature/snapshot-story-recovery`

@@ -4,13 +4,20 @@
 
 ## 运行
 
-在修复 worktree 根目录，复用原项目已安装的依赖环境：
+在仓库根目录执行。先在联网环境准备好依赖并验证版本；如需要转移到离线机器，应按其操作系统准备兼容的完整环境或缓存：
 
 ```powershell
-uv run --offline --no-project -- "E:/Workplace/Learn_project/get_genshin_wiki/.venv/Scripts/python.exe" -X utf8 -B tools/recover_snapshot.py --input-root "E:/Workplace/Learn_project/genshin_agent/data/raw/genshin_wiki_data_20260605" --output-root "E:/Workplace/Learn_project/get_genshin_wiki/data/recovery/genshin_wiki_data_20260605" --offline --manifest "E:/Workplace/Learn_project/genshin_agent/rag/data/recovery_handoff/genshin_wiki_data_20260605/snapshot_manifest.json"
+uv sync --frozen --group dev
+uv run --no-sync python tools/recover_snapshot.py --help
 ```
 
-若当前项目已有完整的本地 `.venv`，也可使用 `uv run --offline --no-sync python tools/recover_snapshot.py ...`。不得通过联网安装补齐依赖。`--manifest` 是可选的外部哈希基线；不提供时仍核对运行前后的全部输入文件哈希，但无法确认输入与交接基线相同。
+随后执行完全离线恢复。将 `snapshot_input` 替换为包含 `pages/` 的快照根目录，将清单路径替换为对应的原始哈希基线；输出目录必须是新的空目录：
+
+```powershell
+uv run --offline --no-sync python tools/recover_snapshot.py --input-root "snapshot_input" --output-root "data/recovery/run-001" --offline --manifest "snapshot_manifest.json"
+```
+
+准备阶段的 uv sync 可以联网；恢复阶段必须保留 uv 的 `--offline` 和恢复入口的 `--offline`，不得联网补齐缺失依赖。`--manifest` 是可选的外部哈希基线；不提供时仍核对运行前后的全部输入文件哈希，但无法确认输入与交接基线相同。也可激活已准备好的 `.venv`，直接用 `python tools/recover_snapshot.py ... --offline` 执行。
 
 输出目录必须是新的空目录，不能位于输入内、包围输入，或落入 raw/pages/parsed/category_members 存储目录。输出中途失败后应保留该目录并换一个目录重试；未生成最终摘要不能视为验收完成。
 
@@ -46,5 +53,11 @@ uv run --offline --no-project -- "E:/Workplace/Learn_project/get_genshin_wiki/.v
 - 缓存模板只在明确剧情消费上下文中提取可支持的正文，排除 noinclude 文档、样式和脚本；无关联示例不生成剧情。
 - 缓存消费先应用 onlyinclude/noinclude 可见性，再提取业务内容；重复消费合并全部场景和分支上下文。无业务消费者的模板页仍留在源清单中，不直接当作游戏正文。
 - `data/` 沿用 Git 忽略规则。派生数据留在本地，提交代码、测试、文档、spec 和短报告；不切换现有 RAG。
+
+## 从 V2.1 升级
+
+V2.2.0 的任务存储和索引引用使用完整原标题，展示名称仍保留。旧汇总若缺少 `source_title` 或页面身份，需从冻结来源重新解析；不要按展示名把同名页面合并。输出始终放入新目录，旧 parsed 和原始快照保留。
+
+旧对话数组只作兼容投影。新来源与分支的权威输出是 `text_units.jsonl`，RAG 接入应按来源、场景、分支及 `consumed_by` 上下文独立验收。
 
 运行测试：`python -m pytest -q`。真实测试页面是冻结快照的 19 份原始 payload 副本，输入原件不参与修改；测试对它们的文件和 WikiText 哈希逐项核对。

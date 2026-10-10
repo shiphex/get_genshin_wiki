@@ -10,13 +10,11 @@
 
 ## 1. 环境与入口
 
-推荐在当前 worktree 根目录执行：
+在仓库根目录准备环境后执行；在线抓取需要访问 Wiki API：
 
 ```powershell
-cd E:\Workplace\Learn_project\get_genshin_wiki-simplify-pipeline
-python -m venv .venv
+uv sync --frozen --group dev
 .\.venv\Scripts\Activate.ps1
-pip install -e .
 ```
 
 推荐始终使用：
@@ -25,10 +23,7 @@ pip install -e .
 python main.py ...
 ```
 
-安装完成后，下面两个入口也可用：
-
-- `python -m get_genshin_wiki.cli ...`
-- `get-genshin-wiki ...`
+未激活环境时，可使用 `uv run python main.py ...`；macOS / Linux 使用 `source .venv/bin/activate`。当前项目按源码运行，uv 环境准备不会安装项目 console script。
 
 当前不支持：
 
@@ -402,6 +397,8 @@ python main.py store query parsed/character-quest-index "传说任务"
 - 当前没有 CLI 级 `parse north-library` 子命令。
 - 当前没有 CLI 级 `parse character-quest` 子命令；角色传说任务 / 部族纪闻的单页调试仍需借助 Python API。
 - `python main.py all --page-limit N` 会把同一个 `N` 应用于每个实体子流程，不是“全局总量只处理 N 页”。
-## 冻结快照恢复入口
+## 8. 冻结快照恢复入口
 
 不联网的冻结来源恢复使用 `tools/recover_snapshot.py --offline`，详见 [离线恢复指南](snapshot_recovery_guide.md)。该入口复用解析器，不使用下方抓取命令补依赖，也不覆盖现有 parsed 或 RAG。
+
+V2.2.0 的角色任务以 `source_title` 和 `page_id` 保存来源身份，存储键及索引中的 `tasks` 使用完整原标题，“任务名称”仍为展示名。旧汇总缺少来源身份时需重新解析；新旧结果应保存到不同目录。结构化引用见 [角色任务指南](character-quests_guide.md)。
