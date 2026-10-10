@@ -327,6 +327,6 @@ V2.2.0 已修复原有 CLI 测试的导入语法错误。发布验证基线为 1
 
 `tools/recover_snapshot.py` 只读加载冻结 payload 和本地依赖，使用 JsonFileStore 写新的派生目录。权威文本为 `text_units.jsonl`，其字符范围基于原始解码 WikiText；独立校验器不调用被测正文提取逻辑。接口与边界见 [离线恢复指南](guide/snapshot_recovery_guide.md)。
 
-角色任务的业务模型保留展示名称，并增加 `source_title`、`page_id`。存储、聚合、resume 与索引按完整原标题及身份处理，组索引提供 `task_refs`，旧汇总缺少身份时需重新解析。
+角色任务的业务模型保留展示名称，并增加 `source_title`、`page_id`。独立批处理、索引与离线恢复按完整原标题及身份处理存储和引用，批处理 resume 会重新解析缺少身份的旧汇总，组索引提供 `task_refs`。统一 CLI 的 `all character-quests` 仍按展示名处理存储、去重及 resume；它只复用部分辅助函数，尚未同步批处理的身份修复。
 
 离线输出和既有 raw / parsed 分开保存；已导出单元可重放不代表所有原文都已支持。未知节点、缺依赖、媒体文字和未解决分支仍进入机器清单，不调用模型猜测或补写。

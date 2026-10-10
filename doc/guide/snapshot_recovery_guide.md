@@ -56,7 +56,7 @@ uv run --offline --no-sync python tools/recover_snapshot.py --input-root "snapsh
 
 ## 从 V2.1 升级
 
-V2.2.0 的任务存储和索引引用使用完整原标题，展示名称仍保留。旧汇总若缺少 `source_title` 或页面身份，需从冻结来源重新解析；不要按展示名把同名页面合并。输出始终放入新目录，旧 parsed 和原始快照保留。
+V2.2.0 的离线恢复、角色任务批处理与独立索引使用完整原标题存储和引用，展示名称仍保留。旧汇总若缺少 `source_title` 或页面身份，需从冻结来源重新解析；不要按展示名把同名页面合并。输出始终放入新目录，旧 parsed 和原始快照保留。统一 CLI 的 `all character-quests` 仍有展示名去重和 resume 限制，不用于这一身份验收。
 
 旧对话数组只作兼容投影。新来源与分支的权威输出是 `text_units.jsonl`，RAG 接入应按来源、场景、分支及 `consumed_by` 上下文独立验收。
 

@@ -94,13 +94,13 @@ python main.py ...
 - 分类成员统一进入 `data/category_members/`
 - 解析结果统一进入 `data/parsed/<namespace>/`
 - 文件名格式统一为 `{规范化标题}__{sha1前10位}.json`
-- 角色任务使用完整原页面标题作存储键，保留 `source_title`、`page_id`，任务名称只用于展示；缺少身份的旧汇总需重解析。
+- 角色任务批处理、独立索引与离线恢复使用完整原页面标题作存储键，保留 `source_title`、`page_id`，任务名称只用于展示；缺少身份的旧汇总需重解析。
 - 离线恢复使用新的 `data/recovery/<实验目录>/`，保留权威文本单元和未知节点，不覆盖现有数据。
 
 ### 全量处理规范
 
 - 标准实体现在优先使用 `python main.py all <entity>`；保留“抓分类页 + 循环 parse”的显式流程作为调试 / 回归手段。
-- 魔神任务、角色传说任务 / 部族纪闻现在优先使用 `python main.py all archon-quests` 与 `python main.py all character-quests`；CLI 内部仍复用既有 `tools/*.py` 逻辑。
+- 魔神任务优先使用 `python main.py all archon-quests`；角色传说任务 / 部族纪闻使用 `python tools/batch_character_quests.py`。统一 CLI 的 `all character-quests` 仅复用部分批处理辅助函数，仍按展示名去重和判断 resume，不能保证同名页面身份。
 - 活动任务、编年史、北陆图书馆现在也都有 `python main.py all ...` 统一入口；文档中仍要写清楚它们依赖的额外上下文页或内置标题列表。
 
 ## 文档维护要求

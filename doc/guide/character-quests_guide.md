@@ -26,7 +26,7 @@ pip install mwparserfromhell requests
 
 ### 1. 批量抓取并解析
 
-推荐入口是 `python main.py all character-quests`，内部复用批量脚本 `tools/batch_character_quests.py`。流程会自动：
+推荐入口是 `python tools/batch_character_quests.py`。本指南的完整标题存储、聚合、resume 和索引保证适用于该批处理及独立索引入口。统一 CLI 的 `all character-quests`（也由顶层 `all` 调用）仍按展示名去重和判断 resume，可能遗漏同名页面或跳过缺少身份的旧汇总；请勿用该路径验证身份保真。批处理流程会自动：
 
 - 探测实际可用的 Wiki 分类（`传说任务`、`部族纪闻`）
 - 抓取列表页 `传说任务`
@@ -36,7 +36,7 @@ pip install mwparserfromhell requests
 - 生成按系列分组的索引
 
 ```bash
-python main.py all character-quests
+python tools/batch_character_quests.py
 ```
 
 可选参数：
@@ -51,7 +51,7 @@ python main.py all character-quests
 示例：
 
 ```bash
-python main.py all character-quests --resume
+python tools/batch_character_quests.py --resume
 python tools/batch_character_quests.py --data-root data/dev --output data/dev/character_quests.json
 ```
 

@@ -52,7 +52,7 @@ python main.py all event-quests
 python main.py all chronicles
 python main.py all north-library
 python main.py all archon-quests --resume
-python main.py all character-quests --resume
+python tools/batch_character_quests.py --resume
 ```
 
 行为说明：
@@ -61,6 +61,7 @@ python main.py all character-quests --resume
 - 顶层顺序是：`weapons`、`artifacts`、`monsters`、`books`、`foods`、`wildlife`、`quest-items`、`items`、`materials`、`namecards`、`secret-items`、`characters`、`event-quests`、`chronicles`、`north-library`、`archon-quests`、`character-quests`。
 - `--page-limit` 与 `--no-persist` 适用于 `all` 顶层命令和所有 `all <entity>` 子命令。
 - `--resume` 只存在于 `all archon-quests` 和 `all character-quests`。
+- `all character-quests`（包括顶层 `all` 内的该步骤）仍按展示名去重和判断 resume，可能遗漏同名页面或跳过缺少身份的旧记录。角色任务推荐独立批处理脚本，其参数见第 5.7 节。
 - `python main.py all` 的输出是按实体汇总后的摘要；`python main.py all <entity>` 会返回该实体的详细逐页结果。
 
 ## 3. `all` 当前支持的 17 类实体
@@ -153,7 +154,7 @@ python main.py parse character "哥伦比娅"
 这两类数据当前没有 CLI 级单页解析子命令：
 
 - 北陆图书馆：使用 `python main.py crawl north-library`
-- 角色传说任务 / 部族纪闻：使用 `python main.py all character-quests`，或走下文的 Python API 调试流程
+- 角色传说任务 / 部族纪闻：使用 `python tools/batch_character_quests.py`，或走下文的 Python API 调试流程
 
 ## 5. 旧式手动流程（保留作调试参考）
 
@@ -329,14 +330,13 @@ python main.py parse archon-quest "鸟瞰风物"
 推荐入口：
 
 ```powershell
-python main.py all character-quests
-python main.py all character-quests --resume
+python tools/batch_character_quests.py
+python tools/batch_character_quests.py --resume
 ```
 
-保留的批处理调试入口：
+独立索引入口：
 
 ```powershell
-python tools/batch_character_quests.py
 python tools/generate_character_quest_index.py
 ```
 
@@ -401,4 +401,4 @@ python main.py store query parsed/character-quest-index "传说任务"
 
 不联网的冻结来源恢复使用 `tools/recover_snapshot.py --offline`，详见 [离线恢复指南](snapshot_recovery_guide.md)。该入口复用解析器，不使用下方抓取命令补依赖，也不覆盖现有 parsed 或 RAG。
 
-V2.2.0 的角色任务以 `source_title` 和 `page_id` 保存来源身份，存储键及索引中的 `tasks` 使用完整原标题，“任务名称”仍为展示名。旧汇总缺少来源身份时需重新解析；新旧结果应保存到不同目录。结构化引用见 [角色任务指南](character-quests_guide.md)。
+V2.2.0 的角色任务批处理、独立索引与离线恢复以 `source_title` 和 `page_id` 保存来源身份，存储键及索引中的 `tasks` 使用完整原标题，“任务名称”仍为展示名。旧汇总缺少来源身份时需重新解析；新旧结果应保存到不同目录。该身份保证不适用于仍按展示名处理的统一 CLI 角色任务路径。结构化引用见 [角色任务指南](character-quests_guide.md)。

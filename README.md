@@ -9,7 +9,7 @@
 - `python main.py all`：统一抓取、解析和保存 17 类数据。
 - `crawl`、`parse`、`store`：单页调试、读取本地页面和管理存储。
 - 冻结快照恢复：只读解析已保存来源，输出可重放的文本、场景、分支、依赖关系及未解决问题。
-- 任务身份按页面 ID 和完整原标题保存，同名展示名称不会互相覆盖。
+- 角色任务批处理与离线恢复按页面 ID 和完整原标题保存身份，同名展示名称不会互相覆盖。
 - 在线抓取遵守 `robots.txt`，提供限流和重试；离线恢复不补抓网页、不下载媒体、不调用模型。
 
 支持的数据族：角色、武器、圣遗物套装、怪物、书籍、食物、野生生物、任务道具、道具、材料、名片、秘境、提瓦特编年史、北陆图书馆、活动任务、魔神任务、角色传说任务 / 部族纪闻。
@@ -37,7 +37,7 @@ python main.py all weapons
 python main.py all characters
 python main.py all event-quests
 python main.py all archon-quests --resume
-python main.py all character-quests --resume
+python tools/batch_character_quests.py --resume
 ```
 
 `python main.py all` 不带实体时处理全部 17 类；`--page-limit N` 对每个实体分别限制页面数；`--resume` 仅适用于魔神任务与角色任务。更多参数见[统一操作指南](doc/guide/unified_operation_guide.md)。
@@ -99,7 +99,9 @@ python tools/recover_snapshot.py --help
 | 冻结恢复的独立实验输出 | `data/recovery/<新目录>/` |
 | 在线验证报告 | `data/reports/` |
 
-文件名仍采用安全标题与 SHA1 后缀。V2.2.0 的角色任务存储键和索引引用使用完整原标题，展示名保留在“任务名称”中，并增加 `source_title`、`page_id` 及结构化任务引用。
+文件名仍采用安全标题与 SHA1 后缀。V2.2.0 的角色任务批处理、独立索引与离线恢复使用完整原标题作为存储键和索引引用，展示名保留在“任务名称”中，并增加 `source_title`、`page_id` 及结构化任务引用。
+
+统一 CLI 的 `all character-quests`（也由顶层 `all` 调用）仍按展示名去重和判断 resume，可能遗漏同名页面或跳过缺少身份的旧记录。角色任务请使用 `python tools/batch_character_quests.py`；上述身份保证不适用于这一旧 CLI 路径。
 
 从 V2.1 升级时，应将旧汇总与新输出分开保存。缺少来源身份的旧汇总不能用于按展示名判断 resume，需从原始页面重新解析；旧展示名文件名也不能作为新结果的查找键。旧对话数组保留兼容用途，新恢复的来源与分支使用权威文本单元。
 
