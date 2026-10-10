@@ -31,13 +31,11 @@ from tests.helpers import build_page_payload
 from tests.test_parser import (
     SAMPLE_ARCHON_ICON_LIST_WIKITEXT,
     SAMPLE_ARCHON_TEMPLATE_OPTION_WIKITEXT,
-    (
     SAMPLE_BOOK_WIKITEXT,
     SAMPLE_CHRONICLE_WIKITEXT,
     SAMPLE_EVENT_PAGE_WIKITEXT,
     SAMPLE_EVENT_QUEST_WIKITEXT,
     SPECIALIZED_PAGE_CASES,
-),
 )
 
 # 测试用角色 wikitext

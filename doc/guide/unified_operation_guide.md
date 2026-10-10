@@ -10,13 +10,11 @@
 
 ## 1. 环境与入口
 
-推荐在当前 worktree 根目录执行：
+在仓库根目录准备环境后执行；在线抓取需要访问 Wiki API：
 
 ```powershell
-cd E:\Workplace\Learn_project\get_genshin_wiki-simplify-pipeline
-python -m venv .venv
+uv sync --frozen --group dev
 .\.venv\Scripts\Activate.ps1
-pip install -e .
 ```
 
 推荐始终使用：
@@ -25,10 +23,7 @@ pip install -e .
 python main.py ...
 ```
 
-安装完成后，下面两个入口也可用：
-
-- `python -m get_genshin_wiki.cli ...`
-- `get-genshin-wiki ...`
+未激活环境时，可使用 `uv run python main.py ...`；macOS / Linux 使用 `source .venv/bin/activate`。当前项目按源码运行，uv 环境准备不会安装项目 console script。
 
 当前不支持：
 
@@ -57,7 +52,7 @@ python main.py all event-quests
 python main.py all chronicles
 python main.py all north-library
 python main.py all archon-quests --resume
-python main.py all character-quests --resume
+python tools/batch_character_quests.py --resume
 ```
 
 行为说明：
@@ -66,6 +61,7 @@ python main.py all character-quests --resume
 - 顶层顺序是：`weapons`、`artifacts`、`monsters`、`books`、`foods`、`wildlife`、`quest-items`、`items`、`materials`、`namecards`、`secret-items`、`characters`、`event-quests`、`chronicles`、`north-library`、`archon-quests`、`character-quests`。
 - `--page-limit` 与 `--no-persist` 适用于 `all` 顶层命令和所有 `all <entity>` 子命令。
 - `--resume` 只存在于 `all archon-quests` 和 `all character-quests`。
+- `all character-quests`（包括顶层 `all` 内的该步骤）仍按展示名去重和判断 resume，可能遗漏同名页面或跳过缺少身份的旧记录。角色任务推荐独立批处理脚本，其参数见第 5.7 节。
 - `python main.py all` 的输出是按实体汇总后的摘要；`python main.py all <entity>` 会返回该实体的详细逐页结果。
 
 ## 3. `all` 当前支持的 17 类实体
@@ -158,7 +154,7 @@ python main.py parse character "哥伦比娅"
 这两类数据当前没有 CLI 级单页解析子命令：
 
 - 北陆图书馆：使用 `python main.py crawl north-library`
-- 角色传说任务 / 部族纪闻：使用 `python main.py all character-quests`，或走下文的 Python API 调试流程
+- 角色传说任务 / 部族纪闻：使用 `python tools/batch_character_quests.py`，或走下文的 Python API 调试流程
 
 ## 5. 旧式手动流程（保留作调试参考）
 
@@ -334,14 +330,13 @@ python main.py parse archon-quest "鸟瞰风物"
 推荐入口：
 
 ```powershell
-python main.py all character-quests
-python main.py all character-quests --resume
+python tools/batch_character_quests.py
+python tools/batch_character_quests.py --resume
 ```
 
-保留的批处理调试入口：
+独立索引入口：
 
 ```powershell
-python tools/batch_character_quests.py
 python tools/generate_character_quest_index.py
 ```
 
@@ -402,3 +397,8 @@ python main.py store query parsed/character-quest-index "传说任务"
 - 当前没有 CLI 级 `parse north-library` 子命令。
 - 当前没有 CLI 级 `parse character-quest` 子命令；角色传说任务 / 部族纪闻的单页调试仍需借助 Python API。
 - `python main.py all --page-limit N` 会把同一个 `N` 应用于每个实体子流程，不是“全局总量只处理 N 页”。
+## 8. 冻结快照恢复入口
+
+不联网的冻结来源恢复使用 `tools/recover_snapshot.py --offline`，详见 [离线恢复指南](snapshot_recovery_guide.md)。该入口复用解析器，不使用下方抓取命令补依赖，也不覆盖现有 parsed 或 RAG。
+
+V2.2.0 的角色任务批处理、独立索引与离线恢复以 `source_title` 和 `page_id` 保存来源身份，存储键及索引中的 `tasks` 使用完整原标题，“任务名称”仍为展示名。旧汇总缺少来源身份时需重新解析；新旧结果应保存到不同目录。该身份保证不适用于仍按展示名处理的统一 CLI 角色任务路径。结构化引用见 [角色任务指南](character-quests_guide.md)。

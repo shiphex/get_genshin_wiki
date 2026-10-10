@@ -1,6 +1,6 @@
 [project]
 name = "get-genshin-wiki"
-version = "0.1.0"
+version = "2.2.0"
 description = "Crawl and parse Genshin Impact wiki data for downstream training pipelines."
 readme = "README.md"
 requires-python = ">=3.11"

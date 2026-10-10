@@ -77,13 +77,15 @@ def generate_character_quest_index_document(
         if is_character_quest_series_payload(payload):
             continue
         record = parser.parse_character_quest_page(payload, series_context=series_context).to_dict()
-        record_title = _record_title(record) or _canonical_character_quest_title(title) or title
+        record_title = _record_title(record) or title
         record_by_title[record_title] = record
 
     ordered_records = order_character_records(list_entries, record_by_title)
     index_items = [
         {
             "title": record.get("任务名称", ""),
+            "page_id": record.get("page_id"),
+            "source_title": record.get("source_title", ""),
             "region": record.get("任务地区", ""),
             "quest_type": record.get("任务类型", ""),
             "chapter_name": record.get("所属章", ""),
