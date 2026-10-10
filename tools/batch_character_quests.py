@@ -93,7 +93,7 @@ def is_character_quest_series_payload(payload: dict[str, Any]) -> bool:
 
 
 def _record_title(record: dict[str, Any]) -> str:
-    title = record.get("任务名称", "")
+    title = record.get("source_title", "")
     return title if isinstance(title, str) else ""
 
 
@@ -124,10 +124,21 @@ def _order_group_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if len(by_title) != len(records):
         return sorted(records, key=lambda item: _record_title(item))
 
+    def resolve_reference(reference: str) -> str:
+        if reference in by_title:
+            return reference
+        matches = [title for title, item in by_title.items() if item.get("任务名称") == reference]
+        if len(matches) > 1:
+            for title in matches:
+                issue = {"rule": "ambiguous_quest_reference", "reference": reference}
+                if issue not in by_title[title].setdefault("reference_issues", []):
+                    by_title[title]["reference_issues"].append(issue)
+        return matches[0] if len(matches) == 1 else ""
+
     starts = [
         title
         for title, record in by_title.items()
-        if record.get("前置任务", "") not in by_title
+        if not resolve_reference(record.get("前置任务", ""))
     ]
     ordered: list[dict[str, Any]] = []
     visited: set[str] = set()
@@ -138,7 +149,7 @@ def _order_group_records(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
             record = by_title[current]
             ordered.append(record)
             next_title = record.get("后续任务", "")
-            current = next_title if isinstance(next_title, str) else ""
+            current = resolve_reference(next_title) if isinstance(next_title, str) else ""
 
     for title in sorted(by_title):
         if title in visited:
@@ -173,6 +184,7 @@ def build_character_quest_index(
                 "quest_type": entry.get("quest_type", ""),
                 "related_character": entry.get("related_character", ""),
                 "tasks": [_record_title(record) for record in group_records if _record_title(record)],
+                "task_refs": [{"page_id": record.get("page_id"), "source_title": _record_title(record), "display_title": record.get("任务名称", "")} for record in group_records],
             }
         )
 
@@ -191,6 +203,7 @@ def build_character_quest_index(
                 "quest_type": first_record.get("任务类型", ""),
                 "related_character": first_record.get("相关角色", ""),
                 "tasks": [_record_title(record) for record in group_records if _record_title(record)],
+                "task_refs": [{"page_id": record.get("page_id"), "source_title": _record_title(record), "display_title": record.get("任务名称", "")} for record in group_records],
             }
         )
     return index_entries
@@ -263,14 +276,14 @@ def run_batch(
     }
 
     for title in member_titles:
-        canonical_title = _canonical_character_quest_title(title)
-        if resume and canonical_title in record_by_title:
-            continue
         payload = load_or_crawl_page(store, crawler, title)
         if is_character_quest_series_payload(payload):
             continue
+        source_title, page_id, _ = parser.extract_page_metadata(payload)
+        if resume and source_title in record_by_title and record_by_title[source_title].get("page_id") == page_id:
+            continue
         record = parser.parse_character_quest_page(payload, series_context=series_context).to_dict()
-        record_title = _record_title(record) or canonical_title or title
+        record_title = source_title
         store.write(OUTPUT_NAMESPACE, record_title, record)
         record_by_title[record_title] = record
 

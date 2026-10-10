@@ -123,15 +123,15 @@ python main.py ...
 
 ## 当前测试状态
 
-按 2026-06-10 在当前工作树执行 `pytest -q` 的结果：
+本分支已修复 `tests/test_cli.py` 的无效 import 括号，恢复完整测试收集，并新增冻结来源恢复测试。当前状态必须以实际执行 `python -m pytest -q` 为准；最终验收记录见 `doc/reports/snapshot_recovery_2026-10-10.md`。
 
-- `tests/test_cli.py` 存在语法错误，导致测试在收集阶段失败。
-- `tests/test_batch_tools.py` 因依赖 `tests/test_cli.py` 中的常量，也会连带失败。
+## 冻结快照恢复
 
-因此：
-
-- 可以说明仓库“有测试体系”，但不能把当前状态写成“测试已稳定通过”。
-- 如果后续要继续维护文档，应优先区分“测试已编写”和“测试当前可通过”这两个层次。
+- `WikiTextParser.recover_page` 返回带原文位置、场景和分支的文本。
+- `tools/recover_snapshot.py --offline` 只读解析本地快照，不初始化 crawler 或联网补依赖。
+- `text_units.jsonl` 是来源与分支的权威输出；旧业务数组是兼容投影。
+- 输入与现有 RAG 不修改；输出写新的 `data/recovery/` 目录，未知规则和缺来源必须保留。
+- 使用与限制见 `doc/guide/snapshot_recovery_guide.md`。
 
 ## 约束
 

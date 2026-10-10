@@ -826,11 +826,14 @@ class CharacterQuestRecord:
     sections: list[ParsedSection] = field(default_factory=list)
     templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     page_id: int | str | None = None
+    source_title: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the character quest record for JSON output."""
         return {
             "任务名称": self.title,
+            "page_id": self.page_id,
+            "source_title": self.source_title,
             "任务地区": self.region,
             "所属版本": self.version,
             "任务类型": self.quest_type,

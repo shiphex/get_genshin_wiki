@@ -572,6 +572,16 @@ _VOICE_SECTION_KEYS = ("角色语音",)
 
 
 class WikiTextParser:
+    def recover_page(self, payload, *, raw_file="", resolve_page=None):
+        """Recover original text with source spans and explicit branch ownership.
+
+        resolve_page(title) returns all cached candidates as {payload, raw_file};
+        it must be read-only. Missing or ambiguous candidates never trigger HTTP.
+        """
+        from .recovery.extract import recover_page
+
+        return recover_page(self, payload, raw_file=raw_file, resolve_page=resolve_page)
+
     """
     MediaWiki WikiText 解析器。
 
@@ -1643,7 +1653,8 @@ class WikiTextParser:
             )
         )
         objectives = self._extract_character_quest_flow_titles(parsed_page.sections, parsed_page.wikitext)
-        dialogues = self._extract_character_quest_dialogues(parsed_page.sections, objectives, parsed_page.wikitext)
+        from .recovery.legacy import character_dialogues
+        dialogues = character_dialogues(self.recover_page(payload))
         related_character = self._coalesce(
             context.get("related_character", "") if context else "",
             context.get("group_name", "") if context else "",
@@ -1654,6 +1665,7 @@ class WikiTextParser:
 
         return CharacterQuestRecord(
             title=self._resolve_record_title(parsed_page, ("任务名称", "名称"), preferred_params=main_template),
+            source_title=parsed_page.title,
             page_id=parsed_page.page_id,
             region=self._coalesce(
                 self._resolve_value(
@@ -1799,7 +1811,9 @@ class WikiTextParser:
                 fallback_event_period=event_period,
             )
         quests = self._extract_event_quest_flow_titles(parsed_page.sections, parsed_page.wikitext)
-        dialogue = self._extract_event_quest_dialogue(parsed_page.sections, quests, parsed_page.wikitext)
+        from .recovery.legacy import event_steps
+        dialogue = event_steps(self.recover_page(payload))
+        quests = [step.title for step in dialogue]
 
         return EventQuestRecord(
             title=self._resolve_record_title(parsed_page, ("任务名称", "名称"), preferred_params=main_template),
@@ -1898,10 +1912,11 @@ class WikiTextParser:
             fields = volume_keys[vol_num]
             # 将 <br> 替换为 \n（两个连续 <br> 替换为两个连续 \n）
             content = fields.get("内容", "")
-            content = content.replace("<br>", "\n")
+            from .recovery.display import display_text
+            content = display_text(content)
             volumes.append(BookVolume(
                 name=fields.get("名", ""),
-                description=fields.get("描述", ""),
+                description=display_text(fields.get("描述", "")),
                 location=fields.get("获取地点", ""),
                 content=content,
             ))
@@ -1945,16 +1960,8 @@ class WikiTextParser:
             ),
             parsed_page.summary,
         )
-        dialogues = self._extract_archon_dialogues(
-            self._resolve_raw_value(
-                parsed_page.templates,
-                ("任务剧情", "剧情", "对话", "任务对话"),
-                preferred_params=main_template,
-                wikitext=parsed_page.wikitext,
-            ),
-            parsed_page.sections,
-            wikitext=parsed_page.wikitext,
-        )
+        from .recovery.legacy import archon_dialogues
+        dialogues = archon_dialogues(self.recover_page(payload))
         series = self._extract_archon_series_chain(
             self._resolve_raw_value(
                 parsed_page.templates,
@@ -5429,6 +5436,8 @@ class WikiTextParser:
         text = self._replace_phonetic_templates(text, context)
         text = self._replace_blackout_templates(text, context)
         text = text.replace("&nbsp;", " ")
+        from .recovery.display import display_text
+        text = display_text(text)
         text = mwparserfromhell.parse(text).strip_code().strip()
         text = self._strip_quotes(self._normalize_text(text))
         return text

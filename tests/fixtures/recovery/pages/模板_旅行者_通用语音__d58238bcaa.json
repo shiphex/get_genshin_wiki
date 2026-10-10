@@ -1,0 +1,15 @@
+{
+  "batchcomplete": "",
+  "query": {
+    "pages": {
+      "-1": {
+        "ns": 10,
+        "title": "模板:旅行者/通用语音",
+        "missing": ""
+      }
+    }
+  },
+  "limits": {
+    "categories": 500
+  }
+}

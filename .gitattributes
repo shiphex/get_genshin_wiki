@@ -1,0 +1,2 @@
+# Frozen regression payloads retain their original bytes on every platform.
+tests/fixtures/recovery/pages/*.json -text

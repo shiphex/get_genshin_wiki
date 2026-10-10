@@ -168,8 +168,8 @@ class BatchCharacterQuestTests(unittest.TestCase):
         written = json.loads(output_path.read_text(encoding="utf-8"))
 
         self.assertEqual(1, report["quest_count"])
-        self.assertTrue(self.store.exists("parsed/character-quests", "基尼奇的交易"))
-        self.assertFalse(self.store.exists("parsed/character-quests", "基尼奇的交易（任务）"))
+        self.assertFalse(self.store.exists("parsed/character-quests", "基尼奇的交易"))
+        self.assertTrue(self.store.exists("parsed/character-quests", "基尼奇的交易（任务）"))
         self.assertFalse(self.store.exists("parsed/character-quests", "基尼奇的交易（系列任务）"))
         self.assertEqual(["基尼奇的交易"], [item["任务名称"] for item in written["quests"]])
         self.assertEqual("第三幕", written["quests"][0]["所属幕"])

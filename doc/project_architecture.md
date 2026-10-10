@@ -313,3 +313,8 @@ get_genshin_wiki/
 - `python -m get_genshin_wiki` 目前不是有效入口，因为仓库内没有 `get_genshin_wiki/__main__.py`。
 - 活动任务、编年史、北陆图书馆在“全量自动化”程度上低于标准实体。
 - `TODO.md` 当前聚焦秘境解析验收，说明项目仍处于持续补齐与校验阶段。
+## 来源追踪与离线恢复
+
+`get_genshin_wiki/recovery/` 提供原文节点偏移、确定性显示规则、场景/分支提取、业务兼容投影及独立候选节点校验。`WikiTextParser.recover_page` 是来源提取 API；任务业务解析器复用该提取后生成兼容数组。
+
+`tools/recover_snapshot.py` 只读加载冻结 payload 和本地依赖，使用 JsonFileStore 写新的派生目录。权威文本为 `text_units.jsonl`，其字符范围基于原始解码 WikiText；独立校验器不调用被测正文提取逻辑。接口与边界见 [离线恢复指南](guide/snapshot_recovery_guide.md)。

@@ -402,3 +402,6 @@ python main.py store query parsed/character-quest-index "传说任务"
 - 当前没有 CLI 级 `parse north-library` 子命令。
 - 当前没有 CLI 级 `parse character-quest` 子命令；角色传说任务 / 部族纪闻的单页调试仍需借助 Python API。
 - `python main.py all --page-limit N` 会把同一个 `N` 应用于每个实体子流程，不是“全局总量只处理 N 页”。
+## 冻结快照恢复入口
+
+不联网的冻结来源恢复使用 `tools/recover_snapshot.py --offline`，详见 [离线恢复指南](snapshot_recovery_guide.md)。该入口复用解析器，不使用下方抓取命令补依赖，也不覆盖现有 parsed 或 RAG。
