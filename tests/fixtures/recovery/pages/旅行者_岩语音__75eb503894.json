@@ -1,0 +1,26 @@
+{
+  "batchcomplete": "",
+  "query": {
+    "pages": {
+      "84946": {
+        "pageid": 84946,
+        "ns": 0,
+        "title": "旅行者/岩语音",
+        "revisions": [
+          {
+            "slots": {
+              "main": {
+                "contentmodel": "wikitext",
+                "contentformat": "text/x-wiki",
+                "*": "#重定向:[[旅行者语音]]"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "limits": {
+    "categories": 500
+  }
+}
