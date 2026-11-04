@@ -34,6 +34,8 @@ import re
 from collections.abc import Sequence
 from typing import Any, Iterable, Mapping
 
+from .versions import extract_version
+
 try:
     import mwparserfromhell
 except ModuleNotFoundError:
@@ -732,6 +734,7 @@ class WikiTextParser:
         if not categories:
             categories = self._extract_payload_categories(payload)
         return ParsedPage(
+            version=extract_version(title, wikitext).value,
             title=title,
             page_id=page_id,
             summary=summary,
@@ -746,6 +749,7 @@ class WikiTextParser:
         parsed_page = self.parse_page(payload)
         intro, sections = self._extract_chronicle_sections(parsed_page.title, parsed_page.wikitext)
         return ChroniclePageRecord(
+            version=parsed_page.version,
             title=parsed_page.title,
             page_id=parsed_page.page_id,
             categories=parsed_page.categories,
@@ -816,6 +820,7 @@ class WikiTextParser:
         power_record = self._extract_power_record(parsed_page.templates, god_eye_description)
 
         return CharacterRecord(
+            version=parsed_page.version,
             title=parsed_page.title,
             page_id=parsed_page.page_id,
             summary=introduction or parsed_page.summary,
@@ -907,6 +912,7 @@ class WikiTextParser:
         story = self._clean_br_tags(attributes.get("故事", ""))
 
         return WeaponRecord(
+            version=parsed_page.version,
             title=title,
             weapon_type=weapon_type,
             description=description,
@@ -972,6 +978,7 @@ class WikiTextParser:
             pieces.append(piece)
 
         return ArtifactSetRecord(
+            version=parsed_page.version,
             title=title,
             obtaining_method=obtaining_method,
             pieces=pieces,
@@ -1026,6 +1033,7 @@ class WikiTextParser:
         description = self._clean_wikitext(raw_description, preserve_newlines=True)
 
         return MonsterRecord(
+            version=parsed_page.version,
             title=parsed_page.title,
             monster_class=monster_class,
             monster_category=monster_category,
@@ -1219,6 +1227,7 @@ class WikiTextParser:
         recipe_section = self._find_section_text(parsed_page.sections, ("食谱信息",))
         special_section = self._find_section_text(parsed_page.sections, ("特殊料理",))
         return FoodRecord(
+            version=parsed_page.version,
             title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
             page_id=parsed_page.page_id,
             type=self._resolve_value(
@@ -1326,6 +1335,7 @@ class WikiTextParser:
             ),
         }
         return WildlifeRecord(
+            version=parsed_page.version,
             title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
             page_id=parsed_page.page_id,
             type=self._resolve_value(
@@ -1379,6 +1389,7 @@ class WikiTextParser:
         )
         content_section = self._find_section_text(parsed_page.sections, ("内容",))
         return QuestItemRecord(
+            version=parsed_page.version,
             title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
             page_id=parsed_page.page_id,
             type=self._resolve_value(
@@ -1432,6 +1443,7 @@ class WikiTextParser:
             ),
         )
         return ItemRecord(
+            version=parsed_page.version,
             title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
             page_id=parsed_page.page_id,
             type=self._resolve_value(
@@ -1476,6 +1488,7 @@ class WikiTextParser:
             ),
         )
         return MaterialRecord(
+            version=parsed_page.version,
             title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
             page_id=parsed_page.page_id,
             type=self._resolve_value(
@@ -1527,6 +1540,7 @@ class WikiTextParser:
             ),
         )
         return NameCardRecord(
+            version=parsed_page.version,
             title=self._resolve_record_title(parsed_page, ("名称",), preferred_params=main_template),
             page_id=parsed_page.page_id,
             obtain_method=self._resolve_value(
@@ -1577,6 +1591,7 @@ class WikiTextParser:
             wikitext=parsed_page.wikitext,
         )
         return SecretItemRecord(
+            version=parsed_page.version,
             title=self._resolve_record_title(parsed_page, ("秘境名称", "名称"), preferred_params=main_template),
             page_id=parsed_page.page_id,
             type=domain_type,
@@ -1660,8 +1675,6 @@ class WikiTextParser:
             context.get("group_name", "") if context else "",
             related_characters[0] if related_characters else "",
         )
-        version_match = re.search(r"\|所属版本\s*=\s*(.+?)(?:\||\n|$)", parsed_page.wikitext)
-        version = self._clean_field_value(version_match.group(1)) if version_match else ""
 
         return CharacterQuestRecord(
             title=self._resolve_record_title(parsed_page, ("任务名称", "名称"), preferred_params=main_template),
@@ -1676,7 +1689,7 @@ class WikiTextParser:
                 ),
                 context.get("region", "") if context else "",
             ),
-            version=version,
+            version=parsed_page.version,
             quest_type=self._coalesce(
                 self._resolve_value(
                     parsed_page.templates,
@@ -1836,12 +1849,7 @@ class WikiTextParser:
             quests=quests,
             description=description,
             dialogue=dialogue,
-            version=self._resolve_value(
-                parsed_page.templates,
-                ("所属版本", "版本"),
-                preferred_params=main_template,
-                wikitext=parsed_page.wikitext,
-            ),
+            version=parsed_page.version,
             related_event=related_event,
             related_event_description=related_event_description,
             related_characters=related_characters,
@@ -1922,6 +1930,7 @@ class WikiTextParser:
             ))
 
         return BookRecord(
+            version=extract_version(title, wikitext).value,
             title=title,
             genre=genre,
             country=country,
@@ -2060,12 +2069,7 @@ class WikiTextParser:
                 preferred_params=main_template,
                 wikitext=parsed_page.wikitext,
             ),
-            version=self._resolve_value(
-                parsed_page.templates,
-                ("所属版本",),
-                preferred_params=main_template,
-                wikitext=parsed_page.wikitext,
-            ),
+            version=parsed_page.version,
             series=series,
             prerequisites=prerequisites,
             parallel_quests=parallel_quests,
@@ -2273,6 +2277,7 @@ class WikiTextParser:
             categories = self._extract_payload_categories(payload)
         summary, nodes = self._build_north_library_tree(wikitext)
         return NorthLibraryRecord(
+            version=extract_version(title, wikitext).value,
             title=title,
             page_id=page_id,
             summary=summary,

@@ -41,6 +41,25 @@ python main.py store --help
 
 ## 2. 推荐入口：`python main.py all`
 
+### 已有缓存的完全离线刷新
+
+仅更新本地解析结果、无需重新抓取时使用以下独立入口。不要用在线 `all` 命令代替：
+
+```powershell
+python tools/refresh_parsed_offline.py --data-root data
+python tools/refresh_parsed_offline.py --data-root data --apply
+```
+
+默认暂存并验证，不改变正式数据。`--apply` 在全部验证通过后备份并覆盖现有 17 类 `parsed`、两个任务汇总，以及指定全量目录 `recovery/full-offline-20261104`。保留原始 `pages/categories/category_members`、其他恢复实验及历史 ZIP。`--work-root <新目录>` 可指定与数据根目录互不包含的暂存目录；默认使用 `.uv-cache/entity-versions/<运行标识>/`。
+
+所有实体根对象包含 `所属版本` 字符串，原页多版本保留原顺序并用顿号连接，数字版本和“月之…”不互转。版本缺失、无效或冲突为空字符串；不向分卷、部件、对白等子项新增字段，也不从食谱版本、正文数字、修改日期或关联活动推断。
+
+刷新使用本地语音、活动页和任务目录作为上下文，以完整原标题/页面身份关联单页和汇总；北陆图书馆已有分类发现信息作为缓存上下文保留。版本之外的业务差异、已有非空版本不一致或缺少主体原页会阻止覆盖。恢复过程沿用离线封网、来源重放和分支校验，完整输出生成两遍并比较字节；已有全量恢复的文本、分支和诊断必须保持。
+
+每次运行保存 `report.json`、`version_evidence.jsonl`、`unresolved_versions.json` 和输入哈希清单。应用时还保存 `backup.zip`、覆盖前状态、替换日志及旧目标；替换或落盘验证失败自动回滚。应用后的报告副本为 `data/reports/entity-versions-latest.json`。不使用 `resume` 跳过旧解析记录，不修改现有 RAG。
+
+默认不接受版本以外的变化。如果确认旧 JSON 尚未同步改动前解析器的既有结果，可以显式提供 `--baseline-business-root <目录>`。该目录按正式相对路径保存独立复现的业务结果，`baseline_manifest.json` 包含 `input_fingerprint_sha256`、`parser_source_sha256` 和 `files`（输出文件的相对路径、大小、SHA-256）；生成此清单时排除清单自身。工具先验证基线输入/文件哈希，再要求新结果的全部非版本字段与基线一致，已有非空版本冲突仍阻断。接受项的文件和字段进入运行报告，完整前后值及基线文件哈希写入 `accepted_existing_differences.json`。该参数不跳过差异检查，也不授权重新抓取。
+
 优先使用一体化流水线，而不是自己手写 PowerShell 循环。
 
 ```powershell

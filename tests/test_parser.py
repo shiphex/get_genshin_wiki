@@ -766,7 +766,7 @@ class WikiTextParserTests(unittest.TestCase):
 
         stored = result.to_storage_dict()
         self.assertEqual(
-            ["角色", "角色故事", "冒险笔记", "权能", "壹·人物", "贰·故事", "角色语音"],
+            ["所属版本", "角色", "角色故事", "冒险笔记", "权能", "壹·人物", "贰·故事", "角色语音"],
             list(stored.keys()),
         )
         self.assertEqual("哥伦比娅", stored["角色"]["名称"])
@@ -1026,7 +1026,7 @@ class WikiTextParserTests(unittest.TestCase):
                 required = SPECIALIZED_REQUIRED_KEYS[case["method"]]
 
                 self.assertEqual(case["title"], result["名称"])
-                self.assertEqual(required["top_level"], set(result.keys()))
+                self.assertEqual(required["top_level"] | {"所属版本"}, set(result.keys()))
                 for field_name, nested_keys in required["nested"].items():
                     self.assertEqual(nested_keys, set(result[field_name].keys()))
                 for field, expected in case["assertions"].items():

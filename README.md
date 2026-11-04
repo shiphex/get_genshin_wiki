@@ -91,6 +91,19 @@ python tools/recover_snapshot.py --help
 
 ## 数据输出与升级
 
+17 类实体的 JSON 根对象统一包含 `所属版本` 字符串，例如 `"2.1"`、`"月之一"` 或 `"1.0、1.2、2.0"`。版本只取本地原页主体元数据；缺失、占位或冲突为空字符串，并保留诊断。圣遗物部件、书籍分卷、对白及其他子项不增加此字段。
+
+更新已有缓存的解析结果可使用完全离线的刷新工具。默认只生成暂存结果与差异报告；`--apply` 在验证、备份后覆盖正式业务数据、任务汇总和 `data/recovery/full-offline-20261104`，保留原始缓存、其他恢复实验和历史 ZIP：
+
+```powershell
+python tools/refresh_parsed_offline.py
+python tools/refresh_parsed_offline.py --apply
+```
+
+工具会核对版本之外的业务字段、来源哈希、两次完整恢复的一致性及旧恢复结果的文本/分支；异常时拒绝覆盖或回滚。运行目录、版本来源、缺失清单和备份位置见 `.uv-cache/entity-versions/<运行标识>/`；应用后的摘要位于 `data/reports/entity-versions-latest.json`。详情见[统一指南](doc/guide/unified_operation_guide.md)。
+
+若旧业务 JSON 落后于本轮改动前的解析器，经确认后可用 `--baseline-business-root <已核验的基线目录>` 接受已复现的既有变化。基线必须绑定相同原始输入、解析器来源和文件哈希；新解析的非版本字段须与基线完全一致。每项接受的差异另存报告，其他差异仍阻断覆盖。
+
 | 内容 | 默认位置 |
 |---|---|
 | 原始页面 / 分类成员 | `data/pages/`、`data/category_members/` |
@@ -98,6 +111,8 @@ python tools/recover_snapshot.py --help
 | 魔神任务 / 角色任务汇总 | `data/archon_quests.json`、`data/character_quests.json` |
 | 冻结恢复的独立实验输出 | `data/recovery/<新目录>/` |
 | 在线验证报告 | `data/reports/` |
+
+本地数据归档统一放在仓库上级的 `genshin_wiki_data/` 目录。ZIP 根目录对应 `data/` 的内容；`genshin_wiki_data_20260605_261104.zip` 包含 `recovery/full-offline-20261104/` 的离线重解析结果。
 
 文件名仍采用安全标题与 SHA1 后缀。V2.2.0 的角色任务批处理、独立索引与离线恢复使用完整原标题作为存储键和索引引用，展示名保留在“任务名称”中，并增加 `source_title`、`page_id` 及结构化任务引用。
 

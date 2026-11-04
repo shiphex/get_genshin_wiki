@@ -1,2 +1,4 @@
 # Frozen regression payloads retain their original bytes on every platform.
 tests/fixtures/recovery/pages/*.json -text
+# Version fixtures retain source CRLF bytes; CR is part of the line ending.
+tests/fixtures/versions/*.json -text whitespace=cr-at-eol

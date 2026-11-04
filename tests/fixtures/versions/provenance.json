@@ -1,0 +1,10 @@
+{
+  "material-query.json": {
+    "source": "data/pages/「乐园」的哲学__2b43c426d7.json",
+    "sha256": "e1b26b68d20f1818affb4da42c4aacc5574307b82c14d55182efd43ebe9f0030"
+  },
+  "weapon-info.json": {
+    "source": "data/pages/决斗之枪__3e23de0901.json",
+    "sha256": "075debcc889b1b32de3f0cf4da759efeb65c07be948d34d3ee35fc405f56db5a"
+  }
+}

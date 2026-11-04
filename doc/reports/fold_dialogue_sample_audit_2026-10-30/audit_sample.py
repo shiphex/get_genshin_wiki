@@ -127,7 +127,7 @@ def forbidden(*args, **kwargs):
 
 def run():
     OUT.mkdir(parents=True, exist_ok=True)
-    archive = ROOT.parent / 'genshin_wiki_data_20260605.zip'
+    archive = ROOT.parent / 'genshin_wiki_data' / 'genshin_wiki_data_20260605.zip'
     report = []
     with ExitStack() as stack:
         for target in ('socket.socket.connect', 'socket.create_connection', 'socket.getaddrinfo', 'requests.sessions.Session.request'):

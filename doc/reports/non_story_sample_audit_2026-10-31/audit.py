@@ -69,7 +69,7 @@ def main():
     loaded = {}
     observed_files = {}
     manifest = []
-    archive_path = ROOT.parent / 'genshin_wiki_data_20260605.zip'
+    archive_path = ROOT.parent / 'genshin_wiki_data' / 'genshin_wiki_data_20260605.zip'
     archive = zipfile.ZipFile(archive_path) if archive_path.exists() else None
     archive_members = set(archive.namelist()) if archive else set()
     # This ZIP has legacy-encoded Chinese names. Stable SHA1 filename suffixes

@@ -23,6 +23,10 @@ uv run --offline --no-sync python tools/recover_snapshot.py --input-root "snapsh
 
 ## 输出契约
 
+兼容业务投影的实体根对象和通用页面根对象现在包含 `所属版本` 字符串，角色普通输出和正式精简输出均支持。多版本保持来源顺序；缺失、占位或冲突为空。此字段不加入权威文本单元、场景、书籍分卷、圣遗物部件或任务对话，既有来源和分支契约不变。
+
+`recover_snapshot.py` 仍要求新空目录，不直接覆盖既有实验。需要将最新解析覆盖到正式业务及 `data/recovery/full-offline-20261104` 时，使用 `python tools/refresh_parsed_offline.py --apply`：它先准备独立冻结输入与两个恢复输出，核对来源哈希、输出确定性及旧文本/分支，再备份、替换和验证；失败回滚。其他实验目录和原始缓存不变。详细参数及报告见[统一指南](unified_operation_guide.md)。
+
 | 文件 | 用途 |
 |---|---|
 | `text_units.jsonl` | 权威文本单元，保留原文、来源、场景和分支 |
@@ -75,7 +79,7 @@ uv run --offline --no-sync python tools/recover_snapshot.py --input-root "snapsh
 业务四字段及活动任务的中文类型值保持兼容，细分类别只从恢复 API / 新 JSONL 读取。
 执行与抽样范围见 [剧情旁白修正](../reports/story_narration_fix_2026-11-04.md)。
 
-业务 JSON 的字段和四种对话类型保持不变；直接消费权威 JSONL 的程序需要支持新的
+除根对象新增 `所属版本` 元数据外，业务字段和四种对话类型保持不变；直接消费权威 JSONL 的程序需要支持新的
 annotation 类型和来源排除范围，并将 annotation 与游戏对白分开处理。
 
 `branch_path=[]` 是已确认的线性归属，`null` 是未解决归属。每一层选择/tab/条件记录组 ID、选项 ID、原文标签及可重放的来源范围。未明确的连接、性别、角色姓名不会补写。旧数组仍可兼容使用；下游必须从权威 JSONL 按来源、场景、分支和消费上下文切分。

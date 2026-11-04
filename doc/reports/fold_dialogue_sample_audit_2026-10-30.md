@@ -150,7 +150,7 @@
 .\.venv\Scripts\python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
 ```
 
-首个脚本需要原 ZIP 位于仓库上级的 `genshin_wiki_data_20260605.zip`。第二、三个脚本只需要这些样本的本地原页和 parsed。脚本在 `.uv-cache/independent-sample-audit/` 写审计证据，不写输入和生产数据。样本清单、原页/产物哈希和当时的逐条发现另保存在同目录的 `summary.json`、`findings.json`；这些是验收时的固定记录，复跑的新结果在 `.uv-cache/`。
+首个脚本需要原 ZIP 位于仓库上级的 `genshin_wiki_data/genshin_wiki_data_20260605.zip`。第二、三个脚本只需要这些样本的本地原页和 parsed。脚本在 `.uv-cache/independent-sample-audit/` 写审计证据，不写输入和生产数据。样本清单、原页/产物哈希和当时的逐条发现另保存在同目录的 `summary.json`、`findings.json`；这些是验收时的固定记录，复跑的新结果在 `.uv-cache/`。
 
 `audit_sample.py` 自身成功退出只表示审计证据采集完成；其来源清单和“与当前解析器一致”不能自动给出 PASS。`check_findings.py` 的 `PASS_KNOWN_CHECKS_ONLY` 也仅表示这 4 项已知问题不再复现，仍需用样本原文复审修复后的边界行为。
 

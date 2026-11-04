@@ -105,6 +105,6 @@
 .\.venv\Scripts\python.exe doc/reports/document_ui_sample_recheck_2026-11-04/review_character_samples.py .uv-cache/independent-sample-audit-2026-11-04/reviewer_new_character_evidence.json
 ```
 
-采集脚本需要原 ZIP 位于仓库上级的 `genshin_wiki_data_20260605.zip`。脚本只写 `.uv-cache/independent-sample-audit-2026-11-04/` 审计证据，不更新业务数据。
+采集脚本需要原 ZIP 位于仓库上级的 `genshin_wiki_data/genshin_wiki_data_20260605.zip`。脚本只写 `.uv-cache/independent-sample-audit-2026-11-04/` 审计证据，不更新业务数据。
 
 本报告同名目录中的 `known_and_controls.json`、`announcements.json`、`reviewer_new_character_evidence.json` 是本轮固定证据快照，保留实际 JSON 指针、原文、预期与生产代码 SHA-256；复跑的最新结果在 `.uv-cache/`。已知修复和两个正常对照通过，不能覆盖六条公告语义失败的结论。
