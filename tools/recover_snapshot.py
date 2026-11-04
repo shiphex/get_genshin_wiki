@@ -112,7 +112,11 @@ def validate_unit(unit, sources):
             if display_text(provider.text[label_source["start"]:label_source["end"]]) != step["label"]:
                 raise ValueError("branch label cannot replay original source")
         content_source = step.get("content_source")
-        if content_source and not (unit["type"] == "option" and index == len(unit["branch_path"]) - 1):
+        label_annotation = unit["type"] == "annotation" and label_source and (
+            unit["source"]["raw_file"] == label_source["raw_file"]
+            and label_source["start"] <= unit["source"]["start"] <= unit["source"]["end"] <= label_source["end"]
+        )
+        if content_source and not (index == len(unit["branch_path"]) - 1 and (unit["type"] == "option" or label_annotation)):
             if unit["source"]["raw_file"] != content_source["raw_file"] or not content_source["start"] <= unit["source"]["start"] <= unit["source"]["end"] <= content_source["end"]:
                 raise ValueError("unit is outside its explicit branch response")
 

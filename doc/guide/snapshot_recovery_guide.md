@@ -35,11 +35,48 @@ uv run --offline --no-sync python tools/recover_snapshot.py --input-root "snapsh
 | `summary.json`、`summary.md` | 保真、结构检查、恢复收益和剩余问题 |
 | `input_manifest.json`、`output_manifest.json` | 输入及输出 SHA-256 清单，输出清单不包含自身 |
 
-单元字段：`unit_id`、`type`、`text`、`speaker`、`scene_id`、`branch_path`、`branch_status`、`source`、`source_kind`。类型为 `dialogue/option/narration/voice/story/book/description`。来源性质为 `game_excerpt/wiki_editorial/unknown`，来源性质未知的介绍文字不能自动当作官方游戏摘录。
+单元字段：`unit_id`、`type`、`text`、`speaker`、`scene_id`、`branch_path`、`branch_status`、`source`、`source_kind`。类型为 `dialogue/option/narration/voice/story/book/description/annotation`。来源性质为 `game_excerpt/wiki_editorial/unknown`，来源性质未知的介绍文字不能自动当作官方游戏摘录。
 
 `source` 保存页面 ID、完整标题、输入相对文件名、WikiText SHA-256、已有 revision ID，以及原始解码字符串中的 `[start, end)` 字符范围。缺 revision ID 保持 null。`speaker_source` 单独保留说话者原文；`consumed_by` 保留同一个来源被其他页面消费的上下文。ID 和排序由来源身份及位置确定，不用时间或随机值。
 
 `source` 是重放原文的完整范围；`text_spans` 是实际参与可见文字的叶节点范围，独立校验器按它们统计导出证据，不能把颜色名和未渲染参数计成正文。`display_status=partial` 表示显示模板仍有未知参数；参数源块保留在问题清单。场景另保存 `title_source`。
+
+语义补修后，台词附着的黑幕候选注释单独保存为 `annotation`，不进入业务对话数组。
+它们保留原文来源、场景、分支，`annotation_status=unresolved` 表示不能自动把所有黑幕
+认定为 Wiki 说明。主单元新增可选 `excluded_spans`，列出从台词显示中分离、另行保存的
+原始范围；应使用 `replay_unit()` 重放，不能仅对整个 source 范围调用 `display_text()`。
+说话者中的明确编者请求对应 `speaker_excluded_spans`，而儿童等不确定限定词保留并诊断。
+仅有黑幕的发言和书籍等非对白隐藏正文不直接删除。
+
+任务对话中的明确阅读动作、文档物件标签，以及冒号位于配对引号内的整句引用，
+按旁白保留完整标签和正文。恢复单元的可选 `classification_reason` 记录这类行级判断；
+同一折叠或选项分支内的真实对白继续单独识别。署名注释的判断只使用冒号后的正文，
+避免把完整黑幕正文误拆为注释。不完整角色名引号仍保留发言并标记
+`speaker_status=unresolved` / `unbalanced_speaker_quote`，不猜测修正原文。
+第二轮语义补修与范围见 [文档/UI 补修报告](../reports/document_ui_fix_2026-11-04.md)。
+
+剧情内非角色文本仍为 `type=narration`，恢复层增加 `narration_kind`：
+
+| 值 | 使用依据 |
+|---|---|
+| `narrative` | 显式“旁白”或剧情中的任务描述模板 |
+| `document` | 文档折叠、文档物件标签、公告板语境中的通告行，或明确展示的阅读正文 |
+| `interface` | 阅读、调查等交互动作提示 |
+| `unknown` | 无标记、引用性质不明或 Wiki 编者补充，保留并诊断 |
+
+所有旁白的 `speaker=null`、`speaker_status=not_applicable`；显式“旁白”标签的
+原文范围另存 `narration_label_source`。文档连续段落以 `document_id` 和
+`document_title` 关联，不跨真实对白、不同分支或文档作用域。嵌套的展示折叠
+继承最近的明确文档语境；公告板标题只辅助识别通告标签，不改变同处真人对白。
+
+`narration_kind` 不决定出处：`source_kind` 单独记录。未知叙述为 `unknown`，
+双冒号编者文本为 `wiki_editorial`；附着黑幕候选注释继续独立存为 annotation。
+纯黑幕正文保留并诊断。未知分类产生 `unclassified_narration`，不能当成已完成语义验收。
+业务四字段及活动任务的中文类型值保持兼容，细分类别只从恢复 API / 新 JSONL 读取。
+执行与抽样范围见 [剧情旁白修正](../reports/story_narration_fix_2026-11-04.md)。
+
+业务 JSON 的字段和四种对话类型保持不变；直接消费权威 JSONL 的程序需要支持新的
+annotation 类型和来源排除范围，并将 annotation 与游戏对白分开处理。
 
 `branch_path=[]` 是已确认的线性归属，`null` 是未解决归属。每一层选择/tab/条件记录组 ID、选项 ID、原文标签及可重放的来源范围。未明确的连接、性别、角色姓名不会补写。旧数组仍可兼容使用；下游必须从权威 JSONL 按来源、场景、分支和消费上下文切分。
 

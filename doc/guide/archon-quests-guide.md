@@ -84,6 +84,29 @@ python main.py parse archon-quest "捕风的异乡人" --no-persist
 | `option` | 玩家可选回复分支 |
 | `narration` | 旁白/场景叙述/动作描写 |
 
+### 折叠剧情与旧快照重解析
+
+剧情区域中的 `{{折叠|标题=...|内容=...}}`、第二位置参数及嵌套折叠均通过共享恢复层读取，
+不依赖折叠标题。`<br>`、`<br/>`、`<br />`、大小写和带属性的写法均可作为对话候选边界；
+有显式说话者才生成角色台词，未标记且无明确内容范围的片段保留为旁白并诊断。
+同名角色连续发言不会按文本去重，折叠前后保持原文顺序。
+
+原始页面已存在时，可离线重新生成单页业务 JSON：
+
+```powershell
+python main.py parse archon-quest "尾声的尾声"
+```
+
+该命令更新单页，不更新 `archon_quests.json` 汇总。完整冻结快照重解析需同时重建单页和汇总；
+已有 JSON 不会因代码升级自动更新，旧结果不能仅靠 `--resume` 修复。
+需要原文位置与未支持内容清单时，使用 `WikiTextParser.recover_page(payload)`，
+或使用 [冻结快照恢复入口](snapshot_recovery_guide.md) 写独立输出目录。
+具体 0605 验收及 17 行对照见 [修复报告](../reports/fold_dialogue_2026-10-30.md)。
+
+第一轮报告已被独立抽样否决，当前已知缺陷修复见 [语义补修报告](../reports/fold_dialogue_audit_fix.md)。
+台词中的附着黑幕单独保留为恢复 annotation；例如旅行者台词为 `温迪——！`，
+`哑巴开口` 留在注释记录中。文档明细按旁白保存，不将账目标签视为角色姓名。
+
 ### 索引文件
 
 `generate_archon_quest_index.py` 生成的索引每条记录包含：
@@ -157,3 +180,11 @@ python main.py parse archon-quest "捕风的异乡人" --no-persist
 - 空月之歌章节无数字编号，章节字段直接填入「空月之歌」
 - 对话中的 `<br>` 会被替换为 `\n`
 - 奖励数据不提取
+
+阅读动作、文档物件标签和整句配对引用按行保留为 narration，标签不再当作说话者。
+混合折叠内的真实角色发言仍单独识别；不完整说话者引号保留并诊断，
+第二轮复验见 [文档/UI 补修报告](../reports/document_ui_fix_2026-11-04.md)。
+
+旁白的说话者统一为空；恢复层 `narration_kind` 区分叙述、文档、交互提示和未知，
+文档段落用 `document_id` 关联。公告板中的明确通告行按文档保存完整标签，
+同处真实角色对白继续正常记录。细分和未知诊断见 [恢复指南](snapshot_recovery_guide.md)。

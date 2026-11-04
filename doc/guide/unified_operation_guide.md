@@ -402,3 +402,21 @@ python main.py store query parsed/character-quest-index "传说任务"
 不联网的冻结来源恢复使用 `tools/recover_snapshot.py --offline`，详见 [离线恢复指南](snapshot_recovery_guide.md)。该入口复用解析器，不使用下方抓取命令补依赖，也不覆盖现有 parsed 或 RAG。
 
 V2.2.0 的角色任务批处理、独立索引与离线恢复以 `source_title` 和 `page_id` 保存来源身份，存储键及索引中的 `tasks` 使用完整原标题，“任务名称”仍为展示名。旧汇总缺少来源身份时需重新解析；新旧结果应保存到不同目录。该身份保证不适用于仍按展示名处理的统一 CLI 角色任务路径。结构化引用见 [角色任务指南](character-quests_guide.md)。
+
+折叠剧情修复沿用现有业务字段，旧快照的 parsed / 汇总需要重新生成；`--resume` 会跳过
+旧记录，不能用于此次迁移。单页使用 `python main.py parse archon-quest "尾声的尾声"`。
+来源诊断通过 `recover_page()['issues']` 或独立离线恢复输出读取，详见
+[0605 折叠剧情验收报告](../reports/fold_dialogue_2026-10-30.md)。
+
+第一轮语义抽样未通过，后续修复和复验命令见 [独立审计补修报告](../reports/fold_dialogue_audit_fix.md)。
+恢复 API 会分离台词附着的黑幕 annotation，业务对话字段不增加注释键；
+直接读取 JSONL 的消费者需要识别 annotation 和 excluded_spans，详见离线恢复指南。
+
+文档/UI 行级分类补修后的冻结数据重生成和复验，见
+[2026-11-04 补修报告](../reports/document_ui_fix_2026-11-04.md)；
+其中的专用脚本默认只生成审计产物，`--apply` 会先备份，再更新任务产物及汇总。
+
+剧情旁白与非角色文本的后续修正见 [执行报告](../reports/story_narration_fix_2026-11-04.md)。
+`python doc/reports/story_narration_fix_2026-11-04/reparse.py` 默认仅生成审计差异和新的
+恢复 JSONL；加 `--apply` 会先备份并更新三个任务数据族及汇总。细分字段仅在恢复层，
+现有业务 JSON 保持原格式。

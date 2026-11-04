@@ -76,7 +76,46 @@ def display_text(raw: str, *, unknown: list[str] | None = None) -> str:
 
 def replay_unit(wikitext: str, unit: dict) -> str:
     source = unit["source"]
-    return display_text(wikitext[source["start"]:source["end"]])
+    raw = omit_source_spans(wikitext[source["start"]:source["end"]], source["start"],
+                            unit.get("excluded_spans", []))
+    return display_text(raw)
+
+
+def omit_source_spans(raw: str, start: int, spans: list[dict]) -> str:
+    """Remove explicitly accounted-for inline nodes without changing raw data."""
+    parts, cursor = [], 0
+    for span in sorted(spans, key=lambda item: item["start"]):
+        left, right = span["start"] - start, span["end"] - start
+        if not 0 <= cursor <= left < right <= len(raw):
+            raise ValueError("excluded spans must be non-overlapping and inside the source")
+        parts.append(raw[cursor:left])
+        cursor = right
+    parts.append(raw[cursor:])
+    return "".join(parts)
+
+
+def blackout_nodes(raw: str, start: int):
+    """Find blackouts only along visible display paths, preserving exact spans."""
+    from .source import nodes_with_spans, tag_contents, template_params
+
+    for node, left, right in nodes_with_spans(raw, start):
+        if isinstance(node, Template):
+            selected = display_param(node)
+            if selected is not None:
+                param = next(p for p in reversed(list(template_params(node, left)))
+                             if p[0] == str(selected.name).strip())
+                if str(node.name).strip() == "黑幕":
+                    yield left, right, param
+                else:
+                    yield from blackout_nodes(param[1], param[2])
+        elif isinstance(node, Tag) and str(node.tag).lower() in DISPLAY_TAGS:
+            contents, content_start = tag_contents(node, left)
+            yield from blackout_nodes(contents, content_start)
+        elif isinstance(node, Wikilink):
+            title = str(node.title)
+            if not title.lower().startswith(("file:", "image:", "category:", "文件:", "分类:")):
+                label = str(node.text) if node.text is not None else title
+                yield from blackout_nodes(label, left + (3 + len(title) if node.text is not None else 2))
 
 
 def display_projection(raw: str, start: int):

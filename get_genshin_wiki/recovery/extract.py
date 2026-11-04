@@ -6,11 +6,21 @@ from typing import Any, Callable
 
 from mwparserfromhell.nodes import Heading, Tag, Template, Text
 
-from .display import DISPLAY_TAGS, display_param, display_projection, display_text
+from .display import DISPLAY_TAGS, blackout_nodes, display_param, display_projection, display_text, omit_source_spans
 from .source import SourcePage, nodes_with_spans, stable_id, tag_contents, template_params
 
 Resolver = Callable[[str], list[dict[str, Any]]]
-PLOT_HEADING = re.compile(r"^(?:任务剧情|剧情|对话|任务过程|任务内容)(?:$|[·：:])")
+PLOT_HEADING = re.compile(r"^(?:[\u3400-\u9fff]{0,12}(?:剧情|对话)|任务过程|任务内容)(?:$|[·：:])")
+DOCUMENT_FOLD_TITLE = re.compile(r"明细|账目|账本|账单|档案|日记|日志|留言|信件|便条|告示|文档")
+READING_LABEL = re.compile(r"(?:阅读|查阅|翻阅|查看)(?:「[^」\n]+」|『[^』\n]+』|《[^》\n]+》|【[^】\n]+】)?$")
+DOCUMENT_OBJECT_LABEL = re.compile(
+    r"(?:[^：\n]+(?:上|中|里|内|旁)(?:的)?)?"
+    r"(?:备忘录|笔记|纸张|信件|信纸|便条|告示|留言|日记|日志|账目|账本|档案)$"
+)
+ANNOUNCEMENT_LABEL = re.compile(r"[\u3400-\u9fff]{0,12}(?:通告|公告|告示|通知)$")
+ANNOUNCEMENT_CONTEXT = re.compile(r"公告板|告示板|布告栏|公告栏")
+QUOTE_PAIRS = (("「", "」"), ("『", "』"), ("“", "”"))
+EDITORIAL_SPEAKER_HINT = re.compile(r"待(?:补|考|确认|核实)|等待.{0,12}补全|有缘人|编者|编辑提示|表情包|出处")
 BUSINESS = {"任务", "任务信息", "角色资料", "角色/信息", "角色/故事", "角色展示", "武器", "武器属性", "武器故事", "圣遗物", "圣遗物属性", "书籍", "食物", "食物属性", "野生生物", "野生生物属性", "任务道具", "道具", "道具属性", "材料", "材料属性", "名片", "名片属性", "怪物", "怪物属性", "秘境", "秘境属性"}
 BUSINESS.add("角色")
 META = {"JS", "提示", "提示信息", "提示消息", "面包屑", "角色导航", "语音tab样式", "角色语音表头", "player", "图标", "原神WIKI导航", "!", "目录"}
@@ -32,6 +42,8 @@ class RecoveryExtractor:
         self.dependencies: list[dict] = []
         self.regions: list[dict] = []
         self.character_owner = False
+        self.fold_context = []
+        self.document_run = None
 
     def mark(self, start, end, disposition, reason):
         self.regions.append({"source": self.page.source(start, end), "disposition": disposition, "reason": reason})
@@ -181,7 +193,7 @@ class RecoveryExtractor:
                 self.mark(start, end, "metadata", "heading")
                 if active_level is not None and node.level <= active_level:
                     active_level, current = None, None
-                if PLOT_HEADING.search(title):
+                if PLOT_HEADING.search(title) and (active_level is None or node.level <= active_level):
                     active_level, chapter, current = node.level, title, None
                     root_branch = [{"kind": "condition", "group_id": stable_id("heading_branch", self.page.identity, start), "option_id": "heading", "label": title, "condition": title, "label_source": self.page.source(start, end)}] if "分支" in title else []
                 elif active_level is not None:
@@ -302,10 +314,23 @@ class RecoveryExtractor:
                 flush()
                 self.mark(node_start, node_end, "non_story", "documentation_or_style")
                 continue
-            structural = isinstance(node, Template) and (name in {"剧情选项", "选项", "折叠", "折叠框", "剧情", "#tag:tabber"} or "人物对话" in name or name in BUSINESS or VOICE.fullmatch(name) or name.startswith(":") or name in META)
+            structural = isinstance(node, Template) and (name in {"剧情选项", "选项", "折叠", "折叠框", "剧情", "任务描述", "#tag:tabber"} or "人物对话" in name or name in BUSINESS or VOICE.fullmatch(name) or name.startswith(":") or name in META)
             if isinstance(node, Template) and not structural and self.resolve_page and name not in {"颜色", "注音", "黑幕", "任务描述", "切换板", "玩家名", "旅行者名字", "NICKNAME"}:
                 structural = bool(self.resolve_page(name if name.startswith(("模板:", "Template:")) else "模板:" + name))
-            container = isinstance(node, Tag) and (str(node.tag).lower() in {"tabber", "div", "poem", "p", "center", "blockquote", "includeonly", "onlyinclude"} or (str(node.tag).lower() in DISPLAY_TAGS and "\n" in str(node.contents)))
+            inline_container = False
+            if isinstance(node, Tag) and str(node.tag).lower() in DISPLAY_TAGS:
+                # display_text strips whitespace. A sentinel preserves a final
+                # br/newline while inspecting the pending logical line only.
+                pending = display_text(buffer + "\ufffc")[:-1].rsplit("\n", 1)[-1]
+                at_boundary = not pending.strip(" \t\r*:>#")
+                inline_container = at_boundary and (
+                    "\n" in str(node.contents)
+                    or (kind == "dialogue" and re.match(r"^[\s*:>#]*[^：\n]+：", display_text(str(node.contents))))
+                )
+            container = isinstance(node, Tag) and (
+                str(node.tag).lower() in {"tabber", "div", "poem", "p", "center", "blockquote", "includeonly", "onlyinclude"}
+                or inline_container
+            )
             if structural or container:
                 flush()
                 if structural:
@@ -324,23 +349,118 @@ class RecoveryExtractor:
     def lines(self, raw, start, scene, branch, kind):
         # Newlines inside inline display nodes remain part of that node.
         cursor, line_start, parts = start, start, []
+        after_break = False
+
+        def flush():
+            nonlocal parts, after_break
+            before = len(self.units)
+            self.emit("".join(parts), line_start, scene, branch, kind)
+            if len(self.units) > before:
+                unit = self.units[-1]
+                # A visual break alone is not evidence of speaker identity.
+                if after_break and kind == "dialogue" and unit["type"] == "narration":
+                    self.issue("unattributed_break_fragment", unit["source"]["start"],
+                               unit["source"]["end"])
+                after_break = False
+            parts = []
+
         for node, node_start, node_end in nodes_with_spans(raw, start):
             if isinstance(node, Text):
                 for segment in str(node).splitlines(keepends=True):
                     parts.append(segment)
                     cursor += len(segment)
                     if segment.endswith(("\n", "\r")):
-                        self.emit("".join(parts), line_start, scene, branch, kind)
-                        line_start, parts = cursor, []
+                        flush()
+                        line_start = cursor
+            elif kind == "dialogue" and isinstance(node, Tag) and str(node.tag).lower() == "br":
+                # A list item supplies a scope for an unmarked wrapped line.
+                # An explicit next speaker still starts a separate utterance.
+                if "".join(parts).lstrip().startswith("*"):
+                    following = display_text(raw[node_end - start:]).split("\n", 1)[0]
+                    if not re.match(r"^[\s*:>#]*[^：\n]+：", following):
+                        parts.append(str(node))
+                        cursor = node_end
+                        continue
+                flush()
+                self.mark(node_start, node_end, "metadata", "dialogue_line_break")
+                cursor = line_start = node_end
+                after_break = True
             else:
                 parts.append(str(node))
                 cursor = node_end
         if parts:
-            self.emit("".join(parts), line_start, scene, branch, kind)
+            flush()
 
-    def emit(self, raw, start, scene, branch, kind, speaker_override=None, speaker_source=None, speaker_status="resolved"):
-        wiki_annotation = raw.lstrip().startswith("::") or "{{黑幕" in raw
+    def dialogue_speaker(self, raw, start):
+        candidates = list(blackout_nodes(raw, start))
+        requested = [candidate for candidate in candidates
+                     if EDITORIAL_SPEAKER_HINT.search(display_text(candidate[2][1]))]
+        spans = [self.page.source(left, right) for left, right, _ in requested]
+        annotations, excluded = [], []
+        if display_text(omit_source_spans(raw, start, spans)):
+            annotations, excluded = requested, spans
+        status = "resolved"
+        if len(candidates) > len(annotations):
+            self.issue("ambiguous_speaker_blackout", start, start + len(raw))
+            status = "unresolved"
+        unknown = []
+        speaker = display_text(omit_source_spans(raw, start, excluded), unknown=unknown)
+        if any(speaker.startswith(left) and speaker.count(left) != speaker.count(right)
+               for left, right in QUOTE_PAIRS):
+            self.issue("unbalanced_speaker_quote", start, start + len(raw))
+            status = "unresolved"
+        if unknown:
+            self.issue("unknown_speaker_display", start, start + len(raw))
+            speaker, status = "", "unresolved"
+        return speaker, status, annotations, excluded
+
+    def narration_metadata(self, unit, reason, label, hint):
+        """Classify only with local evidence; an unmarked line stays uncertain."""
+        context = self.fold_context[-1] if self.fold_context else None
+        document_context = next((c for c in reversed(self.fold_context) if c["document"]), None)
+        if unit["source_kind"] == "wiki_editorial":
+            subtype = "unknown"
+        elif reason in {"written_object", "written_announcement"} or document_context:
+            subtype = "document"
+        elif reason == "reading_action":
+            body = unit["text"].partition("：")[2].strip()
+            if any(body.startswith(left) and body.endswith(right) for left, right in QUOTE_PAIRS):
+                subtype = "document"
+            elif not re.search(r"[「『《【]", label) or re.match(r"(?:你|旅行者|派蒙)?(?:翻开|打开|阅读|查看|检查|调查|拿起)", body):
+                subtype = "interface"
+            else:
+                subtype = "unknown"
+        elif hint:
+            subtype = hint
+        else:
+            subtype = "unknown"
+        unit["narration_kind"] = subtype
+        if subtype == "unknown":
+            self.issue("unclassified_narration", unit["source"]["start"], unit["source"]["end"],
+                       classification_status="unresolved")
+            if unit["source_kind"] != "wiki_editorial":
+                unit["source_kind"] = "unknown"
+        if subtype == "document":
+            title = document_context["title"] if document_context else label
+            # Scope and branch prevent unrelated documents from being merged.
+            scope = document_context or context
+            key = (unit["scene_id"], scope["start"] if scope else None,
+                   stable_id(unit["branch_path"]), title)
+            if self.document_run is None or self.document_run[0] != key:
+                self.document_run = (key, stable_id("document", self.page.identity, unit["source"]["start"], key))
+            unit["document_id"] = self.document_run[1]
+            unit["document_title"] = title
+        else:
+            self.document_run = None
+
+    def emit(self, raw, start, scene, branch, kind, speaker_override=None, speaker_source=None, speaker_status="resolved", narration_hint=None):
+        wiki_annotation = raw.lstrip().startswith("::")
         prefix = re.match(r"[\s*:>#]*", raw).group()
+        if kind == "dialogue" and scene and scene["chapter"] == scene["title"] and raw.lstrip().startswith(">"):
+            # The introductory blockquote is a quest synopsis, not a flow step.
+            kind = "description"
+            start += len(prefix)
+            raw = raw[len(prefix):]
         if kind in {"dialogue", "option"}:
             start += len(prefix)
             raw = raw[len(prefix):]
@@ -350,6 +470,14 @@ class RecoveryExtractor:
         if not raw:
             return
         speaker = speaker_override
+        non_speaker_reason = None
+        label = ""
+        narration_label_source = None
+        document_body_offset = 0
+        speaker_annotations, speaker_excluded = [], []
+        if speaker_override is not None and speaker_source:
+            left, right = speaker_source["start"], speaker_source["end"]
+            speaker, speaker_status, speaker_annotations, speaker_excluded = self.dialogue_speaker(self.page.text[left:right], left)
         if kind == "dialogue" and "剧情选项-图标" in raw:
             kind, branch = "option", None
         if kind == "dialogue" and speaker_override is None:
@@ -358,38 +486,87 @@ class RecoveryExtractor:
                 if isinstance(node, Text) and "：" in str(node):
                     split = node_start + str(node).index("：") - start
                     break
-            if split is not None:
-                unknown_speaker = []
-                speaker = display_text(raw[:split], unknown=unknown_speaker)
-                speaker_source = self.page.source(start, start + split)
-                if unknown_speaker:
-                    self.issue("unknown_speaker_display", start, start + split)
-                    speaker = ""
-                    speaker_status = "unresolved"
-                raw, start = raw[split + 1:], start + split + 1
-                whitespace = len(raw) - len(raw.lstrip())
-                raw, start = raw.strip(), start + whitespace
-                kind = "narration" if speaker == "旁白" else "dialogue"
-                if speaker == "选项":
-                    kind, speaker, branch = "option", None, None
+            if split is not None and not display_text(raw[split + 1:]):
+                # A colon is not sufficient evidence of a speaker, especially
+                # when it introduces the quoted narration on the next line.
+                self.issue("empty_speech_after_colon", start, start + len(raw))
+                kind, speaker = "narration", None
+            elif split is not None:
+                label = display_text(raw[:split])
+                if READING_LABEL.fullmatch(label):
+                    non_speaker_reason = "reading_action"
+                elif DOCUMENT_OBJECT_LABEL.fullmatch(label):
+                    non_speaker_reason = "written_object"
+                elif ANNOUNCEMENT_LABEL.fullmatch(label) and (
+                    any(ANNOUNCEMENT_CONTEXT.search(c["title"]) for c in self.fold_context)
+                    or (scene and ANNOUNCEMENT_CONTEXT.search(scene["title"]))
+                ):
+                    non_speaker_reason = "written_announcement"
+                elif any(label.startswith(left) and right not in label
+                         and display_text(raw).count(left) == display_text(raw).count(right)
+                         for left, right in QUOTE_PAIRS):
+                    # The colon is inside a quotation, not after a quoted name
+                    # such as 「女士」. Preserve its opening label and punctuation.
+                    non_speaker_reason = "quoted_text"
+                if non_speaker_reason:
+                    kind, speaker = "narration", None
+                    document_body_offset = split + 1
+                else:
+                    speaker, speaker_status, speaker_annotations, speaker_excluded = self.dialogue_speaker(raw[:split], start)
+                    speaker_source = self.page.source(start, start + split)
+                    raw, start = raw[split + 1:], start + split + 1
+                    whitespace = len(raw) - len(raw.lstrip())
+                    raw, start = raw.strip(), start + whitespace
+                    kind = "narration" if speaker == "旁白" else "dialogue"
+                    if speaker == "选项":
+                        kind, speaker, branch = "option", None, None
             else:
                 kind, speaker = "narration", None
+        if speaker == "旁白":
+            kind, narration_hint = "narration", "narrative"
+            narration_label_source = speaker_source
+            speaker, speaker_source = None, None
+        annotations, excluded = [], []
+        ambiguous_blackout = False
+        if kind == "narration" and not document_body_offset and any(c["document"] for c in self.fold_context):
+            # A document's key is not visible body evidence for a hidden value.
+            for node, node_start, _ in nodes_with_spans(raw, start):
+                if isinstance(node, Text) and "：" in str(node):
+                    document_body_offset = node_start + str(node).index("：") - start + 1
+                    break
+        if kind in {"dialogue", "option", "narration"}:
+            # Preserving a document's label must not make an entirely hidden
+            # body look like visible text with an attached editorial note.
+            annotation_body = raw[document_body_offset:]
+            annotation_start = start + document_body_offset
+            candidates = list(blackout_nodes(annotation_body, annotation_start))
+            spans = [self.page.source(left, right) for left, right, _ in candidates]
+            plain = omit_source_spans(annotation_body, annotation_start, spans)
+            if candidates and display_text(plain):
+                annotations, excluded = candidates, spans
+            elif candidates:
+                # An entirely hidden utterance may be game text. Retain it and
+                # flag the ambiguity instead of treating all blackouts as notes.
+                ambiguous_blackout = True
+                self.issue("ambiguous_blackout_content", start, start + len(raw))
         unknown = []
-        rendered = display_text(raw, unknown=unknown)
+        rendered = display_text(omit_source_spans(raw, start, excluded), unknown=unknown)
         if unknown:
             self.issue("unknown_template", start, start + len(raw), templates=unknown)
             return
         if not rendered:
             return
-        if re.fullmatch(r"[-_=★\s]+", rendered):
+        if kind != "dialogue" and re.fullmatch(r"[-_=★\s]+", rendered):
             return
         source = self.page.source(start, start + len(raw))
         visible, metadata, unsupported = display_projection(raw, start)
+        visible = [(left, right) for left, right in visible
+                   if not any(span["start"] <= left and right <= span["end"] for span in excluded)]
         for left, right in metadata:
             self.mark(left, right, "metadata", "display_presentation")
         for left, right, template_name, parameter in unsupported:
             self.issue("unsupported_display_argument", left, right, template=template_name, parameter=parameter)
-        source_kind = "wiki_editorial" if wiki_annotation else "unknown" if kind == "description" else "game_excerpt"
+        source_kind = "wiki_editorial" if wiki_annotation else "unknown" if kind in {"description", "annotation"} or ambiguous_blackout else "game_excerpt"
         unit = {"unit_id": stable_id("unit", self.page.identity, source["wikitext_sha256"], start, start + len(raw), kind),
                 "type": kind, "text": rendered, "speaker": speaker, "scene_id": scene["scene_id"] if scene else None,
                 "speaker_status": "not_applicable" if speaker is None else speaker_status,
@@ -397,6 +574,23 @@ class RecoveryExtractor:
                 "source": source, "source_kind": source_kind}
         unit["text_spans"] = [self.page.source(left, right) for left, right in visible]
         unit["display_status"] = "partial" if unsupported else "resolved"
+        if non_speaker_reason:
+            unit["classification_reason"] = non_speaker_reason
+        if kind == "narration":
+            self.narration_metadata(unit, non_speaker_reason, label, narration_hint)
+            if narration_label_source:
+                unit["narration_label_source"] = narration_label_source
+                self.mark(narration_label_source["start"], narration_label_source["end"], "metadata", "narration_label")
+        elif kind != "annotation":
+            self.document_run = None
+        if excluded:
+            unit["excluded_spans"] = excluded
+        if speaker_excluded:
+            unit["speaker_excluded_spans"] = speaker_excluded
+        if excluded or speaker_excluded:
+            unit["unit_id"] = stable_id(unit["unit_id"], "separated_inline_blackouts", excluded, speaker_excluded)
+        if kind == "annotation":
+            unit["annotation_status"] = "unresolved"
         if speaker_source:
             unit["speaker_source"] = speaker_source
             _, speaker_metadata, speaker_unknown = display_projection(self.page.text[speaker_source["start"]:speaker_source["end"]], speaker_source["start"])
@@ -409,6 +603,9 @@ class RecoveryExtractor:
             scene["empty"] = False
         for left, right in visible:
             self.mark(left, right, "exported", "visible_text_leaf")
+        for left, right, param in speaker_annotations + annotations:
+            self.issue("inline_blackout_separated", left, right)
+            self.emit(param[1], param[2], scene, branch, "annotation")
 
     def template(self, node, start, end, scene, branch, kind, outside=False):
         name = str(node.name).strip()
@@ -416,6 +613,21 @@ class RecoveryExtractor:
         by_name = {p[0]: p for p in params}
         if name in BUSINESS | {"剧情"} or VOICE.fullmatch(name):
             self.business_template(node, start, end, branch=branch, parent_scene=scene)
+        elif name == "任务描述":
+            selected = display_param(node)
+            if selected is not None:
+                param = by_name[str(selected.name).strip()]
+                description_kind = "narration" if kind == "dialogue" else kind
+                if kind == "dialogue" and (scene is None or scene["chapter"] == scene["title"]):
+                    description_kind = "description"
+                self.emit(param[1], param[2], scene, branch, description_kind,
+                          narration_hint="narrative" if description_kind == "narration" else None)
+                for other in params:
+                    if other[0] != param[0]:
+                        self.issue("unsupported_display_argument", other[2], other[3],
+                                   template=name, parameter=other[0])
+            else:
+                self.issue("unsupported_description_shape", start, end)
         elif name in {"剧情选项", "选项"}:
             group_id = stable_id("choice", self.page.identity, start)
             suffixes = sorted({int(m.group(1)) for key in by_name if (m := re.fullmatch(r"(?:选项|剧情|选择)(\d+)", key))})
@@ -444,12 +656,28 @@ class RecoveryExtractor:
             selected = next((by_name[key] for key in ("内容", "2") if key in by_name), None)
             if selected:
                 label = display_text(by_name.get("标题", ("", ""))[1])
+                document_fold = False
+                if outside and scene is None:
+                    # Outside an explicit story region a colon may be metadata,
+                    # not a character name. Retain the text without guessing.
+                    kind = "description"
+                    scene = self.scene(label, start, start, body_type=kind)
+                    self.issue("fold_outside_story", selected[2], selected[3])
+                elif kind in {"dialogue", "narration"} and DOCUMENT_FOLD_TITLE.search(label) and not re.search(r"剧情|对话|过场", label):
+                    # In-world documents contain key/value rows as well as
+                    # prose. Keep the entire row instead of inventing speakers.
+                    kind = "narration"
+                    document_fold = True
                 path = branch
                 if label and re.search(r"额外对话|可选|如果|条件", label):
                     title_param = by_name.get("标题")
                     path = None if branch is None else branch + [{"kind": "condition", "group_id": stable_id("condition", self.page.identity, start), "option_id": "content", "label": label, "condition": label,
                                                                 "label_source": self.page.source(title_param[2], title_param[3]), "content_source": self.page.source(selected[2], selected[3])}]
-                self.walk_prose(selected[1], selected[2], scene, path, kind)
+                self.fold_context.append({"title": label, "start": start, "document": document_fold})
+                try:
+                    self.walk_prose(selected[1], selected[2], scene, path, kind)
+                finally:
+                    self.fold_context.pop()
                 for param in params:
                     if param != selected:
                         if param[0] in {"标题", "折叠", "1", "展开", "宽度", "样式", "class", "style"}:
@@ -462,14 +690,8 @@ class RecoveryExtractor:
             speaker_param = next((by_name[k] for k in ("角色", "2", "1") if k in by_name), None)
             content = next((by_name[k] for k in ("内容", "3") if k in by_name), None)
             if content:
-                unknown_speaker = []
-                speaker = display_text(speaker_param[1], unknown=unknown_speaker) if speaker_param else ""
-                if unknown_speaker:
-                    self.issue("unknown_speaker_display", speaker_param[2], speaker_param[3])
-                    speaker = ""
-                self.emit(content[1], content[2], scene, branch, "dialogue", speaker_override=speaker,
-                          speaker_source=self.page.source(speaker_param[2], speaker_param[3]) if speaker_param else None,
-                          speaker_status="unresolved" if unknown_speaker else "resolved")
+                self.emit(content[1], content[2], scene, branch, "dialogue", speaker_override="",
+                          speaker_source=self.page.source(speaker_param[2], speaker_param[3]) if speaker_param else None)
             else:
                 self.issue("unsupported_dialogue_shape", start, end)
         elif name.startswith(":"):

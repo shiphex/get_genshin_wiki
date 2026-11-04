@@ -1,6 +1,12 @@
 __pycache__/
 *.py[cod]
 *.py[cod].*
+.pytest_cache/
+.uv-cache/
+.venv/
+
+# Generated audit and verification results; keep report Markdown and scripts.
+doc/reports/**/*.json
 
 # Generated output data
 data/
