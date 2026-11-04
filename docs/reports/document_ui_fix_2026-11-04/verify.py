@@ -31,8 +31,8 @@ def module(name, relative):
 
 
 def run():
-    main = module('independent_main', 'doc/reports/fold_dialogue_sample_recheck_2026-10-31/check_main_samples.py')
-    other = module('independent_other', 'doc/reports/fold_dialogue_sample_recheck_2026-10-31/check_other_samples.py')
+    main = module('independent_main', 'docs/reports/fold_dialogue_sample_recheck_2026-10-31/check_main_samples.py')
+    other = module('independent_other', 'docs/reports/fold_dialogue_sample_recheck_2026-10-31/check_other_samples.py')
     controls = [main.sequence_check('archon-quests', '1b5fe85fa5'),
                 main.sequence_check('character-quests', '0ff3aa7fb4')]
     assert all(c['dialogue_sequence_equal'] and c['option_sequence_equal'] for c in controls)

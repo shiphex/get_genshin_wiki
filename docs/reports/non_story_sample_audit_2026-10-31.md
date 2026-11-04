@@ -194,7 +194,7 @@
 
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
-.venv/Scripts/python.exe doc/reports/non_story_sample_audit_2026-10-31/audit.py
+.venv/Scripts/python.exe docs/reports/non_story_sample_audit_2026-10-31/audit.py
 ```
 
 脚本只写本报告的专用目录。发现项断言用于复现缺陷；未来修复解析器后，部分断言应失败，届时应更新为修复后的预期，不能将该脚本当作长期“通过即无缺陷”的验收。

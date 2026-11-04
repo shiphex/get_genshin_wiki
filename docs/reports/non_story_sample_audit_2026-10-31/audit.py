@@ -1,7 +1,7 @@
 """Offline, read-only audit of frozen inputs and current entity projections.
 
 Run from any directory:
-  .venv/Scripts/python.exe doc/reports/non_story_sample_audit_2026-10-31/audit.py
+  .venv/Scripts/python.exe docs/reports/non_story_sample_audit_2026-10-31/audit.py
 Only this report directory is written. Findings are observations, not fix tests.
 """
 from __future__ import annotations

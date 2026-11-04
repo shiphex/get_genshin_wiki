@@ -87,10 +87,10 @@
 ```powershell
 $env:PYTHONIOENCODING='utf-8'
 .venv/Scripts/python.exe -m pytest -q
-.venv/Scripts/python.exe doc/reports/document_ui_fix_2026-11-04/verify.py
-.venv/Scripts/python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
-.venv/Scripts/python.exe doc/reports/fold_dialogue_sample_recheck_2026-10-31/collect_sample.py
-.venv/Scripts/python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/audit_sample.py
+.venv/Scripts/python.exe docs/reports/document_ui_fix_2026-11-04/verify.py
+.venv/Scripts/python.exe docs/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
+.venv/Scripts/python.exe docs/reports/fold_dialogue_sample_recheck_2026-10-31/collect_sample.py
+.venv/Scripts/python.exe docs/reports/fold_dialogue_sample_audit_2026-10-30/audit_sample.py
 ```
 
 两份 10 月原文档语义审计脚本及固定证据未改写。它们按旧错误输出的“冒号后缀”定位记录；修复后记录应保留完整标签，因此本轮使用独立的 `verify.py` 从真实源行重建全文，断言类型、说话者与来源，而不是修改期望以保留错误输出。
@@ -98,7 +98,7 @@ $env:PYTHONIOENCODING='utf-8'
 专用重生成脚本默认只写审计目录；`--apply` 会备份并更新任务单页、两个汇总、诊断与注释。需要与本轮最初状态比较时显式传入已保存的初始备份：
 
 ```powershell
-.venv/Scripts/python.exe doc/reports/document_ui_fix_2026-11-04/reparse.py --apply --baseline-backup .uv-cache/document-ui-before-20261104T021108737917Z.zip
+.venv/Scripts/python.exe docs/reports/document_ui_fix_2026-11-04/reparse.py --apply --baseline-backup .uv-cache/document-ui-before-20261104T021108737917Z.zip
 ```
 
 核心改动：[extract.py](../../get_genshin_wiki/recovery/extract.py)。回归：[test_document_dialogue.py](../../tests/test_document_dialogue.py)。数据对照：[reparse_verification.json](document_ui_fix_2026-11-04/reparse_verification.json)。

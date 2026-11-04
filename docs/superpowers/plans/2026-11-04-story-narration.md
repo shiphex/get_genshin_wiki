@@ -8,7 +8,7 @@
 
 **Tech Stack:** Python / mwparserfromhell / pytest。
 
-**Spec:** 指定聊天末两轮及 doc/reports/document_ui_sample_recheck_2026-11-04.md。分类值为 narrative、document、interface、unknown；细分不加入旧业务四字段。
+**Spec:** 指定聊天末两轮及 docs/reports/document_ui_sample_recheck_2026-11-04.md。分类值为 narrative、document、interface、unknown；细分不加入旧业务四字段。
 
 ## Global Constraints
 
@@ -43,6 +43,6 @@
 
 Task 1 complete：新增测试逐项观察失败并修正，最终完整测试225 passed / 18 subtests passed。
 
-Task 2 complete：837份任务记录离线重解析；5页20条业务变化逐项检查，145700个恢复单元重放和分支范围通过，5963个原始文件基线哈希一致。报告与证据见 doc/reports/story_narration_fix_2026-11-04.md。
+Task 2 complete：837份任务记录离线重解析；5页20条业务变化逐项检查，145700个恢复单元重放和分支范围通过，5963个原始文件基线哈希一致。报告与证据见 docs/reports/story_narration_fix_2026-11-04.md。
 
 独立审查的嵌套文档证据丢失、旁白黑幕说明混入和阅读动作误判均以失败测试复现后修正。导出遇到的选项标签注释范围校验问题也有失败回归并修正。原冻结来源不变，唯一旧预期变化是显式旁白的说话者由“旁白”改为空，原文位置保持。未创建分支、提交或推送。

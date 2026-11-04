@@ -97,19 +97,19 @@
 
 ```powershell
 # 原 F1–F4：本轮 PASS_KNOWN_CHECKS_ONLY，退出码 0
-.\.venv\Scripts\python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
+.\.venv\Scripts\python.exe docs/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
 
 # 相关两组回归：本轮 53 passed
 .\.venv\Scripts\python.exe -m pytest tests/test_audit_fixes.py tests/test_fold_dialogue.py -q
 
 # 六页来源、原 ZIP 对应成员和当前保存结果；这是取证，不是语义通过判定
-.\.venv\Scripts\python.exe doc/reports/fold_dialogue_sample_recheck_2026-10-31/collect_sample.py
+.\.venv\Scripts\python.exe docs/reports/fold_dialogue_sample_recheck_2026-10-31/collect_sample.py
 
 # 主审独立序列及祈月笺文档语义：当前退出码 1
-.\.venv\Scripts\python.exe doc/reports/fold_dialogue_sample_recheck_2026-10-31/check_main_samples.py
+.\.venv\Scripts\python.exe docs/reports/fold_dialogue_sample_recheck_2026-10-31/check_main_samples.py
 
 # 另三页独立原文预期及两页共11条文档分类检查：当前 REJECT，退出码 1
-.\.venv\Scripts\python.exe doc/reports/fold_dialogue_sample_recheck_2026-10-31/check_new_findings.py
+.\.venv\Scripts\python.exe docs/reports/fold_dialogue_sample_recheck_2026-10-31/check_new_findings.py
 ```
 
 `check_main_samples.py`、`check_other_samples.py` 构造原文预期时不导入生产解析器、测试或旧报告，规则限于这些真实样本中已经人工检查的语法。补充黑幕从预期中分离的四处文字逐条列在证据内，并非套用生产实现的任意黑幕删除规则。

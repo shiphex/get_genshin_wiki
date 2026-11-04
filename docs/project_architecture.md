@@ -44,13 +44,14 @@ get_genshin_wiki/
 │  ├─ parsed/
 │  ├─ recovery/
 │  └─ reports/
-├─ doc/
+├─ docs/
 │  ├─ guide/
 │  │  ├─ unified_operation_guide.md
 │  │  └─ *.md
 │  ├─ project_architecture.md
 │  ├─ reports/
 │  ├─ releases/
+│  ├─ superpowers/plans/
 │  ├─ todo_logs.md
 │  └─ worktree_logs/
 ├─ get_genshin_wiki/
@@ -74,8 +75,8 @@ get_genshin_wiki/
 
 说明：
 
-- `doc/guide/` 下保留了分项指南；`doc/guide/unified_operation_guide.md` 是新的统一入口。
-- `doc/worktree_logs/` 记录历史 worktree 的开发日志，适合追溯背景，不应再作为当前命令入口文档。
+- `docs/guide/` 下保留了分项指南；`docs/guide/unified_operation_guide.md` 是新的统一入口。
+- `docs/worktree_logs/` 记录历史 worktree 的开发日志，适合追溯背景，不应再作为当前命令入口文档。
 - `refer/` 是参考实现与探索脚本，不是生产代码路径。
 
 ## 3. 运行时分层
@@ -319,8 +320,8 @@ V2.2.0 已修复原有 CLI 测试的导入语法错误。发布验证基线为 1
 - 优先使用 `python main.py` 编写命令示例，避免再写旧 worktree 专用路径。
 - 如需说明在线全量处理流程，优先使用 `python main.py all <entity>`，并解释各实体不同的上下文依赖；冻结来源恢复使用独立的离线入口。
 - 新增或更新分项能力时，应同步更新：
-  - `doc/guide/unified_operation_guide.md`
-  - `doc/project_architecture.md`
+  - `docs/guide/unified_operation_guide.md`
+  - `docs/project_architecture.md`
   - `CLAUDE.md`
 
 ## 9. 已知不一致与后续关注点

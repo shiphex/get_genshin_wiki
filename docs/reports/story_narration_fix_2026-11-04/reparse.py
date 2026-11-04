@@ -22,7 +22,7 @@ OUT = Path(__file__).resolve().parent
 
 def run(apply=False):
     # Reuse the already audited backup, metadata, aggregate and replay checks.
-    spec = importlib.util.spec_from_file_location('document_ui_reparse', ROOT / 'doc/reports/document_ui_fix_2026-11-04/reparse.py')
+    spec = importlib.util.spec_from_file_location('document_ui_reparse', ROOT / 'docs/reports/document_ui_fix_2026-11-04/reparse.py')
     reparse = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(reparse)
     reparse.OUT = OUT
@@ -70,7 +70,7 @@ def run(apply=False):
     if apply:
         summary_path = ROOT / 'data/reports/fold-dialogue-0605-verification.json'
         summary = reparse.read(summary_path)
-        summary.update(latest_fix_report='doc/reports/story_narration_fix_2026-11-04.md', recovery_export=export['output'])
+        summary.update(latest_fix_report='docs/reports/story_narration_fix_2026-11-04.md', recovery_export=export['output'])
         reparse.write(summary_path, summary)
     print(json.dumps(export, ensure_ascii=False), flush=True)
     return report, export

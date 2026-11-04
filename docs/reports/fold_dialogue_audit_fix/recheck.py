@@ -13,7 +13,7 @@ import sys
 
 ROOT = next(p for p in Path(__file__).resolve().parents if (p / "pyproject.toml").is_file())
 sys.path.insert(0, str(ROOT))
-AUDIT = ROOT / "doc/reports/fold_dialogue_sample_audit_2026-10-30"
+AUDIT = ROOT / "docs/reports/fold_dialogue_sample_audit_2026-10-30"
 
 
 def load_module(name):

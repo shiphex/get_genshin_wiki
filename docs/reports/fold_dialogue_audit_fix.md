@@ -93,9 +93,9 @@ legacy adapter 使用已有业务字段，不把 annotation 投影成角色台�
 
 ```powershell
 .venv/Scripts/python.exe -m pytest -q
-.venv/Scripts/python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/audit_sample.py
-.venv/Scripts/python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
-.venv/Scripts/python.exe doc/reports/fold_dialogue_audit_fix/recheck.py
+.venv/Scripts/python.exe docs/reports/fold_dialogue_sample_audit_2026-10-30/audit_sample.py
+.venv/Scripts/python.exe docs/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
+.venv/Scripts/python.exe docs/reports/fold_dialogue_audit_fix/recheck.py
 ```
 
 原 `reviewer_check_events.py` 刻意将黑幕显示文字拼入序列用于第一轮定位；如今《开火！玩具战争》

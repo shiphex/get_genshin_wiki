@@ -54,12 +54,12 @@
 补修结果：175 passed / 18 subtests passed；原审计 F1–F4 全部 PASS，独立事件序列
 逐条匹配（343/68、140/19、13/5、17/4）。原 12 页与 ZIP 及保存对白一致；三个新增
 保留样本独立复查后未留下已确认的重要问题。837 页离线重解析，51 个注释单元持久化，
-5,963 个原始文件哈希不变。详细命令和明确限制见 `doc/reports/fold_dialogue_audit_fix.md`。
+5,963 个原始文件哈希不变。详细命令和明确限制见 `docs/reports/fold_dialogue_audit_fix.md`。
 
 ## 第二轮文档/UI 误分类补修（2026-11-04）
 
 沿当前 `develop/v2.3` 未提交修改继续，保持原先在指定工作区直接修复的执行方式。
-需求来源：`doc/reports/fold_dialogue_sample_recheck_2026-10-31.md` 的 N1。
+需求来源：`docs/reports/fold_dialogue_sample_recheck_2026-10-31.md` 的 N1。
 
 - [x] 复现原 11 条及同页“书柜上的纸张”误分类；全套基线 175 passed / 18 subtests passed。
 - [x] 冻结两个 ZIP 字节一致的完整页面；新增独立字面预期测试，观察 20 failed / 7 passed。
@@ -74,4 +74,4 @@
 类型/说话者/全文/来源复验通过；离线重跑 837 份任务记录，最终 6 页共 45 行改变，
 均完整保留原标签与正文，3 页相关角色列表同步清除文档/UI 标签。5,963 个原始文件哈希不变。
 独立审查补充了纯黑幕正文保护；全量差异核对补充了不完整说话者引号保护，
-4 个真实保留页业务记录与修复前完全一致。详见 `doc/reports/document_ui_fix_2026-11-04.md`。
+4 个真实保留页业务记录与修复前完全一致。详见 `docs/reports/document_ui_fix_2026-11-04.md`。

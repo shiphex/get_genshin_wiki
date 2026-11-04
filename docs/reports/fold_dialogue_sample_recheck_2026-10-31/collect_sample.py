@@ -16,7 +16,7 @@ SAMPLES = {
 
 
 def run():
-    previous = ROOT / 'doc/reports/fold_dialogue_sample_audit_2026-10-30/audit_sample.py'
+    previous = ROOT / 'docs/reports/fold_dialogue_sample_audit_2026-10-30/audit_sample.py'
     spec = importlib.util.spec_from_file_location('original_sample_collector', previous)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

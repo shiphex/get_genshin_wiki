@@ -2,7 +2,7 @@
 
 ## 项目目标
 
-当前发布版本：`2.2.0`。版本元数据与锁文件保持一致，发布说明见 `doc/releases/V2.2.0.md`。
+当前发布版本：`2.2.0`。版本元数据与锁文件保持一致，发布说明见 `docs/releases/V2.2.0.md`。
 
 本项目用于抓取并解析 bilibili 原神 Wiki（`https://wiki.biligame.com/ys/`）的数据，输出原始页面 payload 与结构化 JSON，供后续数据清洗、检索、训练和验证使用。
 
@@ -28,17 +28,17 @@
 
 ## 当前推荐文档入口
 
-- 统一操作入口：`doc/guide/unified_operation_guide.md`
-- 架构说明：`doc/project_architecture.md`
-- 分项指南：`doc/guide/*.md`
-- 历史开发记录：`doc/worktree_logs/*.md`
-- 冻结快照恢复：`doc/guide/snapshot_recovery_guide.md`
-- 发布说明：`doc/releases/*.md`
+- 统一操作入口：`docs/guide/unified_operation_guide.md`
+- 架构说明：`docs/project_architecture.md`
+- 分项指南：`docs/guide/*.md`
+- 历史开发记录：`docs/worktree_logs/*.md`
+- 冻结快照恢复：`docs/guide/snapshot_recovery_guide.md`
+- 发布说明：`docs/releases/*.md`
 
 说明：
 
-- `doc/guide/*.md` 中有不少历史分项说明，但统一执行路径与命令应以 `unified_operation_guide.md` 为准。
-- `doc/worktree_logs/` 是历史 worktree 日志，不应继续作为“当前怎么操作”的权威来源。
+- `docs/guide/*.md` 中有不少历史分项说明，但统一执行路径与命令应以 `unified_operation_guide.md` 为准。
+- `docs/worktree_logs/` 是历史 worktree 日志，不应继续作为“当前怎么操作”的权威来源。
 
 ## 代码结构认知
 
@@ -112,9 +112,9 @@ python main.py ...
 
 更新项目能力时，至少同步检查以下文档是否需要改：
 
-- `doc/guide/unified_operation_guide.md`
-- `doc/project_architecture.md`
-- 与该能力直接相关的 `doc/guide/*.md`
+- `docs/guide/unified_operation_guide.md`
+- `docs/project_architecture.md`
+- 与该能力直接相关的 `docs/guide/*.md`
 - `CLAUDE.md`
 
 写文档时必须遵守：
@@ -133,7 +133,7 @@ python main.py ...
 
 ## 当前测试状态
 
-本分支已修复 `tests/test_cli.py` 的无效 import 括号，恢复完整测试收集，并新增冻结来源恢复测试。当前状态必须以实际执行 `python -m pytest -q` 为准；最终验收记录见 `doc/reports/snapshot_recovery_2026-10-10.md`。
+本分支已修复 `tests/test_cli.py` 的无效 import 括号，恢复完整测试收集，并新增冻结来源恢复测试。当前状态必须以实际执行 `python -m pytest -q` 为准；最终验收记录见 `docs/reports/snapshot_recovery_2026-10-10.md`。
 
 V2.2.0 的验证基线为 122 passed / 18 subtests passed。文档更新不能自动将历史 TODO 或未支持规则标为已验收。
 
@@ -143,13 +143,13 @@ V2.2.0 的验证基线为 122 passed / 18 subtests passed。文档更新不能�
 - `tools/recover_snapshot.py --offline` 只读解析本地快照，不初始化 crawler 或联网补依赖。
 - `text_units.jsonl` 是来源与分支的权威输出；旧业务数组是兼容投影。
 - 折叠剧情、HTML 对话边界和章节前导对白由共享恢复层处理；不要改用会删除模板的纯文本章节作为剧情来源。
-- 未标记的折叠换行片段保留为旁白并诊断；旧 parsed 和汇总必须重解析，不能使用 resume 跳过。0605 验收见 `doc/reports/fold_dialogue_2026-10-30.md`。
-- 第一轮 0605 语义验收已被 12 页独立审计否决，后续补修与限制以 `doc/reports/fold_dialogue_audit_fix.md` 为准，不能把全套测试通过写成全库语义无遗漏。
+- 未标记的折叠换行片段保留为旁白并诊断；旧 parsed 和汇总必须重解析，不能使用 resume 跳过。0605 验收见 `docs/reports/fold_dialogue_2026-10-30.md`。
+- 第一轮 0605 语义验收已被 12 页独立审计否决，后续补修与限制以 `docs/reports/fold_dialogue_audit_fix.md` 为准，不能把全套测试通过写成全库语义无遗漏。
 - 台词附着黑幕单独保存为 recovery annotation，excluded_spans / speaker_excluded_spans 用于重放和保留来源；业务对话不混入说明。文档明细保留为旁白，空冒号后缀不静默返回。
-- 阅读动作、文档物件标签和有配对引号的整句引用按行识别为旁白，保留标签全文；不将混合折叠整体改为文档。不完整角色名引号保留并诊断，见 `doc/reports/document_ui_fix_2026-11-04.md`。
+- 阅读动作、文档物件标签和有配对引号的整句引用按行识别为旁白，保留标签全文；不将混合折叠整体改为文档。不完整角色名引号保留并诊断，见 `docs/reports/document_ui_fix_2026-11-04.md`。
 - 输入与现有 RAG 不修改；输出写新的 `data/recovery/` 目录，未知规则和缺来源必须保留。
-- 剧情旁白在恢复层用 `narration_kind` 区分 narrative/document/interface/unknown，文档连续段落用 document_id 关联；旁白没有角色身份。未知分类保留诊断和未知来源，业务格式不增加字段，见 `doc/reports/story_narration_fix_2026-11-04.md`。
-- 使用与限制见 `doc/guide/snapshot_recovery_guide.md`。
+- 剧情旁白在恢复层用 `narration_kind` 区分 narrative/document/interface/unknown，文档连续段落用 document_id 关联；旁白没有角色身份。未知分类保留诊断和未知来源，业务格式不增加字段，见 `docs/reports/story_narration_fix_2026-11-04.md`。
+- 使用与限制见 `docs/guide/snapshot_recovery_guide.md`。
 
 ## 约束
 

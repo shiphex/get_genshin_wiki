@@ -90,19 +90,19 @@
 
 ```powershell
 # 原 F1–F4：本轮退出码 0
-.\.venv\Scripts\python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
+.\.venv\Scripts\python.exe docs/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
 
 # 相关测试：本轮 87 passed
 .\.venv\Scripts\python.exe -m pytest tests/test_document_dialogue.py tests/test_audit_fixes.py tests/test_fold_dialogue.py -q
 
 # 从原文重建12条已知修复预期、两个正常对照，并对4个新样本取证：本轮退出码0
-.\.venv\Scripts\python.exe doc/reports/document_ui_sample_recheck_2026-11-04/verify_sample.py
+.\.venv\Scripts\python.exe docs/reports/document_ui_sample_recheck_2026-11-04/verify_sample.py
 
 # 六条公告的独立语义要求：当前REJECT，退出码1
-.\.venv\Scripts\python.exe doc/reports/document_ui_sample_recheck_2026-11-04/check_announcements.py
+.\.venv\Scripts\python.exe docs/reports/document_ui_sample_recheck_2026-11-04/check_announcements.py
 
 # 两个角色页的完整序列、已有旁白和公告语义证据；仅取证，不自动判为通过
-.\.venv\Scripts\python.exe doc/reports/document_ui_sample_recheck_2026-11-04/review_character_samples.py .uv-cache/independent-sample-audit-2026-11-04/reviewer_new_character_evidence.json
+.\.venv\Scripts\python.exe docs/reports/document_ui_sample_recheck_2026-11-04/review_character_samples.py .uv-cache/independent-sample-audit-2026-11-04/reviewer_new_character_evidence.json
 ```
 
 采集脚本需要原 ZIP 位于仓库上级的 `genshin_wiki_data/genshin_wiki_data_20260605.zip`。脚本只写 `.uv-cache/independent-sample-audit-2026-11-04/` 审计证据，不更新业务数据。

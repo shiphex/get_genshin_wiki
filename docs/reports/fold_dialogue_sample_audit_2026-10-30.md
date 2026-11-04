@@ -141,13 +141,13 @@
 
 ```powershell
 # 12 页：与原 ZIP 对应成员核对、重新读取当前代码的结果、来源清单
-.\.venv\Scripts\python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/audit_sample.py
+.\.venv\Scripts\python.exe docs/reports/fold_dialogue_sample_audit_2026-10-30/audit_sample.py
 
 # 4 个活动任务：完全独立于生产解析器的角色/选项序列预期
-.\.venv\Scripts\python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/reviewer_check_events.py
+.\.venv\Scripts\python.exe docs/reports/fold_dialogue_sample_audit_2026-10-30/reviewer_check_events.py
 
 # 已确认的 4 类验收要求；当前应输出 4 个 FAIL、REJECT，退出码 1
-.\.venv\Scripts\python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
+.\.venv\Scripts\python.exe docs/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
 ```
 
 首个脚本需要原 ZIP 位于仓库上级的 `genshin_wiki_data/genshin_wiki_data_20260605.zip`。第二、三个脚本只需要这些样本的本地原页和 parsed。脚本在 `.uv-cache/independent-sample-audit/` 写审计证据，不写输入和生产数据。样本清单、原页/产物哈希和当时的逐条发现另保存在同目录的 `summary.json`、`findings.json`；这些是验收时的固定记录，复跑的新结果在 `.uv-cache/`。

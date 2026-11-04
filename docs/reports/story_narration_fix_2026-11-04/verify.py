@@ -24,12 +24,12 @@ def module(name, relative):
 
 
 def run():
-    notices = module('notices', 'doc/reports/document_ui_sample_recheck_2026-11-04/check_announcements.py').run()
+    notices = module('notices', 'docs/reports/document_ui_sample_recheck_2026-11-04/check_announcements.py').run()
     assert notices['failed_document_rows'] == 0
-    sample = module('sample', 'doc/reports/document_ui_sample_recheck_2026-11-04/verify_sample.py').run()
+    sample = module('sample', 'docs/reports/document_ui_sample_recheck_2026-11-04/verify_sample.py').run()
     assert sample['known_rows']['pass']
     assert all(x['speaker_and_content_sequence_equal'] and x['option_order_equal'] for x in sample['controls'])
-    character = module('character', 'doc/reports/document_ui_sample_recheck_2026-11-04/review_character_samples.py')
+    character = module('character', 'docs/reports/document_ui_sample_recheck_2026-11-04/review_character_samples.py')
     characters = [character.audit(*case) for case in character.CASES]
     assert all(c['normal_dialogue_sequence_equal'] and c['numbered_option_sequence_equal'] for c in characters)
     for c, (_, notices_at, narration_at) in zip(characters, character.CASES):

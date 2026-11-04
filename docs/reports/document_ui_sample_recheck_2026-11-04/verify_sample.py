@@ -66,7 +66,7 @@ def known_rows():
 def controls():
     # This independently written renderer supports exactly the inline syntax
     # manually read in these two controls. It does not import production code.
-    display = module('november_source_display', 'doc/reports/fold_dialogue_sample_recheck_2026-10-31/check_main_samples.py').visible
+    display = module('november_source_display', 'docs/reports/fold_dialogue_sample_recheck_2026-10-31/check_main_samples.py').visible
     results = []
     for family, suffix in [('archon-quests', 'fbcab0e3d8'), ('event-quests', '763649e7cd')]:
         path, payload, title, text, saved = load(family, suffix)
@@ -104,7 +104,7 @@ def controls():
 
 def run():
     OUT.mkdir(parents=True, exist_ok=True)
-    collector = module('november_sample_collector', 'doc/reports/fold_dialogue_sample_audit_2026-10-30/audit_sample.py')
+    collector = module('november_sample_collector', 'docs/reports/fold_dialogue_sample_audit_2026-10-30/audit_sample.py')
     collector.SAMPLES, collector.OUT = SAMPLES, OUT
     inputs = {}
     for family, titles in SAMPLES.items():

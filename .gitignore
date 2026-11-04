@@ -25,7 +25,7 @@ htmlcov/
 /tmp/
 
 # Generated audit and verification results; keep report Markdown and scripts.
-doc/reports/**/*.json
+docs/reports/**/*.json
 
 # Generated output data
 data/

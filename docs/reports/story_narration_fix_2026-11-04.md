@@ -67,11 +67,11 @@
 
 ```powershell
 .venv/Scripts/python.exe -m pytest -q
-.venv/Scripts/python.exe doc/reports/story_narration_fix_2026-11-04/verify.py
-.venv/Scripts/python.exe doc/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
+.venv/Scripts/python.exe docs/reports/story_narration_fix_2026-11-04/verify.py
+.venv/Scripts/python.exe docs/reports/fold_dialogue_sample_audit_2026-10-30/check_findings.py
 
 # 默认生成差异和新的恢复导出；--apply 会先备份，再更新任务数据及汇总。
-.venv/Scripts/python.exe doc/reports/story_narration_fix_2026-11-04/reparse.py
+.venv/Scripts/python.exe docs/reports/story_narration_fix_2026-11-04/reparse.py
 ```
 
 历史审计器的“全部冒号行均为人物”和“原旁白集合完全不变”指标不再适用于公告已归旁白的结果。本轮验证从原文重建修正后的旁白序列，不修改历史报告或将旧指标误报为通过。

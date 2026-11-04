@@ -40,7 +40,7 @@ python main.py all archon-quests --resume
 python tools/batch_character_quests.py --resume
 ```
 
-`python main.py all` 不带实体时处理全部 17 类；`--page-limit N` 对每个实体分别限制页面数；`--resume` 仅适用于魔神任务与角色任务。更多参数见[统一操作指南](doc/guide/unified_operation_guide.md)。
+`python main.py all` 不带实体时处理全部 17 类；`--page-limit N` 对每个实体分别限制页面数；`--resume` 仅适用于魔神任务与角色任务。更多参数见[统一操作指南](docs/guide/unified_operation_guide.md)。
 
 单页调试示例：
 
@@ -67,7 +67,7 @@ uv run --offline --no-sync python tools/recover_snapshot.py --input-root "snapsh
 > [!NOTE]
 > 离线运行前应准备好依赖；需要补齐依赖时应先完成环境准备。已有非空恢复目录不会被覆盖，重复实验请换一个输出目录。
 
-恢复输出包括权威 `text_units.jsonl`、场景、候选节点、依赖和问题清单、兼容 parsed、摘要及输入 / 输出哈希清单。来源范围使用解码 WikiText 的零基半开字符区间；下游应按来源、场景、分支及消费上下文切分。接口见[离线恢复指南](doc/guide/snapshot_recovery_guide.md)。
+恢复输出包括权威 `text_units.jsonl`、场景、候选节点、依赖和问题清单、兼容 parsed、摘要及输入 / 输出哈希清单。来源范围使用解码 WikiText 的零基半开字符区间；下游应按来源、场景、分支及消费上下文切分。接口见[离线恢复指南](docs/guide/snapshot_recovery_guide.md)。
 
 ## 命令入口
 
@@ -100,7 +100,7 @@ python tools/refresh_parsed_offline.py
 python tools/refresh_parsed_offline.py --apply
 ```
 
-工具会核对版本之外的业务字段、来源哈希、两次完整恢复的一致性及旧恢复结果的文本/分支；异常时拒绝覆盖或回滚。运行目录、版本来源、缺失清单和备份位置见 `.uv-cache/entity-versions/<运行标识>/`；应用后的摘要位于 `data/reports/entity-versions-latest.json`。详情见[统一指南](doc/guide/unified_operation_guide.md)。
+工具会核对版本之外的业务字段、来源哈希、两次完整恢复的一致性及旧恢复结果的文本/分支；异常时拒绝覆盖或回滚。运行目录、版本来源、缺失清单和备份位置见 `.uv-cache/entity-versions/<运行标识>/`；应用后的摘要位于 `data/reports/entity-versions-latest.json`。详情见[统一指南](docs/guide/unified_operation_guide.md)。
 
 若旧业务 JSON 落后于本轮改动前的解析器，经确认后可用 `--baseline-business-root <已核验的基线目录>` 接受已复现的既有变化。基线必须绑定相同原始输入、解析器来源和文件哈希；新解析的非版本字段须与基线完全一致。每项接受的差异另存报告，其他差异仍阻断覆盖。
 
@@ -128,18 +128,18 @@ python tools/refresh_parsed_offline.py --apply
 python -m pytest -q
 ```
 
-V2.2.0 发布验收包含 **122 项测试和 18 个子测试**。冻结快照实验处理 5,946 页，导出 172,136 个单元；两次运行的 5,952 个输出文件逐字节一致，11,439 个输入文件哈希不变。详细证据见[实验报告](doc/reports/snapshot_recovery_2026-10-10.md)。
+V2.2.0 发布验收包含 **122 项测试和 18 个子测试**。冻结快照实验处理 5,946 页，导出 172,136 个单元；两次运行的 5,952 个输出文件逐字节一致，11,439 个输入文件哈希不变。详细证据见[实验报告](docs/reports/snapshot_recovery_2026-10-10.md)。
 
 这些检查证明已导出内容可回查、重放和重复运行。仍有未知模板、未支持正文别名、缺失来源和 150 个未解决分支归属；候选节点与中文字符的恢复比例不代表全游戏剧情覆盖率。RAG 接入需独立验收，现有 RAG 不自动切换。
 
 ## 文档与目录
 
-- [统一操作指南](doc/guide/unified_operation_guide.md)：在线操作及当前 CLI 边界。
-- [离线恢复指南](doc/guide/snapshot_recovery_guide.md)：输入输出、来源与分支契约。
-- [角色任务指南](doc/guide/character-quests_guide.md)：页面身份、索引与升级。
-- [项目架构](doc/project_architecture.md)：模块、数据流与存储。
-- [V2.2.0 发布说明](doc/releases/V2.2.0.md)：版本变化及兼容性。
-- `doc/worktree_logs/`：历史功能规格，不作为当前操作入口。
+- [统一操作指南](docs/guide/unified_operation_guide.md)：在线操作及当前 CLI 边界。
+- [离线恢复指南](docs/guide/snapshot_recovery_guide.md)：输入输出、来源与分支契约。
+- [角色任务指南](docs/guide/character-quests_guide.md)：页面身份、索引与升级。
+- [项目架构](docs/project_architecture.md)：模块、数据流与存储。
+- [V2.2.0 发布说明](docs/releases/V2.2.0.md)：版本变化及兼容性。
+- `docs/worktree_logs/`：历史功能规格，不作为当前操作入口。
 
 ```text
 get_genshin_wiki/
@@ -149,7 +149,7 @@ get_genshin_wiki/
 │  └─ recovery/            # 来源追踪、分支、显示规则和独立校验
 ├─ tools/                  # 批处理、索引、离线恢复
 ├─ tests/                  # 单元测试与冻结回归页面
-├─ doc/                    # 指南、架构、报告、发布说明及历史规格
+├─ docs/                   # 指南、架构、报告、发布说明及历史规格
 ├─ data/                   # 本地生成数据，Git 忽略
 └─ refer/                  # 参考探索代码
 ```

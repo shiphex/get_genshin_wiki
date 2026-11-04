@@ -149,7 +149,7 @@ def run(apply=False, baseline_backup=None):
             'record_counts': counts, 'unique_pages_checked': len({p.name for p in new_records}),
             'raw_files_hash_verified': len(raw_hashes), 'annotation_count': len(notes),
             'issues_by_rule': report['issues_by_rule'],
-            'latest_fix_report': 'doc/reports/document_ui_fix_2026-11-04.md'})
+            'latest_fix_report': 'docs/reports/document_ui_fix_2026-11-04.md'})
     print(json.dumps({k:v for k,v in report.items() if k not in ('issues_by_rule', 'changes', 'related_character_updates')}, ensure_ascii=False), flush=True)
     return report
 

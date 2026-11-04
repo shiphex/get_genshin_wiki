@@ -1,6 +1,6 @@
 # 统一数据获取操作指南
 
-本指南整合 `doc/guide/` 下现有分项文档，并以当前仓库中的 `get_genshin_wiki/cli.py` 为准说明如何抓取、解析和检查数据。
+本指南整合 `docs/guide/` 下现有分项文档，并以当前仓库中的 `get_genshin_wiki/cli.py` 为准说明如何抓取、解析和检查数据。
 
 结论先行：
 
@@ -436,6 +436,6 @@ V2.2.0 的角色任务批处理、独立索引与离线恢复以 `source_title` 
 其中的专用脚本默认只生成审计产物，`--apply` 会先备份，再更新任务产物及汇总。
 
 剧情旁白与非角色文本的后续修正见 [执行报告](../reports/story_narration_fix_2026-11-04.md)。
-`python doc/reports/story_narration_fix_2026-11-04/reparse.py` 默认仅生成审计差异和新的
+`python docs/reports/story_narration_fix_2026-11-04/reparse.py` 默认仅生成审计差异和新的
 恢复 JSONL；加 `--apply` 会先备份并更新三个任务数据族及汇总。细分字段仅在恢复层，
 现有业务 JSON 保持原格式。
