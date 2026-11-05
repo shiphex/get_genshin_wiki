@@ -1,6 +1,6 @@
 # get_genshin_wiki
 
-版本：**V2.2.0** · Python **3.11+**
+版本：**V2.3.1** · Python **3.11+**
 
 从 [bilibili 原神 Wiki](https://wiki.biligame.com/ys/) 抓取页面、解析 WikiText 并保存结构化 JSON，也支持从冻结快照中完全离线恢复带来源、场景和分支的中文文本。
 
@@ -112,7 +112,15 @@ python tools/refresh_parsed_offline.py --apply
 | 冻结恢复的独立实验输出 | `data/recovery/<新目录>/` |
 | 在线验证报告 | `data/reports/` |
 
-本地数据归档统一放在仓库上级的 `genshin_wiki_data/` 目录。ZIP 根目录对应 `data/` 的内容；`genshin_wiki_data_20260605_261104.zip` 包含 `recovery/full-offline-20261104/` 的离线重解析结果。
+历史数据归档放在仓库上级的 `genshin_wiki_data/` 目录，ZIP 根目录对应 `data/` 的内容。经本次检查，`genshin_wiki_data_20260605_261104.zip` 未包含 recovery；V2.3.1 新包独立保存，并包含 `recovery/full-offline-v2.3.1/`，以包内清单和 SHA-256 区分快照。
+
+V2.3.1 修复 ruby 回退标记导致的漏句，以及剧情对白半角冒号的角色归属。完整离线重建命令：
+
+```powershell
+python tools/rebuild_parser_snapshot.py --source-zip <原包.zip> --output-root <不存在的新目录>
+```
+
+工具校验指定原包哈希，独立复现旧解析器并审计全部业务差异；不改原包、现有 data 或 RAG。`--business-only` 仅用于暂存审计，不能作为完整交付验收。详见 [V2.3.1 发布说明](docs/releases/V2.3.1.md)。
 
 文件名仍采用安全标题与 SHA1 后缀。V2.2.0 的角色任务批处理、独立索引与离线恢复使用完整原标题作为存储键和索引引用，展示名保留在“任务名称”中，并增加 `source_title`、`page_id` 及结构化任务引用。
 

@@ -2,3 +2,4 @@
 tests/fixtures/recovery/pages/*.json -text
 # Version fixtures retain source CRLF bytes; CR is part of the line ending.
 tests/fixtures/versions/*.json -text whitespace=cr-at-eol
+tests/fixtures/parser_v231/*.json -text whitespace=cr-at-eol

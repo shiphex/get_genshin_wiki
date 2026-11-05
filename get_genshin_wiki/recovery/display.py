@@ -44,7 +44,7 @@ def display_text(raw: str, *, unknown: list[str] | None = None) -> str:
                 parts.append("\n")
             elif name in DISPLAY_TAGS:
                 parts.append(display_text(str(node.contents), unknown=unknown))
-            elif name in {"rt", "ref", "references", "style", "script"}:
+            elif name in {"rt", "rp", "ref", "references", "style", "script"}:
                 continue
             else:
                 if unknown is not None:
