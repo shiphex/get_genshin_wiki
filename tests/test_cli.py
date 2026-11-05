@@ -241,7 +241,7 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("英文", output["任务标题"])
         self.assertNotIn("任务奖励", output)
         self.assertNotIn("奖励摘要", output)
-        self.assertNotIn("所属版本", output)
+        self.assertEqual("", output["所属版本"])
         self.assertTrue(self.store.exists("parsed/archon-quests", "鸟瞰风物"))
 
     def test_parse_chronicle_reads_page_payload_and_persists_result(self) -> None:

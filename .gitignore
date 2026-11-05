@@ -1,6 +1,31 @@
 __pycache__/
 *.py[cod]
 *.py[cod].*
+.pytest_cache/
+.uv-cache/
+.venv/
+
+# Local test, type-checker and linter artifacts.
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Disposable logs, scratch files and editor backups.
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+.tmp/
+/tmp/
+
+# Generated audit and verification results; keep report Markdown and scripts.
+docs/reports/**/*.json
 
 # Generated output data
 data/

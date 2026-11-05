@@ -73,8 +73,8 @@ python main.py all weapons
 
 ### Phase 4: 文档更新
 
-- [x] 更新 `doc/guide/unified_operation_guide.md`
-- [x] 更新 `doc/project_architecture.md`
+- [x] 更新 `docs/guide/unified_operation_guide.md`
+- [x] 更新 `docs/project_architecture.md`
 - [x] 更新 `CLAUDE.md`
 
 ## 验收标准

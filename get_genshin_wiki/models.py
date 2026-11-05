@@ -149,10 +149,12 @@ class ParsedPage:
     sections: list[ParsedSection]
     templates: dict[str, list[dict[str, str]]]
     wikitext: str
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """将解析结果转换为字典格式，便于 JSON 序列化。"""
         return {
+            "所属版本": self.version,
             "title": self.title,
             "page_id": self.page_id,
             "summary": self.summary,
@@ -226,10 +228,12 @@ class BookRecord:
     volumes: list[BookVolume] = field(default_factory=list)
     categories: list[str] = field(default_factory=list)
     page_id: int | str | None = None
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """将书籍记录转换为字典格式，便于 JSON 序列化。"""
         return {
+            "所属版本": self.version,
             "title": self.title,
             "genre": self.genre,
             "country": self.country,
@@ -269,10 +273,12 @@ class NorthLibraryRecord:
     library_category: str = ""
     category_candidates: list[str] = field(default_factory=list)
     nodes: list[NorthLibraryNode] = field(default_factory=list)
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the North Library record for JSON output."""
         return {
+            "所属版本": self.version,
             "title": self.title,
             "page_id": self.page_id,
             "summary": self.summary,
@@ -414,10 +420,12 @@ class CharacterRecord:
     sections: list[ParsedSection] = field(default_factory=list)
     templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     page_id: int | str | None = None
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """将角色记录转换为字典格式，便于 JSON 序列化。"""
         return {
+            "所属版本": self.version,
             "title": self.title,
             "summary": self.summary,
             "attributes": self.attributes,
@@ -469,6 +477,7 @@ class CharacterRecord:
             power_content = self.power_record.content
 
         return {
+            "所属版本": self.version,
             "角色": {
                 "名称": self.title,
                 "称号": self._join_values(self.titles),
@@ -585,10 +594,12 @@ class ChroniclePageRecord:
     sections: list[ChronicleSectionRecord] = field(default_factory=list)
     categories: list[str] = field(default_factory=list)
     page_id: int | str | None = None
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the chronicle page record for JSON output."""
         return {
+            "所属版本": self.version,
             "title": self.title,
             "intro": self.intro,
             "sections": [section.to_dict() for section in self.sections],
@@ -614,10 +625,12 @@ class FoodRecord:
     sections: list[ParsedSection] = field(default_factory=list)
     templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     page_id: int | str | None = None
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the food record for JSON output."""
         return {
+            "所属版本": self.version,
             "名称": self.title,
             "类型": self.type,
             "介绍": {
@@ -647,10 +660,12 @@ class WildlifeRecord:
     sections: list[ParsedSection] = field(default_factory=list)
     templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     page_id: int | str | None = None
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the wildlife record for JSON output."""
         return {
+            "所属版本": self.version,
             "名称": self.title,
             "类型": self.type,
             "种类": self.species,
@@ -679,10 +694,12 @@ class QuestItemRecord:
     sections: list[ParsedSection] = field(default_factory=list)
     templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     page_id: int | str | None = None
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the quest item record for JSON output."""
         return {
+            "所属版本": self.version,
             "名称": self.title,
             "类型": self.type,
             "描述": self.description,
@@ -783,6 +800,7 @@ class ArchonQuestRecord:
     def to_dict(self) -> dict[str, Any]:
         """Serialize the archon quest record for JSON output."""
         return {
+            "所属版本": self.version,
             "\u4efb\u52a1\u6807\u9898": {
                 "\u4e2d\u6587": self.title,
             },
@@ -864,10 +882,12 @@ class ItemRecord:
     sections: list[ParsedSection] = field(default_factory=list)
     templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     page_id: int | str | None = None
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the item record for JSON output."""
         return {
+            "所属版本": self.version,
             "名称": self.title,
             "类型": self.type,
             "来源": self.source,
@@ -889,10 +909,12 @@ class MaterialRecord:
     sections: list[ParsedSection] = field(default_factory=list)
     templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     page_id: int | str | None = None
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the material record for JSON output."""
         return {
+            "所属版本": self.version,
             "名称": self.title,
             "类型": self.type,
             "来源": self.source,
@@ -912,10 +934,12 @@ class NameCardRecord:
     sections: list[ParsedSection] = field(default_factory=list)
     templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     page_id: int | str | None = None
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the name card record for JSON output."""
         return {
+            "所属版本": self.version,
             "名称": self.title,
             "获取方式": self.obtain_method,
             "描述": self.description,
@@ -934,10 +958,12 @@ class SecretItemRecord:
     sections: list[ParsedSection] = field(default_factory=list)
     templates: dict[str, list[dict[str, str]]] = field(default_factory=dict)
     page_id: int | str | None = None
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the secret item record for JSON output."""
         return {
+            "所属版本": self.version,
             "名称": self.title,
             "类型": self.type,
             "介绍": self.description,
@@ -1078,10 +1104,12 @@ class WeaponRecord:
     forging_blueprint: str = "不可锻造获取"
     refining_material: str = "不可使用材料精炼"
     story: str = ""
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """将武器记录转换为字典格式，便于 JSON 序列化。"""
         return {
+            "所属版本": self.version,
             "名称": self.title,
             "类型": self.weapon_type,
             "介绍": self.description,
@@ -1150,10 +1178,12 @@ class ArtifactSetRecord:
     title: str
     obtaining_method: str = ""
     pieces: list[ArtifactPieceRecord] = field(default_factory=list)
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """将圣遗物套装记录转换为字典格式，便于 JSON 序列化。"""
         result = {
+            "所属版本": self.version,
             "名称": self.title,
             "获取方式": self.obtaining_method,
         }
@@ -1197,10 +1227,12 @@ class MonsterRecord:
     location: str
     drop_materials: list[str] = field(default_factory=list)
     description: str = ""
+    version: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         """将怪物记录转换为字典格式，便于 JSON 序列化。"""
         return {
+            "所属版本": self.version,
             "title": self.title,
             "monster_class": self.monster_class,
             "monster_category": self.monster_category,

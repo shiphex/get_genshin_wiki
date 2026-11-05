@@ -1,0 +1,11 @@
+{
+  "archive": "genshin_wiki_data_20260605.zip",
+  "archive_sha256": "2def79b5c3b9735ad26fc6eec715318599f08c2c98e18843a54edcee1921350f",
+  "raw_file": "pages/尾声的尾声__e4ed1de066.json",
+  "file_sha256": "6e4b9f0e4e7566e0639e81ed86169674789be485977fd74dbf83c658ed38a96d",
+  "note": "Complete unmodified MediaWiki payload copied from the supplied 2026-06-05 snapshot. ZIP filenames decoded from GBK; payload bytes unchanged.",
+  "normal_page": {
+    "raw_file": "pages/鸟瞰风物__07a654dfbc.json",
+    "file_sha256": "da6c33520249ae46e291c374be29056006647382bad6c06f2ca1ba77fa1ac5b3"
+  }
+}

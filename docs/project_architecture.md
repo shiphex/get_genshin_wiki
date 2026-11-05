@@ -44,13 +44,14 @@ get_genshin_wiki/
 │  ├─ parsed/
 │  ├─ recovery/
 │  └─ reports/
-├─ doc/
+├─ docs/
 │  ├─ guide/
 │  │  ├─ unified_operation_guide.md
 │  │  └─ *.md
 │  ├─ project_architecture.md
 │  ├─ reports/
 │  ├─ releases/
+│  ├─ superpowers/plans/
 │  ├─ todo_logs.md
 │  └─ worktree_logs/
 ├─ get_genshin_wiki/
@@ -74,11 +75,19 @@ get_genshin_wiki/
 
 说明：
 
-- `doc/guide/` 下保留了分项指南；`doc/guide/unified_operation_guide.md` 是新的统一入口。
-- `doc/worktree_logs/` 记录历史 worktree 的开发日志，适合追溯背景，不应再作为当前命令入口文档。
+- `docs/guide/` 下保留了分项指南；`docs/guide/unified_operation_guide.md` 是新的统一入口。
+- `docs/worktree_logs/` 记录历史 worktree 的开发日志，适合追溯背景，不应再作为当前命令入口文档。
 - `refer/` 是参考实现与探索脚本，不是生产代码路径。
 
 ## 3. 运行时分层
+
+### 实体版本与离线更新
+
+`versions.py` 提供共享主体版本提取与规范化，返回值、状态及原文位置证据。解析器将其接入所有主体模型，序列化时仅在实体根对象输出 `所属版本`；角色普通/精简格式均支持，子记录不增加属性。提取优先使用主体模板参数，对已识别的损坏查询语法支持受限原文参数回退；缺失和歧义不推断。
+
+`tools/refresh_parsed_offline.py` 负责冻结本地原始缓存、按现有命名空间重解析和维护任务汇总。它复用 `offline_guard` 和 `run_recovery`，在互不嵌套的暂存目录中生成两次完整恢复并校验确定性；版本之外的业务变化及旧恢复文本/分支差异会阻断应用。验证后备份并替换正式业务及 `recovery/full-offline-20261104`，检查并发修改、支持失败回滚，不触及其他恢复实验或历史 ZIP。
+
+对经确认的旧业务滞后，刷新工具可显式读取带输入指纹、解析器来源和文件哈希的独立业务基线，仅接受与其完全一致的非版本变化；逐项记录完整差异。逐目标替换后核对原目标哈希，最终原始缓存和恢复清单验收也位于回滚事务内。
 
 ### 3.1 配置与异常
 
@@ -311,8 +320,8 @@ V2.2.0 已修复原有 CLI 测试的导入语法错误。发布验证基线为 1
 - 优先使用 `python main.py` 编写命令示例，避免再写旧 worktree 专用路径。
 - 如需说明在线全量处理流程，优先使用 `python main.py all <entity>`，并解释各实体不同的上下文依赖；冻结来源恢复使用独立的离线入口。
 - 新增或更新分项能力时，应同步更新：
-  - `doc/guide/unified_operation_guide.md`
-  - `doc/project_architecture.md`
+  - `docs/guide/unified_operation_guide.md`
+  - `docs/project_architecture.md`
   - `CLAUDE.md`
 
 ## 9. 已知不一致与后续关注点
@@ -330,3 +339,39 @@ V2.2.0 已修复原有 CLI 测试的导入语法错误。发布验证基线为 1
 角色任务的业务模型保留展示名称，并增加 `source_title`、`page_id`。独立批处理、索引与离线恢复按完整原标题及身份处理存储和引用，批处理 resume 会重新解析缺少身份的旧汇总，组索引提供 `task_refs`。统一 CLI 的 `all character-quests` 仍按展示名处理存储、去重及 resume；它只复用部分辅助函数，尚未同步批处理的身份修复。
 
 离线输出和既有 raw / parsed 分开保存；已导出单元可重放不代表所有原文都已支持。未知节点、缺依赖、媒体文字和未解决分支仍进入机器清单，不调用模型猜测或补写。
+
+### 折叠剧情与换行边界
+
+任务业务入口（魔神、角色、活动）使用 `recovery/extract.py` 读取原始 AST，
+递归进入 `折叠` / `折叠框` 的 `内容` 或第二位置参数，再通过 `recovery/legacy.py`
+生成原有字段。不要将 `parse_sections()` 的 `strip_code()` 纯文本结果作为剧情权威来源，
+也不要重新接回只展开选项模板的旧 `_extract_archon_dialogues()` 路径。
+
+对话中的顶层 `<br>` 产生候选片段，分别识别显式说话者；无标记片段保留为 narration，
+并记录 `unattributed_break_fragment`。列表项中未重新标记说话者的换行沿用列表项范围；
+人物对话模板的显式角色参数和单条台词内的显示标签同样限定内容范围。
+整段对白被 HTML 包装时只在逻辑行起点进入容器，避免把台词中的冒号重新识别为人名。
+
+业务投影保留有有效文本的章节前导场景；任务描述模板和章节前导引用仍为 description，
+不生成额外任务流程。剧情区域外的折叠内容保留为 description 并记录 `fold_outside_story`，
+不凭冒号推断角色。诊断通过 `recover_page()['issues']` 获取，不增加业务 JSON 字段。
+
+剧情标题支持“后续剧情”等前缀变体；已处于剧情区时，更深的“与某人对话”标题是任务流程，
+不会重新设置父剧情边界。具有明细、账目、日志、留言、档案等文档语境的折叠按旁白保存，
+保留冒号前后的全文；冒号后为空的行也回退旁白并产生 `empty_speech_after_colon` 诊断。
+
+台词中附着的黑幕从业务台词分离，在恢复 API 中保存为 `annotation`。主单元的
+`excluded_spans` 标明排除的原文模板范围，`replay_unit()` 按该范围重放；
+`speaker_excluded_spans` 对应说话者中的编者补全请求。普通冒号对白和人物对话模板共用
+说话者处理，不删除儿童等语义限定词。无法确认的黑幕保留 `ambiguous_*` 诊断。
+书籍、故事等非对白正文不按台词注释清除黑幕。详见 [语义补修报告](reports/fold_dialogue_audit_fix.md)。
+
+文档/UI 的判断也作用于单行，不仅依赖折叠标题。阅读动作、文档标签、整句配对引文
+保留为带完整来源的 narration，混合折叠内后续对白不继承该分类。
+`classification_reason` 是恢复单元的可选解释字段；业务四字段不变。
+不完整角色名引号保留并诊断为 unresolved；详见 [第二轮补修](reports/document_ui_fix_2026-11-04.md)。
+
+剧情内 `narration` 由共享恢复层补充 `narration_kind` 与可选文档分组标识，
+分类和 `source_kind` 分别判断；显式旁白使用空说话者。未知文本保留并诊断，
+文档作用域继承到嵌套展示容器，公告板混合对白仍逐行识别。
+旧业务适配器不输出细分字段，权威 JSONL 的说明见 [恢复指南](guide/snapshot_recovery_guide.md)。

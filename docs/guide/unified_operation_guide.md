@@ -1,6 +1,6 @@
 # 统一数据获取操作指南
 
-本指南整合 `doc/guide/` 下现有分项文档，并以当前仓库中的 `get_genshin_wiki/cli.py` 为准说明如何抓取、解析和检查数据。
+本指南整合 `docs/guide/` 下现有分项文档，并以当前仓库中的 `get_genshin_wiki/cli.py` 为准说明如何抓取、解析和检查数据。
 
 结论先行：
 
@@ -40,6 +40,25 @@ python main.py store --help
 ```
 
 ## 2. 推荐入口：`python main.py all`
+
+### 已有缓存的完全离线刷新
+
+仅更新本地解析结果、无需重新抓取时使用以下独立入口。不要用在线 `all` 命令代替：
+
+```powershell
+python tools/refresh_parsed_offline.py --data-root data
+python tools/refresh_parsed_offline.py --data-root data --apply
+```
+
+默认暂存并验证，不改变正式数据。`--apply` 在全部验证通过后备份并覆盖现有 17 类 `parsed`、两个任务汇总，以及指定全量目录 `recovery/full-offline-20261104`。保留原始 `pages/categories/category_members`、其他恢复实验及历史 ZIP。`--work-root <新目录>` 可指定与数据根目录互不包含的暂存目录；默认使用 `.uv-cache/entity-versions/<运行标识>/`。
+
+所有实体根对象包含 `所属版本` 字符串，原页多版本保留原顺序并用顿号连接，数字版本和“月之…”不互转。版本缺失、无效或冲突为空字符串；不向分卷、部件、对白等子项新增字段，也不从食谱版本、正文数字、修改日期或关联活动推断。
+
+刷新使用本地语音、活动页和任务目录作为上下文，以完整原标题/页面身份关联单页和汇总；北陆图书馆已有分类发现信息作为缓存上下文保留。版本之外的业务差异、已有非空版本不一致或缺少主体原页会阻止覆盖。恢复过程沿用离线封网、来源重放和分支校验，完整输出生成两遍并比较字节；已有全量恢复的文本、分支和诊断必须保持。
+
+每次运行保存 `report.json`、`version_evidence.jsonl`、`unresolved_versions.json` 和输入哈希清单。应用时还保存 `backup.zip`、覆盖前状态、替换日志及旧目标；替换或落盘验证失败自动回滚。应用后的报告副本为 `data/reports/entity-versions-latest.json`。不使用 `resume` 跳过旧解析记录，不修改现有 RAG。
+
+默认不接受版本以外的变化。如果确认旧 JSON 尚未同步改动前解析器的既有结果，可以显式提供 `--baseline-business-root <目录>`。该目录按正式相对路径保存独立复现的业务结果，`baseline_manifest.json` 包含 `input_fingerprint_sha256`、`parser_source_sha256` 和 `files`（输出文件的相对路径、大小、SHA-256）；生成此清单时排除清单自身。工具先验证基线输入/文件哈希，再要求新结果的全部非版本字段与基线一致，已有非空版本冲突仍阻断。接受项的文件和字段进入运行报告，完整前后值及基线文件哈希写入 `accepted_existing_differences.json`。该参数不跳过差异检查，也不授权重新抓取。
 
 优先使用一体化流水线，而不是自己手写 PowerShell 循环。
 
@@ -402,3 +421,21 @@ python main.py store query parsed/character-quest-index "传说任务"
 不联网的冻结来源恢复使用 `tools/recover_snapshot.py --offline`，详见 [离线恢复指南](snapshot_recovery_guide.md)。该入口复用解析器，不使用下方抓取命令补依赖，也不覆盖现有 parsed 或 RAG。
 
 V2.2.0 的角色任务批处理、独立索引与离线恢复以 `source_title` 和 `page_id` 保存来源身份，存储键及索引中的 `tasks` 使用完整原标题，“任务名称”仍为展示名。旧汇总缺少来源身份时需重新解析；新旧结果应保存到不同目录。该身份保证不适用于仍按展示名处理的统一 CLI 角色任务路径。结构化引用见 [角色任务指南](character-quests_guide.md)。
+
+折叠剧情修复沿用现有业务字段，旧快照的 parsed / 汇总需要重新生成；`--resume` 会跳过
+旧记录，不能用于此次迁移。单页使用 `python main.py parse archon-quest "尾声的尾声"`。
+来源诊断通过 `recover_page()['issues']` 或独立离线恢复输出读取，详见
+[0605 折叠剧情验收报告](../reports/fold_dialogue_2026-10-30.md)。
+
+第一轮语义抽样未通过，后续修复和复验命令见 [独立审计补修报告](../reports/fold_dialogue_audit_fix.md)。
+恢复 API 会分离台词附着的黑幕 annotation，业务对话字段不增加注释键；
+直接读取 JSONL 的消费者需要识别 annotation 和 excluded_spans，详见离线恢复指南。
+
+文档/UI 行级分类补修后的冻结数据重生成和复验，见
+[2026-11-04 补修报告](../reports/document_ui_fix_2026-11-04.md)；
+其中的专用脚本默认只生成审计产物，`--apply` 会先备份，再更新任务产物及汇总。
+
+剧情旁白与非角色文本的后续修正见 [执行报告](../reports/story_narration_fix_2026-11-04.md)。
+`python docs/reports/story_narration_fix_2026-11-04/reparse.py` 默认仅生成审计差异和新的
+恢复 JSONL；加 `--apply` 会先备份并更新三个任务数据族及汇总。细分字段仅在恢复层，
+现有业务 JSON 保持原格式。

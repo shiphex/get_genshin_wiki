@@ -7,8 +7,8 @@ executor: /codex:rescue --model gpt-5.4 --effort xhigh
 ---
 ## 当前概要
 - 先以完成所有worktree分支的开发工作，并已经完成全部分支合并；
-- 每个分支的git-worktree-spec.md都移动到了doc\worktree_logs路径下并根据分支进行命名；
-- 每个分支工作的操作指南均保存在doc\guide路径下。
+- 每个分支的git-worktree-spec.md都移动到了docs\worktree_logs路径下并根据分支进行命名；
+- 每个分支工作的操作指南均保存在docs\guide路径下。
 
 ## 任务
 - [ ] 验证全部分支的合并工作是否完善，是否存在缺失或错误的内容；

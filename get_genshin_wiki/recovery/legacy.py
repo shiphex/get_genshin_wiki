@@ -6,7 +6,13 @@ from ..models import ArchonQuestDialogue, EventQuestDialogueEntry, EventQuestSte
 
 def dialogue_scenes(result):
     scenes = [s for s in result["scenes"] if s["body_type"] == "dialogue"]
-    return [s for s in scenes if not (s["chapter"] and s["title"] == s["chapter"] and any(t["chapter"] == s["chapter"] and t["title"] != s["chapter"] for t in scenes))]
+    populated = {
+        u["scene_id"] for u in result["units"] if u["type"] in {"dialogue", "narration", "option"}
+    }
+    return [s for s in scenes if not (
+        s["scene_id"] not in populated and s["chapter"] and s["title"] == s["chapter"]
+        and any(t["chapter"] == s["chapter"] and t["title"] != s["chapter"] for t in scenes)
+    )]
 
 
 def event_steps(result):
