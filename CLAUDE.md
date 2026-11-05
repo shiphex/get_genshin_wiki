@@ -2,7 +2,7 @@
 
 ## 项目目标
 
-当前发布版本：`2.2.0`。版本元数据与锁文件保持一致，发布说明见 `docs/releases/V2.2.0.md`。
+当前发布版本：`2.3.1`。版本元数据与锁文件保持一致，发布说明见 `docs/releases/V2.3.1.md`。
 
 本项目用于抓取并解析 bilibili 原神 Wiki（`https://wiki.biligame.com/ys/`）的数据，输出原始页面 payload 与结构化 JSON，供后续数据清洗、检索、训练和验证使用。
 
@@ -152,6 +152,9 @@ V2.2.0 的验证基线为 122 passed / 18 subtests passed。文档更新不能�
 - 使用与限制见 `docs/guide/snapshot_recovery_guide.md`。
 
 ## 约束
+
+- V2.3.1 冻结快照修复使用 `tools/rebuild_parser_snapshot.py` 写入全新目录；旧版基线必须从同输入复现，非预期业务差异阻断交付。不要为正文修复放宽实体版本刷新工具的默认检查。
+- HTML ruby 保留基底文字，rt/rp 不进入正文；半角/全角冒号仅经过共享剧情语法路径识别，文档、阅读、引用、旁白和玩家选项仍使用原有分类规则。
 
 - 抓取逻辑必须遵守 `robots.txt`。
 - 不要把 `refer/` 中的脚本当成生产接口。

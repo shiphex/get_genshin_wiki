@@ -30,6 +30,20 @@ METADATA_FIELD_PATTERNS = re.compile(r"(?:卷\d+(?:名|获取地点)|章节(?:�
 REDIRECT = re.compile(r"^\s*#(?:重定向|redirect)\s*:?\s*\[\[([^\]|]+)(?:\|[^\]]*)?\]\]", re.I)
 
 
+def ascii_speaker_label(label, body):
+    """Conservative names only; colon-bearing prose and damaged syntax stay uncertain."""
+    fields = METADATA_FIELDS | {"提示", "编号", "备注", "说明", "比例"}
+    candidate = re.sub(r"[（(][^）)\n]*[）)]", "", label)
+    return bool(label and label not in fields and not body.lstrip().startswith("//")
+                and (label in {"？？？", "???"}
+                     or re.fullmatch(r"[^\d{}|=<>，。！？；：:\n]{1,40}", candidate)))
+
+
+def speaker_prefix(text):
+    match = re.match(r"^[\s*:>#]*(?P<label>[^：:\n]+)(?P<colon>[：:])(?P<body>.*)", text)
+    return bool(match and (match["colon"] == "：" or ascii_speaker_label(match["label"], match["body"])))
+
+
 class RecoveryExtractor:
     def __init__(self, parser, source: SourcePage, resolve_page: Resolver | None = None, visited=()):
         self.parser = parser
@@ -325,7 +339,7 @@ class RecoveryExtractor:
                 at_boundary = not pending.strip(" \t\r*:>#")
                 inline_container = at_boundary and (
                     "\n" in str(node.contents)
-                    or (kind == "dialogue" and re.match(r"^[\s*:>#]*[^：\n]+：", display_text(str(node.contents))))
+                    or (kind == "dialogue" and speaker_prefix(display_text(str(node.contents))))
                 )
             container = isinstance(node, Tag) and (
                 str(node.tag).lower() in {"tabber", "div", "poem", "p", "center", "blockquote", "includeonly", "onlyinclude"}
@@ -377,7 +391,7 @@ class RecoveryExtractor:
                 # An explicit next speaker still starts a separate utterance.
                 if "".join(parts).lstrip().startswith("*"):
                     following = display_text(raw[node_end - start:]).split("\n", 1)[0]
-                    if not re.match(r"^[\s*:>#]*[^：\n]+：", following):
+                    if not speaker_prefix(following):
                         parts.append(str(node))
                         cursor = node_end
                         continue
@@ -423,7 +437,7 @@ class RecoveryExtractor:
         elif reason in {"written_object", "written_announcement"} or document_context:
             subtype = "document"
         elif reason == "reading_action":
-            body = unit["text"].partition("：")[2].strip()
+            body = re.split(r"[：:]", unit["text"], maxsplit=1)[-1].strip()
             if any(body.startswith(left) and body.endswith(right) for left, right in QUOTE_PAIRS):
                 subtype = "document"
             elif not re.search(r"[「『《【]", label) or re.match(r"(?:你|旅行者|派蒙)?(?:翻开|打开|阅读|查看|检查|调查|拿起)", body):
@@ -483,9 +497,13 @@ class RecoveryExtractor:
         if kind == "dialogue" and speaker_override is None:
             split = None
             for node, node_start, node_end in nodes_with_spans(raw, start):
-                if isinstance(node, Text) and "：" in str(node):
-                    split = node_start + str(node).index("：") - start
+                if isinstance(node, Text) and (colon := re.search(r"[：:]", str(node))):
+                    split = node_start + colon.start() - start
                     break
+            if split is not None and raw[split] == ":" and not ascii_speaker_label(
+                    display_text(raw[:split]), display_text(raw[split + 1:])):
+                self.issue("ambiguous_ascii_speaker", start, start + len(raw), classification_status="unresolved")
+                split = None
             if split is not None and not display_text(raw[split + 1:]):
                 # A colon is not sufficient evidence of a speaker, especially
                 # when it introduces the quoted narration on the next line.
@@ -531,8 +549,8 @@ class RecoveryExtractor:
         if kind == "narration" and not document_body_offset and any(c["document"] for c in self.fold_context):
             # A document's key is not visible body evidence for a hidden value.
             for node, node_start, _ in nodes_with_spans(raw, start):
-                if isinstance(node, Text) and "：" in str(node):
-                    document_body_offset = node_start + str(node).index("：") - start + 1
+                if isinstance(node, Text) and (colon := re.search(r"[：:]", str(node))):
+                    document_body_offset = node_start + colon.start() - start + 1
                     break
         if kind in {"dialogue", "option", "narration"}:
             # Preserving a document's label must not make an entirely hidden

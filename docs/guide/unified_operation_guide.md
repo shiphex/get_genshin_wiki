@@ -10,6 +10,8 @@
 
 ## 1. 环境与入口
 
+V2.3.1 冻结解析修复请使用 `python tools/rebuild_parser_snapshot.py --source-zip <原包.zip> --output-root <不存在的新目录>`。该入口只读原包，输出独立快照、旧解析器基线、逐项差异和 Pointer 对照；不会覆盖现有 data。正文修复不走仅接受实体版本字段变化的刷新入口。详见 [发布说明](../releases/V2.3.1.md)。
+
 在仓库根目录准备环境后执行；在线抓取需要访问 Wiki API：
 
 ```powershell

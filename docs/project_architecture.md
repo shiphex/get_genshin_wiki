@@ -1,6 +1,8 @@
 # 项目架构设计
 
-对应发布版本：V2.2.0。操作入口以 [统一指南](guide/unified_operation_guide.md) 和 [离线恢复指南](guide/snapshot_recovery_guide.md) 为准。
+对应发布版本：V2.3.1。操作入口以 [统一指南](guide/unified_operation_guide.md) 和 [离线恢复指南](guide/snapshot_recovery_guide.md) 为准。
+
+`tools/rebuild_parser_snapshot.py` 是冻结解析修复交付入口：独立进程加载 Git 中的旧解析器，在同输入上生成基线；当前解析器重建后按原文位置审计差异，并输出新的 recovery。版本字段刷新工具的默认业务差异检查保持不变。
 
 ## 1. 项目定位
 
